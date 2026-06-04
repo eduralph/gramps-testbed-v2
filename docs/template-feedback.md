@@ -1,7 +1,7 @@
 # Template feedback log
 
 > This instance (`gramps-testbed-v2`) is copier-rendered from the PDCA-harness
-> template at `/home/eddie/workspace/pdca-harness`. The **harness machinery** is
+> template (the sibling `pdca-harness` repo). The **harness machinery** is
 > template-managed, so improvements made here are really changes to the template
 > and must be fed back upstream. This file is the propagation log: every
 > template-bound change, its upstream target, and an apply note. Instance-only
