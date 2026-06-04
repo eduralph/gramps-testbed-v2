@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Claude — machine-local permissions/paths, never publish
+.claude/settings.local.json
+
+# Runtime / generated artifacts (regenerable)
+test-results/
+.rehearse/
+artifacts/
+*.log

@@ -1,0 +1,38 @@
+{
+  "issue_dir": "issue_selftest",
+  "overall": "fail",
+  "rows": [
+    {
+      "check": "T3 runtime: gramps core unit suite",
+      "result": "fail",
+      "oracle": "./engine/scripts/ubuntu/run-unit.sh",
+      "rule_id": "T3-unit",
+      "path_line": "Generated XML report: /workspace/gramps-testbed-v2/test-results/TEST-gramps.gen.merge.test.merge_ref_test.SourceSourceCh",
+      "gating": true
+    },
+    {
+      "check": "C5 causal adequacy",
+      "result": "none",
+      "oracle": "reviewer + human sign-off",
+      "rule_id": "",
+      "path_line": "",
+      "gating": false
+    },
+    {
+      "check": "T5 judgment",
+      "result": "none",
+      "oracle": "reviewer + human sign-off",
+      "rule_id": "",
+      "path_line": "",
+      "gating": false
+    },
+    {
+      "check": "Validation act",
+      "result": "none",
+      "oracle": "human at sign-off",
+      "rule_id": "",
+      "path_line": "",
+      "gating": false
+    }
+  ]
+}

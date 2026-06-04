@@ -1,0 +1,127 @@
+# pdca.toml — driver configuration for Gramps Testbed v2.
+# Read by pdca_harness.config; the only project-specific runtime config.
+
+[project]
+name = "Gramps Testbed v2"
+default_branch = "main"
+# Default §9 sign-off attribution, so `flow`/`signoff` never need a --by. Override
+# per-run with --by. (Template renders this from the copier author_name answer.)
+author = "Eduard Ralph"
+
+[paths]
+bundle_root = "results"
+process_dir = "process"
+templates_dir = "templates"
+
+[tracker]
+system = "mantis"
+url = "https://gramps-project.org/bugs"
+issue_id_example = "13418"
+
+# The five model leaves (docs 03 §Implementation substrate). mode = "stub" runs
+# the offline placeholders (no Claude/TTY); mode = "command" runs `argv` as a
+# subprocess in the bundle dir with the leaf's prompt appended. `interactive =
+# true` hands the terminal to the human (a seeded `claude "<prompt>"` REPL, no
+# -p); a headless leaf runs autonomously (`claude -p …`) and writes its artifact.
+# Set PDCA_LEAVES_MODE=stub to force stubs everywhere (CI / `make` determinism).
+#
+# Headless leaves — Do builder (writes patch.diff + test + build-notes.md):
+[leaves.builder]
+mode = "command"
+family = "claude"
+interactive = false
+argv = ["claude", "-p", "--agent", "builder", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Edit,Bash(git *),Bash(python3 *)"]
+
+# Check reviewer (advisory, build-notes withheld). Cross-vendor decorrelation is
+# the ideal (a DIFFERENT family from the builder); `--agent reviewer` is the
+# documented same-vendor fallback when codex isn't available — switch family/argv
+# to codex to restore independence (INTEGRATION §4).
+[leaves.reviewer]
+mode = "command"
+family = "claude"
+interactive = false
+argv = ["claude", "-p", "--agent", "reviewer", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Edit"]
+
+# Interactive leaves — the human-in-the-loop touch points (Plan, Sign-off, Act):
+[leaves.planner]
+mode = "command"
+family = "claude"
+interactive = true
+argv = ["claude", "--agent", "planner", "--permission-mode", "acceptEdits"]
+
+[leaves.signoff]
+mode = "command"
+family = "claude"
+interactive = true
+argv = ["claude", "--agent", "signoff", "--permission-mode", "acceptEdits"]
+
+[leaves.act]
+mode = "command"
+family = "claude"
+interactive = true
+argv = ["claude", "--agent", "act", "--permission-mode", "acceptEdits"]
+
+# Deterministic Check gates (docs 04). Each check runs a shell command; it PASSES
+# iff the command exits 0. `scope = "repo"` runs against the working tree (and is
+# what CI re-runs via `pdca gates --working-tree`); `scope = "bundle"` needs the
+# bundle/patch context ($PDCA_BUNDLE is exported) and runs only locally. The
+# SAME commands run for the local driver and CI — single-sourced, no drift.
+#
+# The REAL gramps gate tiers (verified commands from the gramps-testbed reference
+# repo, see docs/INTEGRATION.md §4). The gramps verification engine lives under
+# `engine/` here (the reference repo's `agent-work/scripts/` + top-level `docker/`
+# were consolidated into one namespace on integration). As soon as ONE real
+# `[[gates.checks]]` row is active, `config.gates_checks` is non-empty and the
+# driver stops using its built-in all-PASS stubs — so the rows below are the live
+# gate set, not a fallback.
+#
+# LIVE: C4-verify (per-fix red→green, GATING) + T3-unit (whole-suite, advisory).
+# STAGED (commented): T1/T2 static analysis and addon-unit. The same cmd runs both
+# places (single-sourced via `pdca gates` / `pdca gates --working-tree`, no drift).
+
+# C4 — the per-fix CORRECTNESS gate (bundle-scoped, GATING). Applies the bundle's
+# patch.diff and runs ONLY its test, asserting red-without-fix / green-with-fix.
+# This is what makes a bugfix cycle mean something — it actually validates THIS
+# change, unlike T3-unit below.
+[[gates.checks]]
+id = "C4-verify"
+tier = "C4"
+label = "fix verified: test red pre-fix, green post-fix"
+cmd = "./engine/scripts/ubuntu/run-verify.sh"
+gating = true
+scope = "bundle"
+
+# T3 runtime — the WHOLE gramps core unit suite, on the UNMODIFIED tree. Advisory
+# (gating = false): on a checkout with any pre-existing failure it is red as a
+# baseline and never sees the bundle's patch, so it cannot gate a single fix —
+# C4-verify above is the per-fix gate. Re-gate this once the suite is green-baseline.
+[[gates.checks]]
+id = "T3-unit"
+tier = "T3"
+label = "runtime: gramps core unit suite (whole-suite baseline)"
+cmd = "./engine/scripts/ubuntu/run-unit.sh"
+gating = false
+scope = "repo"
+
+# --- STAGED (not yet ported / wired) -----------------------------------------
+# T1/T2 structure+shape — fork pre-commit hooks (black, ruff E9/F63/F7/F82, ast.parse):
+# [[gates.checks]]
+# id = "T1-precommit"
+# tier = "T1"
+# label = "structure/shape: black + ruff + ast.parse"
+# cmd = "pre-commit run --all-files"
+# gating = true
+# scope = "repo"
+#
+# T3 runtime — addon unit suite:
+# [[gates.checks]]
+# id = "T3-addon-unit"
+# tier = "T3"
+# label = "runtime: addon unit suite"
+# cmd = "./engine/scripts/ubuntu/run-addon-unit.sh"
+# gating = true
+# scope = "repo"
+#
+# (C4-verify is LIVE above — the unit-level per-fix gate. An interface-level
+#  C4 via run-interface.sh lands here once that runner is ported.)
+
