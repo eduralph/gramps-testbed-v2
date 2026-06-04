@@ -6,7 +6,7 @@ way to a human-signed-off, verified fix — `Plan → Do → Check → sign-off 
 pausing only where a human belongs.
 
 The driver is deterministic (state machine + gates + the C6 accept-guard are plain
-code); a model is invoked only at the five **leaves**. See [docs/quality-cycle.md](docs/quality-cycle.md)
+code); a model is invoked only at the five **leaves**. See [PCDA/quality-cycle.md](PCDA/quality-cycle.md)
 for the model and [docs/INTEGRATION.md](docs/INTEGRATION.md) for the gramps specifics.
 
 ## Prerequisites
@@ -87,7 +87,8 @@ engine/             the gramps verification engine (Docker runners, lib, C4-veri
 templates/          brief / design-proposal / SUMMARY templates
 results/issue_<id>/ one bundle per issue — the state IS the files here
 pdca.toml           project config: leaves, gates, tracker, paths
-docs/               INTEGRATION.md (gramps concretizations), quality-cycle.md
+docs/INTEGRATION.md gramps concretizations
+PCDA/               the generic model (reference docs)
 .claude/agents/     the five leaf agents (planner, builder, reviewer, signoff, act)
 ```
 

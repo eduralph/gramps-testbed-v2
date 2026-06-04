@@ -4,19 +4,19 @@
 > GEPS-style design proposal (major architecture / public API / data model / UX, or
 > anything needing design buy-in before implementation). **Most work — bug fixes and
 > ordinary new functionality — uses `brief.md.tpl` instead; not every feature is a
-> GEPS.** Authored interactively at Plan (the planner leaf) with the human. Do reads
-> ONLY this file and implements it; Check runs the regular gated check on the code.
+> design proposal.** Authored interactively at Plan (the planner leaf) with the human.
+> Do reads ONLY this file and implements it; Check runs the regular gated check on the code.
 >
 > Keep the `- **Label:** value` lines — they are parsed by the driver (Do reads the
 > spec from them; the driver/SUMMARY read slug/criterion/branch). The prose `##`
 > sections are the design rationale: the reviewer and the human read them at
-> sign-off, and they are what you carry upstream into the GEPS wiki process.
+> sign-off, and they are what you carry upstream into any design-proposal process.
 
 - **Slug:** <short-kebab-slug>
-- **Kind:** enhancement (GEPS)
+- **Kind:** enhancement (design proposal)
 - **Goal:** <the capability this adds — the observable new behaviour>
 - **Success criterion:** <the observable condition that means it works — what the shipped test asserts>
-- **Repo + branch target:** <repo @ master — new-feature core work targets master (INTEGRATION §2)>
+- **Repo + branch target:** <repo @ branch — resolved here per INTEGRATION §2, not left to Do>
 - **Scope:** <the one feature, in one logical change> / out of scope: <what is explicitly excluded>
 - **Test file:** <path where the feature's test ships — red before, green after>
 - **Citations expected:** Do must cite path:line on the target branch for every change.

@@ -20,14 +20,14 @@ current bundle directory.
 A `brief.md` per issue. **Default to `templates/brief.md.tpl`** — it fits bug fixes
 *and* ordinary new functionality (state the gap/need in the Defect/Goal field).
 
-Reserve `templates/design-proposal.md.tpl` (the GEPS-style design proposal) for the
+Reserve `templates/design-proposal.md.tpl` (the design-proposal / GEPS form) for the
 **exception**: a change significant enough to warrant a proposal — substantial
 architecture, public-API, data-model or UX impact, or anything that needs design
-buy-in before implementation. **Not every feature is a GEPS** — most are not. When
-in doubt, use the normal brief; it's the human's call. When you do use it, the GEPS
-*is* the Plan artifact (you author motivation/design/alternatives/impact here); Do
-still implements it and Check runs the regular gated check — it's a richer brief,
-not a separate track. New features target `master` (INTEGRATION §2).
+buy-in before implementation. **Not every feature is a design proposal** — most are
+not. When in doubt, use the normal brief; it's the human's call. When you do use it,
+the design proposal *is* the Plan artifact (you author motivation/design/alternatives/
+impact here); Do still implements it and Check runs the regular gated check — it's a
+richer brief, not a separate track. Resolve the branch target per INTEGRATION §2.
 
 Either way the output file is `brief.md`, and you must keep the parsed
 `- **Label:** value` lines (the driver reads the spec from them). The load-bearing

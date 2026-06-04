@@ -2,8 +2,8 @@
 
 CI/CD harness for interface-testing Gramps and third-party addons via AT-SPI / dogtail
 
-This project runs the **PDCA quality cycle** ([docs/quality-cycle.md](docs/quality-cycle.md)).
-Repo-specific concretizations are in [docs/INTEGRATION.md](docs/INTEGRATION.md) —
+This project runs the **PDCA quality cycle** ([PCDA/quality-cycle.md](PCDA/quality-cycle.md),
+the reference model). Repo-specific concretizations are in [docs/INTEGRATION.md](docs/INTEGRATION.md) —
 read it for tracker, branch targets, fixtures, and the conformance ruleset.
 
 ## The driver
