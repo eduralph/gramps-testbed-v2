@@ -61,7 +61,7 @@
   - Inside the container the suite is `GRAMPS_RESOURCES=. python3 -m unittest discover -p "*_test.py"`.
 - **Verification runner (test suite):**
   - Core unit: `./engine/scripts/ubuntu/run-unit.sh` **(ported, live)**
-  - Addon unit: `./engine/scripts/ubuntu/run-addon-unit.sh [addon ...]` *(not yet ported)* (empty = all addons
+  - Addon unit: `./engine/scripts/ubuntu/run-addon-unit.sh [addon ...]` **(ported, advisory)** (empty = all addons
     with `tests/test_*.py`; loaded via dotted path `<Addon>.tests.<module>`)
   - Windows (MSYS2 UCRT64): `./engine/scripts/windows/run-unit.sh`, `./engine/scripts/windows/run-addon-unit.sh` *(not yet ported)*
 - **Platform variants:** Linux containerized (Docker) is the full matrix; Windows
@@ -81,7 +81,7 @@ For each tier: the written ruleset it consumes, its **home**, and the
 |---|---|---|---|---|
 | T1 structure | gramps CONTRIBUTING + fork pre-commit config | fork-local pre-commit hooks | `pre-commit run --all-files` (`black --check`, `ast.parse`) | [partial — built for forks] |
 | T2 shape | `ruff` E9/F63/F7/F82; `dev-tooling/semgrep/rules/` | fork pre-commit + dev-tooling mirror | `semgrep --config dev-tooling/semgrep/rules/` ; `ruff check` | [partial] |
-| T3 runtime | gramps test suite (stdlib `unittest`) | local Docker mirror + upstream CI | `./engine/scripts/ubuntu/run-unit.sh` ; `./engine/scripts/ubuntu/run-addon-unit.sh` | [partial — `run-unit.sh` ported & wired live as the `T3-unit` gate; `run-addon-unit.sh` not yet ported] |
+| T3 runtime | gramps test suite (stdlib `unittest`) | local Docker mirror + upstream CI | `./engine/scripts/ubuntu/run-unit.sh` ; `./engine/scripts/ubuntu/run-addon-unit.sh` | [built — both ported & wired (advisory `T3-unit` / `T3-addon-unit`); lib helpers + image helpers ported. The addon-unit catalog/sysdeps sub-gates skip until their tests are ported] |
 | T4 contribution | addon-dev guidelines (doc 16); commit/PR conventions (§8) | fork PR CI + human review | `./scripts/verify-pr.sh <org/repo> <PR#>` | [partial] |
 | T5 judgment | reviewer contract below | Check reviewer + sign-off | (model) | [planned] |
 
@@ -153,7 +153,7 @@ List every project-specific script the cycle invokes (role → path + invocation
 | Tracker scrape | `triage/scripts/mantis_notes.py` | scrape Mantis comment threads → `triage/notes/issue_<id>.json` | [built] |
 | Handoff / brief generator | `triage/scripts/make_handoff.py` | merge CSV export + notes → per-issue briefs | [built] |
 | Fork bootstrap | `engine/scripts/bootstrap-forks.sh` | clone gramps + addons-source forks as siblings, set `upstream` | [ported — root via pdca.toml marker, git-free] |
-| Repro / verification runners | `engine/scripts/ubuntu/run-*.sh`, `engine/scripts/windows/run-*.sh` | unit / addon-unit / interface / manual | [partial — `ubuntu/run-unit.sh` ported] |
+| Repro / verification runners | `engine/scripts/ubuntu/run-*.sh`, `engine/scripts/windows/run-*.sh` | unit / addon-unit / interface / manual | [partial — `ubuntu/{run-unit,run-addon-unit,run-verify,rebuild-image,clean-build}.sh` + `lib/` ported; interface/manual + windows pending] |
 | Per-fix correctness gate (C4) | `engine/scripts/ubuntu/run-verify.sh` | bundle-scoped: applies `patch.diff`, runs only its test, asserts red-without-fix / green-with-fix | [built — GATING; validated red→green] |
 | PR verification | `scripts/verify-pr.sh` | `./scripts/verify-pr.sh <org/repo> <PR#> [--watch]` (poll checks) | [built] |
 | Conformance analyzers | `dev-tooling/{pyright,semgrep}/`, `dev-tooling/pre-commit/install.sh` | core shape/flow analyzers + fork hooks | [partial] |

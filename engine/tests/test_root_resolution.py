@@ -33,13 +33,25 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # Each engine wrapper and the roots its resolver must produce. Explicit (not
 # globbed) so a newly added runner that forgets the robust resolution surfaces
 # here as a missing-file failure, prompting the author to add it to the guard.
-SPECS = {
-    "engine/scripts/ubuntu/run-unit.sh": {
+_RE = {  # the roots each kind of runner resolves
+    "full": {
         "REPO_ROOT": str(REPO_ROOT),
         "ENGINE": str(REPO_ROOT / "engine"),
         "WORKSPACE": str(REPO_ROOT.parent),
         "TESTBED_NAME": REPO_ROOT.name,
     },
+    "engine_ws": {
+        "REPO_ROOT": str(REPO_ROOT),
+        "ENGINE": str(REPO_ROOT / "engine"),
+        "WORKSPACE": str(REPO_ROOT.parent),
+    },
+}
+SPECS = {
+    "engine/scripts/ubuntu/run-unit.sh": _RE["full"],
+    "engine/scripts/ubuntu/run-addon-unit.sh": _RE["full"],
+    "engine/scripts/ubuntu/run-verify.sh": _RE["engine_ws"],
+    "engine/scripts/ubuntu/rebuild-image.sh": _RE["engine_ws"],
+    "engine/scripts/ubuntu/clean-build.sh": _RE["engine_ws"],
     "engine/scripts/bootstrap-forks.sh": {
         "TESTBED": str(REPO_ROOT),
         "WORKSPACE": str(REPO_ROOT.parent),

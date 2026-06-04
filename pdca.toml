@@ -103,6 +103,17 @@ cmd = "./engine/scripts/ubuntu/run-unit.sh"
 gating = false
 scope = "repo"
 
+# T3 runtime — the addon unit suites (per-addon test_*.py across addons-source).
+# Advisory for the same reason as T3-unit: it runs every addon's suite on the
+# unmodified tree, so it is a baseline signal, not a per-fix gate.
+[[gates.checks]]
+id = "T3-addon-unit"
+tier = "T3"
+label = "runtime: addon unit suites (whole-suite baseline)"
+cmd = "./engine/scripts/ubuntu/run-addon-unit.sh"
+gating = false
+scope = "repo"
+
 # --- STAGED (not yet ported / wired) -----------------------------------------
 # T1/T2 structure+shape — fork pre-commit hooks (black, ruff E9/F63/F7/F82, ast.parse):
 # [[gates.checks]]
@@ -113,14 +124,6 @@ scope = "repo"
 # gating = true
 # scope = "repo"
 #
-# T3 runtime — addon unit suite:
-# [[gates.checks]]
-# id = "T3-addon-unit"
-# tier = "T3"
-# label = "runtime: addon unit suite"
-# cmd = "./engine/scripts/ubuntu/run-addon-unit.sh"
-# gating = true
-# scope = "repo"
 #
 # (C4-verify is LIVE above — the unit-level per-fix gate. An interface-level
 #  C4 via run-interface.sh lands here once that runner is ported.)
