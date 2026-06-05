@@ -30,37 +30,52 @@
   is required at this role; a different tracker needs its own.)
 
 ## 2. Branch-target rules
+Normative source: wiki **doc 16 §Contributor workflow** (`doc16:111-115`), the
+vendored ruleset; each target carries its auditable origin per doc 16
+§Conventions. Verified against the sibling checkouts: gramps is on
+`maintenance/gramps61` (v6.1.0), addons-source `origin/HEAD → maintenance/gramps60`.
 - **Per-area branch map:**
-  - gramps **core** fixes *and* code-cleanup PRs → `maintenance/gramps61` (current
-    production branch), **not** `master`.
-  - **addon** fixes → `maintenance/gramps60` (addons production); maintainer
-    cherry-picks forward to gramps61.
+  - gramps **core** fixes *and* code-cleanup PRs → `maintenance/gramps61` (the
+    current production branch), forward-merged to `master` — **not** `master`
+    directly. (`doc16:113`; jralls on gramps#2298.)
+  - **addon** fixes (`addons-source`) → `maintenance/gramps60` (addons production);
+    the maintainer cherry-picks forward to gramps61. (`doc16:112`; Gary Griffin on
+    addons-source PR 915, 2026-05-24.)
   - **testbed itself** → `main`.
   - Only genuinely new-feature core work targets `master`.
-- **Override convention:** a maintainer's explicit base-branch request in the PR
-  review thread beats the default.
+- **Branch from `upstream/<base>`, not the fork's tracking copy** — fork bases
+  drift (e.g. gramps PRs 2315/2316 carried a stray `AGENTS.md` from the fork).
+  (`doc16:115`.)
+- **Override convention:** a maintainer's explicit base-branch request on the PR
+  wins over the default. (`doc16:114`; e.g. Nick-Hall on gramps#2299.)
 - **Cross-version cherry-pick rules:** addons are picked forward gramps60 → gramps61
   by the maintainer. Cherry-picking is a **correctness** check, not a git-conflict
   check — "applies cleanly" is *not* "remains correct"; verify against the target
   branch's related code (including files the patch doesn't touch).
 - **Master-vs-maintenance rule:** `master` is feature-only; fixes ride the current
-  maintenance branch and forward-merge from there so they reach users sooner
-  (gramps-testbed `CLAUDE.md` §"Upstream fix workflow").
+  maintenance branch and forward-merge from there so they reach users sooner.
+  (`doc16:113`.)
 
 ## 3. Reproduction fixtures and runners
 > **Engine layout (this instance):** the gramps verification engine lives under
 > `engine/` here — the reference repo's `agent-work/scripts/` + top-level `docker/`
-> were consolidated into one namespace on integration. Paths below are
-> `engine/scripts/…`. **Ported so far: `run-unit.sh` only** (the T3-unit vertical
-> slice, wired live in `pdca.toml`). The other runners are described from the
-> reference repo and are **not yet ported** here.
+> were consolidated into one namespace on integration. **Ported & wired:**
+> `ubuntu/run-unit.sh` (T3-unit), `ubuntu/run-addon-unit.sh` (T3-addon-unit),
+> `ubuntu/run-verify.sh` (C4-verify, gating), the image helpers
+> `ubuntu/{rebuild-image,clean-build}.sh`, and the `scripts/lib/` helpers — all
+> live in `pdca.toml`. **Not yet ported:** the GUI/interface + manual runners and
+> the Windows variants (described below from the reference repo).
+> (`engine/scripts/run-verify.sh` is the *generic template skeleton*, not the
+> gramps gate — the wired C4 gate is `ubuntu/run-verify.sh`.)
 - **Canonical fixture path:** `example.gramps`.
 - **Reproduction runner(s) + commands:**
   - GUI / dogtail (AT-SPI): `./engine/scripts/ubuntu/run-interface.sh` *(not yet ported)*
   - Visible manual QA: `./engine/scripts/ubuntu/run-manual.sh` *(not yet ported)*
   - Inside the container the suite is `GRAMPS_RESOURCES=. python3 -m unittest discover -p "*_test.py"`.
 - **Verification runner (test suite):**
-  - Core unit: `./engine/scripts/ubuntu/run-unit.sh` **(ported, live)**
+  - Per-fix C4 gate (red→green): `./engine/scripts/ubuntu/run-verify.sh` **(ported, gating)** —
+    applies the bundle's `patch.diff` and runs *only* its test (`$PDCA_BUNDLE`).
+  - Core unit: `./engine/scripts/ubuntu/run-unit.sh` **(ported, advisory baseline)**
   - Addon unit: `./engine/scripts/ubuntu/run-addon-unit.sh [addon ...]` **(ported, advisory)** (empty = all addons
     with `tests/test_*.py`; loaded via dotted path `<Addon>.tests.<module>`)
   - Windows (MSYS2 UCRT64): `./engine/scripts/windows/run-unit.sh`, `./engine/scripts/windows/run-addon-unit.sh` *(not yet ported)*
@@ -77,13 +92,30 @@
 For each tier: the written ruleset it consumes, its **home**, and the
 **single-sourced command** the driver and CI both run.
 
+**The T1–T4 ladder is founded on wiki doc 16** —
+[`wiki/pages/05 - Addon development/16-guidelines.md`](../wiki/pages/05%20-%20Addon%20development/16-guidelines.md),
+titled "Addon Development — Rules", written in RFC-2119 MUST/SHOULD/MAY. Its
+sections *are* the tiers: §Structure / §Source location → **T1**, §Coding style
+→ **T2**, §Runtime / §Testing → **T3**, §Contributor workflow / §Verification
+before commit / §Commit messages / §Mantis trailers → **T4**. The
+`engine/conformance/{t1_structure,t2_shape,t4_contribution}.py` checkers
+mechanize the statically-decidable **MUST** rules, each citing its rule back to
+`doc16:LINE` (doc 16 §Conventions requires every rule be auditable to source).
+
 | Tier | Written ruleset | Home | Single-sourced command | Status |
 |---|---|---|---|---|
-| T1 structure | gramps CONTRIBUTING + fork pre-commit config | fork-local pre-commit hooks | `pre-commit run --all-files` (`black --check`, `ast.parse`) | [partial — built for forks] |
-| T2 shape | `ruff` E9/F63/F7/F82; `dev-tooling/semgrep/rules/` | fork pre-commit + dev-tooling mirror | `semgrep --config dev-tooling/semgrep/rules/` ; `ruff check` | [partial] |
-| T3 runtime | gramps test suite (stdlib `unittest`) | local Docker mirror + upstream CI | `./engine/scripts/ubuntu/run-unit.sh` ; `./engine/scripts/ubuntu/run-addon-unit.sh` | [built — both ported & wired (advisory `T3-unit` / `T3-addon-unit`); lib helpers + image helpers ported. The addon-unit catalog/sysdeps sub-gates skip until their tests are ported] |
-| T4 contribution | addon-dev guidelines (doc 16); commit/PR conventions (§8) | fork PR CI + human review | `./scripts/verify-pr.sh <org/repo> <PR#>` | [partial] |
+| T1 structure | doc 16 §Structure / §Source location (folder==id, `gramps_target_version`, `fname`, no `__init__.py`, no injected imports) | `engine/conformance/t1_structure.py` | `python3 ./engine/conformance/gate.py T1` (audits the addon the patch touches) | [built — advisory `T1-structure`, bundle-scoped] |
+| T2 shape | doc 16 §Coding style (GPL header MUST; no diagnostic `print()`); `black --check` is a separate formatter gate | `engine/conformance/t2_shape.py` | `python3 ./engine/conformance/gate.py T2` | [built — advisory `T2-shape`, bundle-scoped; type-hint/docstring/`cb_` SHOULDs left to reviewer judgment] |
+| T3 runtime | doc 16 §Runtime / §Testing; gramps test suite (stdlib `unittest`) | local Docker mirror + upstream CI | `./engine/scripts/ubuntu/run-unit.sh` ; `./engine/scripts/ubuntu/run-addon-unit.sh` | [built — both ported & wired (advisory `T3-unit` / `T3-addon-unit`); lib helpers + image helpers ported. The addon-unit catalog/sysdeps sub-gates skip until their tests are ported] |
+| T4 contribution | doc 16 §Commit messages + §Mantis trailers + §Contributor-workflow PR-body rules (commit/PR conventions, §8) | `engine/conformance/t4_contribution.py` | `python3 ./engine/conformance/gate.py T4` (validates the bundle's `commit-msg.txt` / `pr-description.md`) | [built — advisory `T4-contribution`, bundle-scoped] |
 | T5 judgment | reviewer contract below | Check reviewer + sign-off | (model) | [planned] |
+
+- **Why advisory (gating = false):** T1/T2/T4 audit the *touched* contribution and
+  surface doc-16 violations as evidence for the reviewer + human, but do not gate
+  on legacy addon state the contribution did not introduce (many shipped addons
+  predate parts of doc 16). A core-only patch is **N/A** for T1/T2; a bundle with
+  no commit/PR wrapper is N/A for T4. Promote a tier to gating once the targeted
+  addons are conformance-clean. The per-fix correctness gate stays **C4-verify**.
 
 - **Reviewer family (cross-vendor, ≠ builder):** codex — config `AGENTS.md`
   (decorrelated path); `.claude/agents/reviewer.md` is a same-vendor fallback with
@@ -141,26 +173,30 @@ For each tier: the written ruleset it consumes, its **home**, and the
 - **PR description format:** Root cause / Fix / Verified against / Test (see
   `templates/pr-description.md.tpl`). The PR body MUST reference the Mantis issue
   using upstream's auto-link keywords.
-- **Enforcement mechanism:** human review today; fork pre-commit hooks
+- **Enforcement mechanism:** human review + the advisory T1/T2/T4 conformance
+  gates (`engine/conformance/`, doc-16-founded — §4); fork pre-commit hooks
   (`black` / `ruff` / `ast.parse`, plus `mypy` on the gramps fork) catch
-  structure/shape; commit-msg hook [planned] (Tier 4 greenfield).
+  structure/shape upstream. The commit-message / Mantis-trailer checks are
+  **built** (T4, `t4_contribution.py`); a git commit-msg *hook* wrapper is the
+  only Tier-4 piece still greenfield.
 
 ## 9. Repo-specific scripts and tooling
 List every project-specific script the cycle invokes (role → path + invocation + status).
 
 | Role | Path | Invocation | Status |
 |---|---|---|---|
-| Tracker scrape | `triage/scripts/mantis_notes.py` | scrape Mantis comment threads → `triage/notes/issue_<id>.json` | [built] |
-| Handoff / brief generator | `triage/scripts/make_handoff.py` | merge CSV export + notes → per-issue briefs | [built] |
+| Tracker scrape | `triage/scripts/mantis_notes.py` | scrape Mantis comment threads → `triage/notes/issue_<id>.json` | [not ported — reference-repo tooling; absent here] |
+| Handoff / brief generator | `triage/scripts/make_handoff.py` | merge CSV export + notes → per-issue briefs | [not ported — superseded by the interactive **planner** leaf, which briefs from the CSV directly at Plan] |
 | Fork bootstrap | `engine/scripts/bootstrap-forks.sh` | clone gramps + addons-source forks as siblings, set `upstream` | [ported — root via pdca.toml marker, git-free] |
-| Repro / verification runners | `engine/scripts/ubuntu/run-*.sh`, `engine/scripts/windows/run-*.sh` | unit / addon-unit / interface / manual | [partial — `ubuntu/{run-unit,run-addon-unit,run-verify,rebuild-image,clean-build}.sh` + `lib/` ported; interface/manual + windows pending] |
+| Repro / verification runners | `engine/scripts/ubuntu/run-*.sh`, `engine/scripts/windows/run-*.sh` | unit / addon-unit / verify / interface / manual | [partial — `ubuntu/{run-unit,run-addon-unit,run-verify,rebuild-image,clean-build}.sh` + `lib/` ported; interface/manual + windows pending] |
 | Per-fix correctness gate (C4) | `engine/scripts/ubuntu/run-verify.sh` | bundle-scoped: applies `patch.diff`, runs only its test, asserts red-without-fix / green-with-fix | [built — GATING; validated red→green] |
-| PR verification | `scripts/verify-pr.sh` | `./scripts/verify-pr.sh <org/repo> <PR#> [--watch]` (poll checks) | [built] |
-| Conformance analyzers | `dev-tooling/{pyright,semgrep}/`, `dev-tooling/pre-commit/install.sh` | core shape/flow analyzers + fork hooks | [partial] |
-| Driver | `src/pdca_harness/` | `pdca run <id>` | [built — stub leaves] |
+| PR verification | `scripts/verify-pr.sh` | `./scripts/verify-pr.sh <org/repo> <PR#> [--watch]` (poll checks) | [not ported — reference-repo tooling; absent here] |
+| Conformance analyzers | `dev-tooling/{pyright,semgrep}/`, `dev-tooling/pre-commit/install.sh` | core shape/flow analyzers + fork hooks | [not ported — absent here; T1/T2 conformance gates (`engine/conformance/`) now cover structure/shape statically] |
+| Driver | `src/pdca_harness/` | `pdca run <id>` ; `pdca flow <id>` | [built — five model leaves wired (`[leaves.*] mode = "command"`); `pdca flow` runs the continuous Plan→Do→Check→sign-off→Act cycle] |
 | Act tooling (L4) | `src/pdca_harness/act.py` | `pdca act-index`, `pdca act-log --date <d>` | [built] |
-| Gates (single-sourced) | `pdca.toml` `[[gates.checks]]` | `pdca gates [<id>] [--working-tree]` | [built — `T3-unit` live via `engine/scripts/ubuntu/run-unit.sh`; addon-unit/interface/T1-T2 rows staged] |
-| Reviewer config | `AGENTS.md` + `.claude/agents/reviewer.md` | (model leaf) | [built — contract; wire command mode] |
+| Gates (single-sourced) | `pdca.toml` `[[gates.checks]]` | `pdca gates [<id>] [--working-tree]` | [built — C4-verify + `T3-unit`/`T3-addon-unit` + `T1-structure`/`T2-shape`/`T4-contribution` (doc-16-founded, advisory, `engine/conformance/`) live; interface-level C4 staged] |
+| Conformance checkers (doc 16) | `engine/conformance/{t1_structure,t2_shape,t4_contribution}.py` + `gate.py` | `python3 ./engine/conformance/gate.py {T1\|T2\|T4}` (bundle-scoped) | [built — §4 ladder; each MUST rule cites `doc16:LINE`; tested in `engine/tests/test_conformance.py`] |
+| Reviewer config | `AGENTS.md` + `.claude/agents/reviewer.md` | (model leaf) | [built — contract + `[leaves.reviewer] mode = "command"` wired; this instance runs the same-vendor `family = "claude"` fallback (decorrelated codex is the template default — see §4 and template-feedback #R)] |
 | Builder subagent | `.claude/agents/builder.md` + `.claude/hooks/builder_guard.py` | (model leaf) | [built — ready-mark blocked] |
 
 ## 10. Maintainer and governance

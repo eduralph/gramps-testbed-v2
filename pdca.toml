@@ -114,17 +114,44 @@ cmd = "./engine/scripts/ubuntu/run-addon-unit.sh"
 gating = false
 scope = "repo"
 
+# T1/T2/T4 conformance — the structure / shape / contribution tiers, mechanised
+# from wiki doc 16 ("Addon Development — Rules"), the foundation of the T1–T4
+# ladder. Each checker cites every rule back to doc16:LINE (see
+# engine/conformance/{t1_structure,t2_shape,t4_contribution}.py). They are
+# bundle-scoped — the dispatcher derives the target from the bundle: T1/T2 audit
+# the addon(s) the patch.diff touches (core-only patch = N/A), T4 the bundle's
+# commit-msg.txt / pr-description.md (absent = N/A). ADVISORY (gating = false),
+# like the T3 baselines: they audit the touched contribution and surface doc-16
+# violations as evidence for the reviewer + human, without gating on legacy
+# addon state that the contribution did not introduce. Promote to gating once
+# the targeted addons are conformance-clean.
+[[gates.checks]]
+id = "T1-structure"
+tier = "T1"
+label = "structure: addon layout vs doc 16 §Structure (folder==id, target_version, fname, no __init__.py)"
+cmd = "python3 ./engine/conformance/gate.py T1"
+gating = false
+scope = "bundle"
+
+[[gates.checks]]
+id = "T2-shape"
+tier = "T2"
+label = "shape: code shape vs doc 16 §Coding style (GPL header, no diagnostic print)"
+cmd = "python3 ./engine/conformance/gate.py T2"
+gating = false
+scope = "bundle"
+
+[[gates.checks]]
+id = "T4-contribution"
+tier = "T4"
+label = "contribution: commit/PR wrapper vs doc 16 §Commit messages + §Contributor workflow"
+cmd = "python3 ./engine/conformance/gate.py T4"
+gating = false
+scope = "bundle"
+
 # --- STAGED (not yet ported / wired) -----------------------------------------
-# T1/T2 structure+shape — fork pre-commit hooks (black, ruff E9/F63/F7/F82, ast.parse):
-# [[gates.checks]]
-# id = "T1-precommit"
-# tier = "T1"
-# label = "structure/shape: black + ruff + ast.parse"
-# cmd = "pre-commit run --all-files"
-# gating = true
-# scope = "repo"
-#
-#
-# (C4-verify is LIVE above — the unit-level per-fix gate. An interface-level
-#  C4 via run-interface.sh lands here once that runner is ported.)
+# An interface-level C4 via run-interface.sh lands here once that runner is
+# ported (C4-verify is LIVE above — the unit-level per-fix gate). A black/ruff
+# formatter gate (doc 16 §Coding style SHOULD, doc16:106) can be added repo-
+# scoped when the target repo enforces it; T2-shape covers the static MUSTs.
 

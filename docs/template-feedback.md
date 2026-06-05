@@ -189,6 +189,23 @@ the claude argv.
   tree has any pre-existing failure — so T3-unit was set `gating = false` (advisory)
   and C4-verify made the gating correctness check. Templates should not ship a
   whole-suite runtime gate as `gating = true` by default.
+- **T1/T2/T4 conformance checkers** (`engine/conformance/{t1_structure,t2_shape,
+  t4_contribution,gate}.py` + `engine/tests/test_conformance.py` + their three
+  `[[gates.checks]]` rows): the structure / shape / contribution tiers, mechanized
+  from **wiki doc 16** ("Addon Development — Rules"), which is the foundation of the
+  whole T1–T4 ladder (each MUST cites `doc16:LINE`). Doc 16 is *gramps addon policy*,
+  so the checkers and rows are **instance-only**. **No harness change was needed** —
+  again the existing `scope="bundle"` mechanism (the dispatcher derives the target
+  from `$PDCA_BUNDLE/patch.diff`) and the `gates.py` 5/5/1 overlay-by-`tier` (#158,
+  already template-bound) carried it. Two insights worth the template's attention:
+  (a) **conformance tiers should be advisory by default** for the same reason as the
+  runtime baseline — they audit *pre-existing* contributed code the current fix did
+  not introduce, so gating on legacy non-conformance is wrong; promote per-tier once
+  the targeted artifacts are clean. (b) The **tier names in `gates.py`'s 5/5/1 want a
+  one-line provenance pointer** to whatever each downstream project's normative
+  ruleset is (here doc 16) — the matrix is generic, but every instance should be able
+  to cite its tiers back to a written source, which is exactly what makes a gate
+  auditable. A copier `conformance_ruleset_ref` hint string would make that explicit.
 
 ## Design insights & gotchas (for the template maintainer)
 
