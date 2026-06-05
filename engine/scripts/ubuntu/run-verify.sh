@@ -38,38 +38,66 @@ _find_repo_root() {
 REPO_ROOT="$(_find_repo_root)"
 ENGINE="$REPO_ROOT/engine"
 WORKSPACE="$(cd "$REPO_ROOT/.." && pwd)"
+TESTBED_NAME="$(basename "$REPO_ROOT")"
 cd "$WORKSPACE"
 
 BUNDLE="${PDCA_BUNDLE:?run-verify.sh is bundle-scoped — \$PDCA_BUNDLE must be set}"
 PATCH="$BUNDLE/patch.diff"
 [ -f "$PATCH" ] || { echo "run-verify.sh: no patch.diff in $BUNDLE" >&2; exit 1; }
 
-# Classify the files the patch touches: the *_test.py is the test; the rest are
-# the production change reverted for the red check.
+# Detect the target from the brief: an addons-source fix verifies differently from a
+# gramps-core fix — different checkout, test-name convention, and run env. Default core.
+MODE=core
+if grep -iqE 'repo \+ branch( target)?:.*addons-source' "$BUNDLE/brief.md" 2>/dev/null; then
+  MODE=addon
+fi
+
+# Classify the patched files; the rest is the production change reverted for the red
+# check. Core tests use the *_test.py SUFFIX (gramps/**/test/); addon tests use the
+# test_*.py PREFIX (addons-source/<Addon>/tests/) — see INTEGRATION.md §3.
 mapfile -t FILES < <(grep -E '^\+\+\+ b/' "$PATCH" | sed -E 's|^\+\+\+ b/||')
 TEST_REL=""
 PROD=()
 for f in "${FILES[@]}"; do
-  case "$f" in
-    *_test.py) TEST_REL="$f" ;;
-    *)         PROD+=("$f") ;;
-  esac
+  base="$(basename "$f")"
+  if { [ "$MODE" = addon ] && [[ "$base" == test_*.py ]]; } \
+     || { [ "$MODE" = core ] && [[ "$base" == *_test.py ]]; }; then
+    TEST_REL="$f"
+  else
+    PROD+=("$f")
+  fi
 done
-[ -n "$TEST_REL" ] || { echo "run-verify.sh: patch ships no *_test.py to verify" >&2; exit 1; }
+want_test=$([ "$MODE" = addon ] && echo 'test_*.py' || echo '*_test.py')
+[ -n "$TEST_REL" ] || { echo "run-verify.sh: patch ships no $MODE test ($want_test) to verify" >&2; exit 1; }
 [ "${#PROD[@]}" -gt 0 ] || { echo "run-verify.sh: patch has no production change to revert" >&2; exit 1; }
-MODULE="$(printf '%s' "${TEST_REL%.py}" | tr '/' '.')"   # gramps/gui/test/x_test.py → gramps.gui.test.x_test
+MODULE="$(printf '%s' "${TEST_REL%.py}" | tr '/' '.')"   # core: gramps.gui.test.x_test ; addon: Addon.tests.test_x
 
-GRAMPS="$WORKSPACE/gramps"
-[ -d "$GRAMPS/.git" ] || { echo "run-verify.sh: no gramps checkout at $GRAMPS" >&2; exit 1; }
-git -C "$GRAMPS" diff --quiet || {
-  echo "run-verify.sh: gramps checkout has uncommitted changes — refusing to patch it" >&2; exit 1; }
+# Per-mode: which checkout we patch, the container cwd, and the run env. Addon tests
+# need a display (xvfb) so a @skipUnless(_HAS_GTK_DISPLAY) actually RUNS instead of
+# skipping, plus GRAMPS_RESOURCES + the gi_bootstrap shim (mirrors run-addon-unit.sh).
+if [ "$MODE" = addon ]; then
+  REPO="$WORKSPACE/addons-source"
+  CWD=/workspace/addons-source
+  RUNENV="GRAMPS_RESOURCES=/workspace/gramps PYTHONPATH=/workspace/$TESTBED_NAME/engine/scripts/lib/gi_bootstrap"
+  XVFB="xvfb-run -a"
+else
+  REPO="$WORKSPACE/gramps"
+  CWD=/workspace/gramps
+  RUNENV="GRAMPS_RESOURCES=."
+  XVFB=""
+fi
+
+[ -d "$REPO/.git" ] || { echo "run-verify.sh: no $MODE checkout at $REPO" >&2; exit 1; }
+git -C "$REPO" diff --quiet || {
+  echo "run-verify.sh: $REPO has uncommitted changes — refusing to patch it" >&2; exit 1; }
 # Always restore the checkout, even if interrupted; and kill a hung container so a
 # test can't block the cycle forever. Tunable via GRAMPS_TEST_TIMEOUT (seconds).
 TIMEOUT="${GRAMPS_TEST_TIMEOUT:-900}"
 CNAME="grampstest-$$"
-trap 'git -C "$GRAMPS" checkout -- . 2>/dev/null || true; docker rm -f "$CNAME" 2>/dev/null || true' EXIT
+trap 'git -C "$REPO" checkout -- . 2>/dev/null || true; docker rm -f "$CNAME" 2>/dev/null || true' EXIT
 
-GRAMPS_VERSION="$(sed -nE 's/^VERSION_TUPLE *= *\(([0-9]+), *([0-9]+), *([0-9]+)\).*$/\1.\2.\3/p' "$GRAMPS/gramps/version.py")"
+# The image tag tracks the gramps checkout's version regardless of mode (same base).
+GRAMPS_VERSION="$(sed -nE 's/^VERSION_TUPLE *= *\(([0-9]+), *([0-9]+), *([0-9]+)\).*$/\1.\2.\3/p' "$WORKSPACE/gramps/gramps/version.py")"
 : "${GRAMPS_VERSION:?could not detect Gramps version}"
 IMAGE="${GRAMPS_TESTBED_IMAGE:-gramps-testbed:ubuntu-$GRAMPS_VERSION}"
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
@@ -77,14 +105,16 @@ if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   docker build -f "$ENGINE/docker/Dockerfile.ubuntu" -t "$IMAGE" "$ENGINE"
 fi
 
-echo "→ C4-verify: $MODULE  (test: $TEST_REL ; reverting: ${PROD[*]})"
+echo "→ C4-verify ($MODE): $MODULE  (test: $TEST_REL ; reverting: ${PROD[*]})"
 rc=0
 timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
   -v "$WORKSPACE":/workspace \
-  -w /workspace/gramps \
+  -w "$CWD" \
   -e PATCH="/workspace/${BUNDLE#"$WORKSPACE"/}/patch.diff" \
   -e MODULE="$MODULE" \
   -e PROD="${PROD[*]}" \
+  -e RUNENV="$RUNENV" \
+  -e XVFB="$XVFB" \
   "$IMAGE" \
   bash -c '
     set -e
@@ -95,11 +125,11 @@ timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
 
     git apply "$PATCH"
     echo "→ green check (fix applied):"
-    if GRAMPS_RESOURCES=. python3 -m unittest "$MODULE" 2>&1; then green=0; else green=1; fi
+    if env $RUNENV $XVFB python3 -m unittest "$MODULE" 2>&1; then green=0; else green=1; fi
 
     echo "→ red check (production change reverted, test kept):"
     git checkout -- $PROD
-    if GRAMPS_RESOURCES=. python3 -m unittest "$MODULE" 2>&1; then red=0; else red=1; fi
+    if env $RUNENV $XVFB python3 -m unittest "$MODULE" 2>&1; then red=0; else red=1; fi
 
     echo "C4-verify: green-with-fix=$([ $green -eq 0 ] && echo PASS || echo FAIL)" \
          "/ red-without-fix=$([ $red -ne 0 ] && echo PASS || echo FAIL)"

@@ -107,6 +107,12 @@ vendored ruleset; each target carries its auditable origin per doc 16
 - **Verification runner (test suite):**
   - Per-fix C4 gate (red→green): `./engine/scripts/ubuntu/run-verify.sh` **(ported, gating)** —
     applies the bundle's `patch.diff` and runs *only* its test (`$PDCA_BUNDLE`).
+    Covers **both targets**: it reads the brief's *Repo + branch target* and, for an
+    `addons-source` fix, patches the addons-source checkout, finds the `test_*.py`
+    *prefix* test, runs `<Addon>.tests.<module>` under `xvfb-run` with
+    `GRAMPS_RESOURCES` + the `gi_bootstrap` shim (so a `@skipUnless(_HAS_GTK_DISPLAY)`
+    test actually runs, not skips); a core fix keeps the `*_test.py` *suffix* path on
+    the gramps checkout.
   - Core unit: `./engine/scripts/ubuntu/run-unit.sh` **(ported, advisory baseline)**
   - Addon unit: `./engine/scripts/ubuntu/run-addon-unit.sh [addon ...]` **(ported, advisory)** (empty = all addons
     with `tests/test_*.py`; loaded via dotted path `<Addon>.tests.<module>`)
