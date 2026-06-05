@@ -295,6 +295,21 @@ touchpoints, not beats. Feed back the wording fixes:
 
 Non-obvious things learned building this — port the *reasoning*, not just the diff:
 
+0. **Every containerized test run needs a timeout, and the builder must use the
+   project runner — not a hand-rolled `docker run`.** A live batch run hung for 20+
+   minutes: the Do builder assembled its own `docker run … xvfb-run python3 -m
+   unittest <gui-addon-test>` (no D-Bus / no AT-SPI), so the Gtk-importing test
+   blocked forever — and nothing killed it. Two template-bound fixes: (a) every test
+   runner wraps `docker run` in `timeout --kill-after=30 "$GRAMPS_TEST_TIMEOUT"` +
+   a named container it `docker kill`s on timeout, so a hung test FAILS the run
+   instead of blocking the cycle (the run-*.sh impl is instance-only, but the
+   *requirement* is generic — feed it back as a runner convention); (b) the
+   **builder agent** (`builder.md.jinja`) + the `_build_prompt` seed steer Do to the
+   project's runner (which provides the display/bus env + the timeout) and forbid a
+   bare `docker run` (verbatim, template-bound). Lesson: leaves that "just run the
+   test" must be pointed at the hardened runner, never left to improvise the harness.
+
+
 1. **Reviewer independence becomes a sandbox in command mode.** The "reviewer
    never sees `build-notes.md`" contract was enforced by *omission* (the stub just
    didn't pass the file). A real Claude reviewer runs in the bundle dir with a

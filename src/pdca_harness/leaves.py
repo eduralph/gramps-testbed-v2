@@ -201,8 +201,11 @@ def _build_prompt(d: Path) -> str:
         f"{d}: (1) patch.diff — a unified diff against the brief's target branch; "
         "(2) the test file the brief names, red before the fix and green after; "
         "(3) build-notes.md — your rationale (withheld from the reviewer). Cite "
-        "path:line on the target branch for every change. Do NOT push, open, or mark "
-        "any PR ready."
+        "path:line on the target branch for every change. To check the test red→green "
+        "use the engine runner ./engine/scripts/ubuntu/run-verify.sh (it has the "
+        "display + dbus + AT-SPI env AND a timeout); do NOT hand-roll a `docker run` — "
+        "it will hang forever on any test that imports a Gtk/GUI module. Do NOT push, "
+        "open, or mark any PR ready."
     )
 
 

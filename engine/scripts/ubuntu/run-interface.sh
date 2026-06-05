@@ -68,7 +68,13 @@ if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   docker build -f "$ENGINE/docker/Dockerfile.ubuntu" -t "$IMAGE" "$ENGINE"
 fi
 
-docker run --rm \
+# A hung test must FAIL the run, not block the cycle forever (the no-timeout gap that
+# let a GUI-import test hang the batch flow). Tunable via GRAMPS_TEST_TIMEOUT (seconds).
+TIMEOUT="${GRAMPS_TEST_TIMEOUT:-1200}"
+CNAME="grampstest-$$"
+trap 'docker rm -f "$CNAME" >/dev/null 2>&1 || true' EXIT
+rc=0
+timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
   -v "$WORKSPACE":/workspace \
   -w "/workspace/$TESTBED_NAME" \
   -e TESTBED_NAME="$TESTBED_NAME" \
@@ -133,4 +139,9 @@ docker run --rm \
         python3 -m xmlrunner discover -s engine/interface -t engine \
           -p \"$PATTERN\" -o test-results/ -v
       "
-  '
+  ' || rc=$?
+if [ "$rc" = 124 ] || [ "$rc" = 137 ]; then
+  echo "$(basename "$0"): test run exceeded ${TIMEOUT}s — killed it (raise GRAMPS_TEST_TIMEOUT for longer runs)." >&2
+  docker kill "$CNAME" >/dev/null 2>&1 || true
+fi
+exit "$rc"

@@ -63,8 +63,11 @@ GRAMPS="$WORKSPACE/gramps"
 [ -d "$GRAMPS/.git" ] || { echo "run-verify.sh: no gramps checkout at $GRAMPS" >&2; exit 1; }
 git -C "$GRAMPS" diff --quiet || {
   echo "run-verify.sh: gramps checkout has uncommitted changes — refusing to patch it" >&2; exit 1; }
-# Always restore the checkout, even if the container is interrupted.
-trap 'git -C "$GRAMPS" checkout -- . 2>/dev/null || true' EXIT
+# Always restore the checkout, even if interrupted; and kill a hung container so a
+# test can't block the cycle forever. Tunable via GRAMPS_TEST_TIMEOUT (seconds).
+TIMEOUT="${GRAMPS_TEST_TIMEOUT:-900}"
+CNAME="grampstest-$$"
+trap 'git -C "$GRAMPS" checkout -- . 2>/dev/null || true; docker rm -f "$CNAME" 2>/dev/null || true' EXIT
 
 GRAMPS_VERSION="$(sed -nE 's/^VERSION_TUPLE *= *\(([0-9]+), *([0-9]+), *([0-9]+)\).*$/\1.\2.\3/p' "$GRAMPS/gramps/version.py")"
 : "${GRAMPS_VERSION:?could not detect Gramps version}"
@@ -75,7 +78,8 @@ if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
 fi
 
 echo "→ C4-verify: $MODULE  (test: $TEST_REL ; reverting: ${PROD[*]})"
-docker run --rm \
+rc=0
+timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
   -v "$WORKSPACE":/workspace \
   -w /workspace/gramps \
   -e PATCH="/workspace/${BUNDLE#"$WORKSPACE"/}/patch.diff" \
@@ -100,4 +104,9 @@ docker run --rm \
     echo "C4-verify: green-with-fix=$([ $green -eq 0 ] && echo PASS || echo FAIL)" \
          "/ red-without-fix=$([ $red -ne 0 ] && echo PASS || echo FAIL)"
     [ "$green" -eq 0 ] && [ "$red" -ne 0 ]
-  '
+  ' || rc=$?
+if [ "$rc" = 124 ] || [ "$rc" = 137 ]; then
+  echo "$(basename "$0"): test run exceeded ${TIMEOUT}s — killed it (raise GRAMPS_TEST_TIMEOUT for longer runs)." >&2
+  docker kill "$CNAME" >/dev/null 2>&1 || true
+fi
+exit "$rc"

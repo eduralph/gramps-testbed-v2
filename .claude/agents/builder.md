@@ -34,6 +34,21 @@ context beyond what the brief cites. Narrow input is deliberate.
 
 Cite `path:line` on the target branch for every claim and change.
 
+## Running the test — use the engine runner, never a hand-rolled `docker run`
+
+To check the test is red→green, run it through the **engine runner**:
+- `./engine/scripts/ubuntu/run-verify.sh` — applies this bundle's `patch.diff` and
+  asserts the test is **red without the fix, green with it** (set `$PDCA_BUNDLE` to
+  the bundle dir). This is exactly what Check's C4-verify gate runs.
+- `./engine/scripts/ubuntu/run-addon-unit.sh <Addon>` or `run-unit.sh` for a suite.
+
+Do **NOT** assemble your own `docker run … python3 -m unittest …` / `xvfb-run`. The
+runners provide the display + **D-Bus session + AT-SPI bus** a GUI-importing test
+needs, *and* a **timeout** that kills a hung run. A bare `docker run` gets none of
+that, so any test that imports a Gtk/GUI module (e.g. an addon's plugin-manager
+module) will **hang forever** with nothing to stop it. The authoritative red→green
+check is Check's gate — a quick `run-verify.sh` is enough; you needn't run full suites.
+
 ## STOP discipline — enforced, not asked
 
 You MAY push to a feature/draft branch and open a **draft** PR (`gh pr create
