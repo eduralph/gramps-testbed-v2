@@ -298,6 +298,22 @@ A real multi-issue batch run surfaced four gaps; three are generic and feed back
     Tier 2 from the template default and keep Tier 1 (artifacts + staleness), which is
     project-agnostic.
 
+- **An advisory artifact must never hard-crash the deterministic pipeline** (verbatim
+  `assemble.py` + `leaves.py`). A live batch died when the reviewer's model connection
+  dropped mid-run: the gates had already written `check-gates.json` (→ state CHECKED),
+  but no `check-review.md` was produced, so `assemble_summary`'s
+  `(d/"check-review.md").read_text()` raised `FileNotFoundError` and took the whole
+  batch down — and resuming re-crashed at the same point. Two-sided fix:
+  - `assemble._missing_review_text()`: a missing review falls back to a placeholder that
+    routes a NEEDS-HUMAN into §6 (assemble never raises; the bundle still reaches
+    sign-off but can't be accepted without a real review).
+  - `leaves._review_unavailable()`: `_run_review_sandboxed` now catches a failed reviewer
+    *and* a zero-exit-but-no-file reviewer, writing the same placeholder — so an
+    interrupted review leaves a re-runnable bundle, not a half-checked one.
+  *Generic lesson:* the deterministic spine may only consume *gating* artifacts as
+  required; an advisory/judgment artifact (review, notes) must degrade to a flagged
+  NEEDS-HUMAN, never a crash. Worth auditing every `read_text()` in the assemble path.
+
 - **C4-verify now covers addon fixes** (`engine/scripts/ubuntu/run-verify.sh`,
   **instance-only** — see Instance-only below). *Generic lesson worth carrying even
   though the script isn't:* a per-fix verify gate must cover **every target kind the
@@ -305,6 +321,55 @@ A real multi-issue batch run surfaced four gaps; three are generic and feed back
   convention, run env), not just the primary repo. The gate read the brief's target to
   branch. A template's verify-gate skeleton should make "what am I patching/running"
   pluggable rather than hard-code one repo.
+  - *Surfaced by the first live addon run (issue 11589):* the gate's cleanup trap
+    (`git checkout -- .`) reverts files the patch **modifies** but does NOT remove files
+    the patch **adds** — so the shipped test lingered as an untracked file after the run,
+    dirtying the checkout for the next verify and complicating the caller's restore. A
+    patch-and-revert verify gate must clean *added* paths too (revert + `git clean` the
+    paths the patch creates, or run against a throwaway worktree). Generic lesson for the
+    template skeleton; the gramps `run-verify.sh` fix is instance-only.
+  - *Also surfaced:* the addon path is mechanically correct — it detected addon mode, ran
+    the test under `xvfb` (it ran, didn't skip), and held the red→green contract
+    (`red-without-fix=PASS`). It correctly **failed** the bundle because the builder's
+    *test* was buggy (drove `OkDialog(transient_for=<Mock>)`, which Gtk rejects) — i.e.
+    C4 caught a bad test, which is the gate working. Lesson: a green-with-fix=FAIL is a
+    legitimate iterate-do signal, not necessarily a gate/fix defect.
+
+- **The builder prompt must not lie about the runner's environment** (verbatim
+  `leaves.py` `_build_prompt`). It told the builder run-verify.sh "has the display +
+  dbus + AT-SPI env"; it does NOT — the C4 runner is headless (core: plain
+  `python3 -m unittest`; addon: bare `xvfb`; the full display+D-Bus+AT-SPI belongs to
+  the *interface* runner). Trusting it, the builder wrote a core test that
+  `import`s the Gtk-bound tool module (which pulls `gi` + the whole `gramps.gui.*`
+  stack at load) and the headless C4 core-dumped — and it recurred on iterate-do
+  because nothing corrected the belief (issue 13205). Fixed the prompt to state the
+  runner is headless and that a GUI import at module load crashes it, so extract the
+  logic under test into a GUI-free module and import that. *Generic lesson:* a leaf's
+  prompt is part of the harness contract — an inaccurate capability claim in it is a
+  defect that re-manifests every iteration; keep prompt claims true to what the engine
+  actually provides. (Distinct from a brief-quality miss: this was iterate-**plan** —
+  the spec under-constrained the extraction — *plus* the harness prompt fix.)
+
+- **An interactive leaf must not do the driver's transition work — and the driver
+  must survive it if one does** (verbatim `flow.py` + `signoff.md.jinja`). On an
+  `iterate-plan` sign-off, the sign-off agent (it has `Write` + `Bash`) interpreted
+  "back to the planner" as "reset the bundle" and **deleted the downstream itself**
+  (`SUMMARY.md`, `patch.diff`, `check-*` → PLANNED), doing the transition the driver
+  owns. The next deterministic step, `signoff.record`, then read the now-missing
+  `SUMMARY.md` and `FileNotFoundError`-crashed the whole batch (issue 13205, live).
+  Two-sided fix:
+  - `flow.py` `_signoff_and_apply`: if there's no `SUMMARY.md` to record into, the
+    bundle isn't in a recordable state — drop the stale decision and skip (warn),
+    don't crash the sweep.
+  - `.claude/agents/signoff.md`: an explicit boundary — the agent writes exactly two
+    things (a §6 `[ ]`→`[x]` with OK, and the `signoff-decision` token) and
+    **deletes/modifies nothing else**; `iterate-*` does NOT mean "reset the bundle" —
+    the driver clears/versions afterward.
+  *Generic lesson (recurring theme):* the deterministic spine must treat every bundle
+  file it reads as possibly-absent (an interactive leaf with `Write`/`Bash` can leave
+  the bundle in any state); and a leaf's remit must be stated as an *allow-list of
+  writes*, not just a list of don'ts — "write the token" was read as license to also
+  "do what the token implies."
 
 ## Instance-only — do NOT feed back
 - The gramps **branch convention** (`fix/bug-<id>-<slug>` / `enhancement/<id>-<slug>`)
