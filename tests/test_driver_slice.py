@@ -71,6 +71,28 @@ class VerticalSlice(unittest.TestCase):
         signoff.record(summary, action="accept", by="tester", date="2026-01-01")
         self.assertEqual(state.state(self.d), state.COMPLETE)
 
+    def test_review_emits_complete_5_5_1_table(self) -> None:
+        # The reviewer (stub or command) must always emit one verdict row per 5/5/1
+        # element — the overview the human reads. No element may be dropped.
+        driver.run_issue(self.d, self.cfg)
+        review = (self.d / "check-review.md").read_text(encoding="utf-8")
+        for _elem, label, _kind, _oracle in gates.canonical_elements():
+            self.assertIn(label, review, f"reviewer verdict table missing {label}")
+        # The validation row is NEEDS-HUMAN and reaches §6 as exactly one open item.
+        self.assertEqual(len(signoff.open_needs_human(self.d / "SUMMARY.md")), 1)
+
+    def test_needs_human_lifted_from_table_row(self) -> None:
+        # A NEEDS-HUMAN verdict in the table (not a bullet) still becomes a §6 item.
+        from pdca_harness import assemble
+        items = assemble._needs_human(
+            "| Item | Verdict | Basis |\n|---|---|---|\n"
+            "| C5 Causal adequacy | PASS | grounded |\n"
+            "| Validation — fitness-to-purpose | NEEDS-HUMAN | is this the right thing? |\n"
+        )
+        self.assertEqual(len(items), 1)
+        self.assertIn("Validation", items[0])
+        self.assertIn("is this the right thing?", items[0])
+
     def test_iterate_to_do_clears_downstream(self) -> None:
         driver.run_issue(self.d, self.cfg)
         summary = self.d / "SUMMARY.md"
