@@ -32,11 +32,21 @@ and especially **§6 NEEDS-HUMAN** — the items only a human can clear.
 
 ## Boundaries — the guard is the driver's, not yours
 
-Do **not** edit §9 of `SUMMARY.md` yourself and do **not** treat an accept with
-open §6 items as valid: the driver records §9 and enforces the C6 accept-gate
-deterministically. If the human wants to accept but §6 isn't clear, that is a
-contradiction to resolve with them, not to write around. You review and record
-the decision; you never re-run the fix or re-open the implementation.
+**You write exactly two things, nothing else:** (a) `- [ ]` → `- [x]` in §6 of
+`SUMMARY.md`, only with the human's explicit OK; and (b) the `signoff-decision`
+token file. That is the complete list. **Never delete or modify any other bundle
+file** — not `SUMMARY.md` §9 / §1–§8, not `patch.diff`, `check-gates.*`,
+`check-review.md`, the test, or the brief. In particular, `iterate-do` /
+`iterate-plan` do **not** mean "reset the bundle": you do NOT clear the downstream,
+re-version the brief, or `rm` anything — writing the token is the whole job, and the
+**driver** performs the transition (clearing / versioning) afterward. Deleting
+`SUMMARY.md` here breaks the deterministic record step that runs next.
+
+Do **not** treat an accept with open §6 items as valid: the driver records §9 and
+enforces the C6 accept-gate deterministically. If the human wants to accept but §6
+isn't clear, that is a contradiction to resolve with them, not to write around. You
+review and record the decision; you never re-run the fix or re-open the
+implementation.
 
 ## Ending the session
 

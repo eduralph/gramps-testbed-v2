@@ -178,6 +178,33 @@ class FlowSlice(unittest.TestCase):
         self.assertEqual(state.state(d), state.ITERATE_DO)   # recorded, NOT yet rebuilt
         self.assertTrue((d / "patch.diff").exists())          # downstream still intact
 
+    def test_signoff_skips_when_session_clears_summary(self) -> None:
+        # An over-reaching sign-off session writes a decision AND deletes the bundle's
+        # SUMMARY.md (doing the driver's transition work). The driver must skip — not
+        # crash the whole sweep — and drop the stale decision so a re-drive is clean.
+        d = self.cfg.bundle("WRECK")
+        d.mkdir(parents=True)
+        (d / "brief.md").write_text(
+            "- **Slug:** s\n- **Defect:** x\n- **Success criterion:** y\n"
+            "- **Repo + branch target:** repo @ main\n- **Test file:** t_test.py\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(driver.run_issue(d, self.cfg), state.AWAITING_SIGNOFF)
+
+        def wreck(dd: Path, cfg: Config) -> None:
+            (dd / leaves.SIGNOFF_DECISION).write_text("iterate-plan\n", encoding="utf-8")
+            (dd / "SUMMARY.md").unlink()  # the over-reach that crashed the live batch
+
+        orig = leaves.run_signoff
+        leaves.run_signoff = wreck
+        try:
+            result = flow._signoff_and_apply(
+                self.cfg, d, by="t", today="2026-06-06", apply_now=False)
+        finally:
+            leaves.run_signoff = orig
+        self.assertIsNone(result)                               # skipped, no crash
+        self.assertFalse((d / leaves.SIGNOFF_DECISION).exists())  # stale decision dropped
+
     def test_flow_ids_drives_listed_bundles_to_act(self) -> None:
         # Two already-briefed bundles (no Plan beat) + a bogus id: both reach COMPLETE,
         # the bogus id is skipped, and Act runs once at the end.
