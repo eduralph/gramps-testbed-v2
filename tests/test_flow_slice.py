@@ -154,6 +154,30 @@ class FlowSlice(unittest.TestCase):
             leaves.do_plan_batch = orig
         self.assertEqual(results.get("RESUME"), state.COMPLETE)
 
+    def test_batch_signoff_defers_iterate_rebuild(self) -> None:
+        # In the batch sweep an iterate-do must be RECORDED but not rebuilt on the
+        # spot (apply_now=False) — so the human reviews the whole queue first. The
+        # bundle stays at ITERATE_DO with its downstream intact until the next pass.
+        d = self.cfg.bundle("DEFER")
+        d.mkdir(parents=True)
+        (d / "brief.md").write_text(
+            "- **Slug:** s\n- **Defect:** x\n- **Success criterion:** y\n"
+            "- **Repo + branch target:** repo @ main\n- **Test file:** t_test.py\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(driver.run_issue(d, self.cfg), state.AWAITING_SIGNOFF)
+        orig = leaves.run_signoff
+        leaves.run_signoff = lambda dd, c: (dd / leaves.SIGNOFF_DECISION).write_text(
+            "iterate-do\n", encoding="utf-8")
+        try:
+            action = flow._signoff_and_apply(
+                self.cfg, d, by="t", today="2026-06-05", apply_now=False)
+        finally:
+            leaves.run_signoff = orig
+        self.assertEqual(action, "iterate-do")
+        self.assertEqual(state.state(d), state.ITERATE_DO)   # recorded, NOT yet rebuilt
+        self.assertTrue((d / "patch.diff").exists())          # downstream still intact
+
     def test_flow_ids_drives_listed_bundles_to_act(self) -> None:
         # Two already-briefed bundles (no Plan beat) + a bogus id: both reach COMPLETE,
         # the bogus id is skipped, and Act runs once at the end.

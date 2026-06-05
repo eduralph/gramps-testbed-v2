@@ -273,7 +273,11 @@ A real multi-issue batch run surfaced four gaps; three are generic and feed back
   now `flow` seeded by ids with no Plan beat — same machinery, same endpoint:
   - `src/pdca_harness/flow.py` (verbatim): extract `_drive_and_act(cfg, bundles, …)` (the
     multi-pass build-all → cheap-first sign-off → Act-once body) shared by `flow_batch`
-    (Plan-seeded) and the new `flow_ids(cfg, ids, …)` (id-seeded).
+    (Plan-seeded) and the new `flow_ids(cfg, ids, …)` (id-seeded). **Batch sign-off must
+    record all decisions before applying any** — `_signoff_and_apply(..., apply_now=False)`
+    in the sweep, so an `iterate-do` doesn't rebuild mid-queue and interrupt review of the
+    rest; the next pass's build-all applies every iteration together. (`apply_now=True`
+    stays the default for single-issue `flow`.)
   - `src/pdca_harness/cli.py` (verbatim): `_batch` calls `flow.flow_ids(..., do_act=…)`
     instead of park-and-queue; the `batch` subparser gains `--no-act` / `--by`.
   - `Makefile` (verbatim): the `batch` target gains `NOACT` / `BY`; it's now interactive
