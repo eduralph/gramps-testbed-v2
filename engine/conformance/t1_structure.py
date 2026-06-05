@@ -21,7 +21,7 @@
 """T1 — Structure conformance (the *structural* tier of the T1–T4 conformance
 ladder, founded on wiki doc 16, "Addon Development — Rules").
 
-Each rule below is a **MUST** from ``wiki/pages/05 - Addon development/
+Each rule below is a **MUST** from ``wiki/pages/06 - Addon development/
 16-guidelines.md`` §Structure / §Source location, cited inline by ``doc16:LINE``
 so the gate is auditable back to the normative source (doc 16 §Conventions: "a
 rule … is cited inline so the rule is auditable").

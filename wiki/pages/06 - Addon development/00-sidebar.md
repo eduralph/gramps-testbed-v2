@@ -34,7 +34,7 @@ managed: true
 13. [[13-packaging]] — `make.py`, `addons-source` -> `addons` flow, version-field rules, submitting to upstream.
 14. [[14-compatibility]] — porting across Gramps versions; `gramps_target_version`; deprecated API surface; gramps60 vs gramps61 deltas.
 15. [[15-whats-new]] — per-Gramps-version API changes that affect addons.
-16. [[16-guidelines]] — normative MUST / SHOULD / MAY reference for addons and the contributor workflow. The page to cite in code review.
+16. [[06 - Addon development/16-guidelines]] — normative MUST / SHOULD / MAY reference for addons and the contributor workflow. The page to cite in code review.
 17. [[17-roadmap]] — forward-looking: in-flight changes, deprecations, open questions, and the documentation roadmap itself. Prospective counterpart to *What's new*.
 
 

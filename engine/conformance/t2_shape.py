@@ -23,7 +23,7 @@ wiki doc 16 §Coding style).
 
 T2 is the AST/text-level scanner: rules that can be decided by reading the
 source, no runtime needed (that is T3). Each rule is cited ``doc16:LINE`` back
-to ``wiki/pages/05 - Addon development/16-guidelines.md``.
+to ``wiki/pages/06 - Addon development/16-guidelines.md``.
 
 Per ``.py`` file:
 

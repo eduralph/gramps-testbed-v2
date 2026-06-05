@@ -125,7 +125,7 @@ For each tier: the written ruleset it consumes, its **home**, and the
 **single-sourced command** the driver and CI both run.
 
 **The T1–T4 ladder is founded on wiki doc 16** —
-[`wiki/pages/05 - Addon development/16-guidelines.md`](../wiki/pages/05%20-%20Addon%20development/16-guidelines.md),
+[`wiki/pages/06 - Addon development/16-guidelines.md`](../wiki/pages/06%20-%20Addon%20development/16-guidelines.md),
 titled "Addon Development — Rules", written in RFC-2119 MUST/SHOULD/MAY. Its
 sections *are* the tiers: §Structure / §Source location → **T1**, §Coding style
 → **T2**, §Runtime / §Testing → **T3**, §Contributor workflow / §Verification

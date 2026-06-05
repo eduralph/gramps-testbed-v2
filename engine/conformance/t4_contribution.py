@@ -24,7 +24,7 @@ PR-body rules in §Contributor workflow).
 
 T4 checks the *contribution wrapper* — the commit message and the PR body — not
 the code. Each rule is cited ``doc16:LINE`` back to
-``wiki/pages/05 - Addon development/16-guidelines.md``.
+``wiki/pages/06 - Addon development/16-guidelines.md``.
 
 Commit message (``check_commit_msg``):
 

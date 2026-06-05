@@ -106,7 +106,7 @@ What the pipeline already handled before these additions:
 - [[07-api-reference]] — needs synchronisation against `gramps/gen/__init__.py` on the maintenance branch this doc set targets.
 - [[08-testing]] — fold in [[01 - preliminary notes/Addon Testing]] and retire the preliminary note.
 - [[09-debug]], [[10-troubleshoot]], [[11-code-analysis]], [[13-packaging]], [[14-compatibility]], [[15-whats-new]] — all outline-stage; need entries.
-- [[16-guidelines]] — substantive; pending sign-off to flip to `managed: true`.
+- [[06 - Addon development/16-guidelines]] — substantive; pending sign-off to flip to `managed: true`.
 
 (For the publishing pipeline itself — `publish.py`, `md2wiki.py`, `md2pdf.py --tree` — see the testbed root, not this page.)
 
