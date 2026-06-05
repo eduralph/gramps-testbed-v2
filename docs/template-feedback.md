@@ -155,6 +155,16 @@ gap was the Plan-stage template. Feed back together:
   and the sibling repos it patches. Generic target; the *paths* it writes are
   instance-specific (don't feed those back, only the target).
 
+### Validation output enumerates the full 5/5/1 (`gates.py` → verbatim)
+The check-gates output used to show only the *configured* gate rows + three
+judgment placeholders. It now always renders the complete **5/5/1** (5 correctness
+C1–C5 · 5 conformance T1–T5 · 1 validation), grouped into Correctness / Conformance
+/ Validation sections: `_assemble_matrix` overlays each configured gate onto its
+element (matched by `tier`); uncovered *gate* elements show `(no gate configured)`,
+inputs (C1/C3) show their artifact, and the judgment cells (C5/T5/validation) show
+`reviewer + human`. `overall` is still driven only by gating gates. Generic harness
+logic, no gramps content — **must feed back** (`template/src/pdca_harness/gates.py`).
+
 ### #R — reviewer decorrelation (deliberately NOT fed back as-is)
 This instance flips `[leaves.reviewer]` to `family="claude"` (`--agent reviewer`)
 so the live flow runs end-to-end with Claude alone — the documented same-vendor
