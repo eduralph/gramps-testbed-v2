@@ -25,13 +25,17 @@ make flow ID=13636      # run the whole cycle for tracker issue 13636
 ```
 
 Run `make flow` **in a real terminal** — the Plan, sign-off and Act steps open
-Claude interactively. The first interactive session may ask once to *trust* the
-project; accept it.
+Claude interactively. The first interactive session asks once to *trust* the
+project; accept it (this is Claude Code's folder trust, stored globally and
+separate from `make setup`'s permissions — it persists after one accept).
 
 What happens, step by step:
 
-1. **Plan** (interactive) — Claude reads your input documents (a Mantis CSV via
-   `CSV=…`) and, with you, writes `results/issue_<id>/brief.md`.
+1. **Plan** (interactive) — Claude reads the **tracker row for the issue id** from
+   the configured Mantis export (`pdca.toml [tracker].export_csv`; override with
+   `CSV=…`) and, with you, writes `results/issue_<id>/brief.md`. For the full bug
+   thread, run `./engine/scripts/scrape-mantis.sh <id>` first (optional) — the
+   planner reads `results/issue_<id>/mantis-notes.json` if present.
 2. **Do** (headless) — Claude implements the brief: `patch.diff`, the test, `build-notes.md`.
 3. **Check** — the deterministic gates run (`→ … still working` heartbeats while
    they do), then a headless advisory reviewer.

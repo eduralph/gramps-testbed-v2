@@ -55,6 +55,7 @@ class Config:
     signoff: LeafConfig = field(default_factory=LeafConfig)
     act: LeafConfig = field(default_factory=LeafConfig)
     author: str = ""  # default §9 sign-off attribution (the maintainer)
+    tracker_export_csv: str = ""  # default tracker CSV the planner reads the issue row from
     gates_checks: list[dict] = field(default_factory=list)
 
     def bundle(self, issue_id: str) -> Path:
@@ -106,6 +107,7 @@ class Config:
             tracker_system=tracker.get("system", ""),
             tracker_url=tracker.get("url", ""),
             issue_id_example=tracker.get("issue_id_example", ""),
+            tracker_export_csv=tracker.get("export_csv", ""),
             builder=leaf("builder"),
             reviewer=leaf("reviewer"),
             planner=leaf("planner"),

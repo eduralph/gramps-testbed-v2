@@ -173,7 +173,35 @@ so the live flow runs end-to-end with Claude alone — the documented same-vendo
 only the `interactive=false` field and command-mode wiring for the reviewer, not
 the claude argv.
 
+### Plan-stage friction fixes (targeted, tracker-aware planner) — template-bound
+A live `pdca flow` showed the Plan leaf scanning the testbed repo for issue info and
+hitting permission prompts. The **generic** fixes (feed back):
+- `src/pdca_harness/leaves.py` `_plan_prompt` / `_plan_batch_prompt` (verbatim): the
+  prompt now names the **issue id** (derived from the bundle dir), the **tracker
+  coordinates** (`cfg.tracker_system`/`tracker_url`), the **CSV row to read first**,
+  a **notes-file convention**, and tells the planner to **cite via `git -C <repo>`,
+  never `cd <repo> && git`** and **not to scan the harness repo**. The Plan leaf
+  should be handed *where work comes from*, not left to guess.
+- `src/pdca_harness/config.py` (verbatim): `Config.tracker_export_csv`, from
+  `[tracker].export_csv` — the default tracker export the planner reads without
+  `--from-csv`.
+- `.claude/agents/planner.md` → `template/.claude/agents/planner.md.jinja` (jinja):
+  the "tracker is the source of truth / `git -C` / read notes if present" guidance.
+  Genericize the gramps/Mantis specifics.
+- `.claude/settings.json` (jinja): add `Bash(git -C:*)` to `allow` — the safe
+  sibling-repo idiom (a bare `Bash(git …)` rule does NOT match `cd … && git …`, and
+  the latter trips Claude Code's "cd-before-git can run hooks" prompt). Insight worth
+  a template note: prefer `git -C` over `cd && git` everywhere.
+- **Trust is not settable from project settings.** `make setup` writes permissions
+  (`.claude/settings.local.json`) but folder *trust* lives in the global
+  `~/.claude.json` (`projects[<path>].hasTrustDialogAccepted`). The template's setup
+  + README should say so plainly (one-time accept), not imply setup suppresses it.
+
 ## Instance-only — do NOT feed back
+- `engine/scripts/mantis_notes.py` + `scrape-mantis.sh` (Playwright/Chrome Mantis
+  scraper) and the `[tracker].export_csv` **value** — gramps/Mantis specific. The
+  *mechanism* of passing a tracker export + a notes file to the planner is generic
+  (above); the scraper and the CSV path are not.
 - `engine/**` (the gramps verification engine) and `engine/tests/**`.
 - `pdca.toml`: the gramps gate rows (`[[gates.checks]]` T3-unit, **C4-verify**, etc.)
   and any gramps-specific argv **values**; only the leaf *schema* (#9) is template-bound.

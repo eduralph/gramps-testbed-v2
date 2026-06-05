@@ -64,7 +64,10 @@ json.dump({'permissions': {'allow': ['Read(/' + ws + '/**)'], \
 'additionalDirectories': [ws + '/gramps', ws + '/addons-source', '/tmp']}}, \
 open('.claude/settings.local.json', 'w'), indent=2)"
 	@echo "wrote .claude/settings.local.json — workspace read + siblings (gramps, addons-source) + /tmp"
-	@echo "(the very first interactive session may still ask once to TRUST this project — accept it)"
+	@echo "NOTE: folder-TRUST is separate from permissions — it lives in the global"
+	@echo "      ~/.claude.json, not these settings, so setup can't pre-set it. The very"
+	@echo "      first interactive session asks once 'trust this folder?'; accept it and"
+	@echo "      it persists for every later run."
 
 # --- optional real install (venv console script) ---------------------------
 install: .venv/bin/pdca

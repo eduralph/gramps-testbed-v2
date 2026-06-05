@@ -15,6 +15,13 @@
 ## 1. Tracker integration
 - **System / URL:** mantis (MantisBT) — https://gramps-project.org/bugs
 - **Issue-ID format:** `13418` (integer; zero-padded `0013418` in CSV exports)
+- **Default export the planner reads:** `pdca.toml [tracker].export_csv` (a Mantis
+  CSV export). Run without `--from-csv`, the Plan leaf reads **only the row for the
+  issue id** from this file (it does not scan the testbed repo); `--from-csv`
+  overrides it. Re-export from Mantis to refresh.
+- **Full-thread context (optional):** `./engine/scripts/scrape-mantis.sh <id>` writes
+  `results/issue_<id>/mantis-notes.json` (the scraped comment thread); the planner
+  reads it if present, else offers the command. Host-side, manual — see §9.
 - **Cross-link form (commit/PR → tracker):** gramps core PRs use the `p:gramps:nnnn:`
   shorthand; addons-source PRs use the full GitHub URL / upstream's auto-link
   keywords (no shorthand for non-gramps repos). Inside a Mantis note, `#nnnn`
@@ -25,9 +32,9 @@
   **project area** ("Gramps 6.0", "Gramps 5.2", master-only) drives the branch
   target (see §2).
 - **Per-release field updated on a fix:** "Fixed in version".
-- **Comment voice / template:** `templates/tracker-comment.md.tpl`. (Reference repo
-  scrapes Mantis via `triage/scripts/mantis_notes.py` — a Mantis-specific scraper
-  is required at this role; a different tracker needs its own.)
+- **Comment voice / template:** `templates/tracker-comment.md.tpl`. The Mantis
+  scraper is ported at `engine/scripts/mantis_notes.py` (+ `scrape-mantis.sh`) — a
+  Mantis-specific scraper is required at this role; a different tracker needs its own.
 
 ## 2. Branch-target rules
 Normative source: wiki **doc 16 §Contributor workflow** (`doc16:111-115`), the
@@ -193,7 +200,7 @@ List every project-specific script the cycle invokes (role → path + invocation
 
 | Role | Path | Invocation | Status |
 |---|---|---|---|
-| Tracker scrape | `triage/scripts/mantis_notes.py` | scrape Mantis comment threads → `triage/notes/issue_<id>.json` | [not ported — reference-repo tooling; absent here] |
+| Tracker scrape | `engine/scripts/mantis_notes.py` + `scrape-mantis.sh` | `./engine/scripts/scrape-mantis.sh <id>` → `results/issue_<id>/mantis-notes.json` (Playwright + system Chrome; one-time manual login; host-side, not in the Docker image) | [ported — Plan-stage context; the planner reads the notes if present] |
 | Handoff / brief generator | `triage/scripts/make_handoff.py` | merge CSV export + notes → per-issue briefs | [not ported — superseded by the interactive **planner** leaf, which briefs from the CSV directly at Plan] |
 | Fork bootstrap | `engine/scripts/bootstrap-forks.sh` | clone gramps + addons-source forks as siblings, set `upstream` | [ported — root via pdca.toml marker, git-free] |
 | Repro / verification runners | `engine/scripts/ubuntu/run-*.sh`, `engine/scripts/windows/run-*.sh` | unit / addon-unit / verify / interface / manual | [partial — `ubuntu/{run-unit,run-addon-unit,run-verify,run-interface,rebuild-image,clean-build}.sh` + `lib/` + the `engine/interface/` suite ported; manual + windows pending] |

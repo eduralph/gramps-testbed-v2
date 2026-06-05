@@ -17,6 +17,10 @@ templates_dir = "templates"
 system = "mantis"
 url = "https://gramps-project.org/bugs"
 issue_id_example = "13418"
+# Default tracker export the planner reads the issue row from when `flow` is run
+# without --from-csv. The planner reads ONLY the row for the issue id (it does not
+# scan the testbed repo for issue info). Re-export from Mantis to refresh.
+export_csv = "engine/20260529 - Mantis Export.csv"
 
 # The five model leaves (docs 03 §Implementation substrate). mode = "stub" runs
 # the offline placeholders (no Claude/TTY); mode = "command" runs `argv` as a

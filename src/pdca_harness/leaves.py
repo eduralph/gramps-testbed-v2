@@ -85,16 +85,43 @@ def do_plan(d: Path, cfg: Config, csv: str | None = None) -> None:
 def _plan_prompt(cfg: Config, csv: str | None, d: Path) -> str:
     fix_tpl = cfg.templates_dir / "brief.md.tpl"
     geps_tpl = cfg.templates_dir / "design-proposal.md.tpl"
-    src = f"The human will share input documents (e.g. the tracker CSV at {csv})." if csv \
-        else "The human will share the input documents for this issue."
+    issue_id = d.name.removeprefix("issue_")
+    tracker_csv = csv or cfg.tracker_export_csv
+    notes = d / "mantis-notes.json"
+
+    # Source of truth = the tracker row for THIS issue, not a scan of the testbed.
+    src_line = (
+        f"The issue is {issue_id} on the {cfg.tracker_system or 'tracker'} "
+        f"({cfg.tracker_url}/view.php?id={issue_id}). " if cfg.tracker_url
+        else f"The issue is {issue_id}. "
+    )
+    csv_line = (
+        f"Read the row for {issue_id} in the tracker export at '{tracker_csv}' FIRST — "
+        "that row (summary / description / steps) is the authoritative statement of what "
+        "to brief. " if tracker_csv else
+        "Ask the human for the issue's tracker export or bug details. "
+    )
+    notes_line = (
+        f"If {notes} exists, read it for the full comment thread. If you need the "
+        f"discussion and it is absent, tell the human to run "
+        f"`./engine/scripts/scrape-mantis.sh {issue_id}` (writes {notes}) and stop. "
+    )
+    citation_line = (
+        "Cite the root cause against the gramps source with `git -C ../gramps log/show "
+        "-- <file>` plus Read/Grep on ../gramps and ../addons-source — NEVER "
+        "`cd ../gramps && git ...` (it trips a safety prompt; `git -C` is the safe idiom). "
+        "Do NOT scan this testbed repo for issue information — the tracker is the source. "
+    )
     return (
-        "You are the Plan leaf of a PDCA cycle. " + src + " Together with the human, "
-        f"decide what to brief, then write brief.md in the bundle directory {d}. Default to "
-        f"{fix_tpl} — it fits bug fixes AND ordinary new functionality. Use {geps_tpl} "
+        "You are the Plan leaf of a PDCA cycle. " + src_line + csv_line + notes_line
+        + citation_line
+        + f"Together with the human, write brief.md in the bundle directory {d}. Default "
+        f"to {fix_tpl} — it fits bug fixes AND ordinary new functionality. Use {geps_tpl} "
         "(a GEPS-style design proposal) ONLY for the exception: a change significant "
-        "enough to warrant a proposal (major architecture / API / UX). Not every "
-        "feature is a GEPS — when in doubt use the normal brief. Either way keep the "
-        "parsed `- **Label:** value` field shape. One bundle = one brief.md. Plan only."
+        "enough to warrant a proposal (major architecture / API / UX). Not every feature "
+        "is a GEPS — when in doubt use the normal brief. Keep the parsed `- **Label:** "
+        "value` field shape; resolve the repo + branch target per INTEGRATION §2. "
+        "One bundle = one brief.md. Plan only."
     )
 
 
@@ -131,15 +158,19 @@ def do_plan_batch(cfg: Config, csv: str | None = None) -> None:
 def _plan_batch_prompt(cfg: Config, csv: str | None) -> str:
     fix_tpl = cfg.templates_dir / "brief.md.tpl"
     geps_tpl = cfg.templates_dir / "design-proposal.md.tpl"
-    src = f"the tracker CSV at {csv}" if csv else "the input documents the human shares"
+    tracker_csv = csv or cfg.tracker_export_csv
+    src = f"the tracker export at '{tracker_csv}'" if tracker_csv \
+        else "the input documents the human shares"
     return (
         "You are the Plan leaf of a PDCA cycle, in BATCH mode. With the human, read "
-        f"{src} and decide which issues to brief — there may be SEVERAL. For EACH "
-        f"chosen issue create a bundle directory `{cfg.bundle_root}/issue_<id>/` "
-        "containing a brief.md — use the fitting template: a bug fix → "
-        f"{fix_tpl}; a feature / enhancement → {geps_tpl}. Keep the parsed "
-        "`- **Label:** value` field shape; `<id>` is the tracker id. One issue = one "
-        "`issue_<id>/brief.md`. Plan only — do not implement."
+        f"{src} on the {cfg.tracker_system or 'tracker'} and decide which issues to brief "
+        "— there may be SEVERAL. The tracker rows are the source of truth: do NOT scan "
+        "this testbed repo for issue info, and cite gramps via `git -C ../gramps ...` "
+        "(never `cd ../gramps && ...`). For EACH chosen issue create a bundle directory "
+        f"`{cfg.bundle_root}/issue_<id>/` containing a brief.md — use the fitting "
+        f"template: a bug fix → {fix_tpl}; a feature / enhancement → {geps_tpl}. Keep the "
+        "parsed `- **Label:** value` field shape; `<id>` is the tracker id. One issue = "
+        "one `issue_<id>/brief.md`. Plan only — do not implement."
     )
 
 

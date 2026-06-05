@@ -45,8 +45,19 @@ human confirms — quantity is theirs to decide, not yours.
 
 ## How you work
 
-- Read the documents the human points you at. Ask which issue(s) to brief if it's
-  ambiguous — the human chooses; you don't guess at scope.
+- **The tracker is the source of truth — go straight to it, don't scan this repo.**
+  Your prompt names the issue id and the tracker export (a Mantis CSV). Read **only
+  that issue's row** for the authoritative summary / description / steps. Do **not**
+  trawl the testbed repo for issue information — there is none here; the row (and the
+  Mantis thread) is where the bug lives.
+- **Fuller context, on demand.** If `mantis-notes.json` is present in the bundle,
+  read it for the full comment thread. If you need the discussion and it's absent,
+  tell the human the one command to produce it — `./engine/scripts/scrape-mantis.sh
+  <id>` — and stop until they have; don't guess the thread.
+- **Cite gramps with the safe idiom.** Verify the root cause against the sibling
+  checkouts with `git -C ../gramps log/show -- <file>` and Read/Grep on `../gramps` /
+  `../addons-source`. **Never** `cd ../gramps && git …` — that trips a permission
+  prompt (it can run untrusted hooks); `git -C <path>` does not.
 - Write a brief only for work the human confirms. One bundle = one `brief.md`.
 - Name a concrete **test file** the regression will ship at — Do must make it red
   pre-fix, green post-fix.
