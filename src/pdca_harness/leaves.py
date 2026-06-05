@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -220,10 +221,16 @@ def _build_prompt(d: Path) -> str:
         "(2) the test file the brief names, red before the fix and green after; "
         "(3) build-notes.md — your rationale (withheld from the reviewer). Cite "
         "path:line on the target branch for every change. To check the test red→green "
-        "use the engine runner ./engine/scripts/ubuntu/run-verify.sh (it has the "
-        "display + dbus + AT-SPI env AND a timeout); do NOT hand-roll a `docker run` — "
-        "it will hang forever on any test that imports a Gtk/GUI module. Do NOT push, "
-        "open, or mark any PR ready."
+        "use the engine runner ./engine/scripts/ubuntu/run-verify.sh (NOT a hand-rolled "
+        "`docker run`) — it applies your patch and runs ONLY your test as the C4 gate, "
+        "with a timeout. The runner is HEADLESS: a core fix runs the test under plain "
+        "`python3 -m unittest` (no display, no D-Bus, no AT-SPI); an addon fix adds only "
+        "`xvfb` (a bare display, still no D-Bus/AT-SPI). The full display+D-Bus+AT-SPI "
+        "env belongs to the interface runner, NOT C4. So a test that imports a GUI "
+        "module at load time (`gi.repository` / `gramps.gui.*`, e.g. a ManagedWindow "
+        "tool) CRASHES the runner (core dump). Keep the test GUI-import-free: extract "
+        "the logic under test into a module with no `gi`/`gramps.gui` imports and import "
+        "THAT — never the Gtk-bound tool module. Do NOT push, open, or mark any PR ready."
     )
 
 
@@ -298,14 +305,34 @@ def _run_review_sandboxed(d: Path, cfg: Config) -> None:
             src = d / name
             if src.exists():
                 shutil.copy2(src, sandbox / name)
-        _invoke(
-            cfg.reviewer, sandbox, _REVIEW_PROMPT,
-            label=f"Check review {d.name}",
-            status=lambda: progress.bundle_activity(sandbox, ("check-review.md",)),
-        )
+        try:
+            _invoke(
+                cfg.reviewer, sandbox, _REVIEW_PROMPT,
+                label=f"Check review {d.name}",
+                status=lambda: progress.bundle_activity(sandbox, ("check-review.md",)),
+            )
+        except Exception as exc:  # a failed reviewer (e.g. dropped connection) must
+            _review_unavailable(d, f"reviewer leaf failed: {exc}")  # not crash the cycle
+            return
         produced = sandbox / "check-review.md"
         if produced.exists():
             shutil.copy2(produced, d / "check-review.md")
+        else:
+            _review_unavailable(d, "reviewer produced no check-review.md")
+
+
+def _review_unavailable(d: Path, reason: str) -> None:
+    """Write a placeholder review flagging the gap as a §6 NEEDS-HUMAN, so a failed or
+    interrupted reviewer leaves a re-runnable bundle — not a half-checked one that
+    crashes assemble. The bundle still reaches sign-off; accept is blocked (C6)."""
+    print(f"leaves: {d.name} — advisory review unavailable ({reason})", file=sys.stderr)
+    (d / "check-review.md").write_text(
+        "# Advisory review — NOT COMPLETED\n\n"
+        f"The reviewer did not produce a verdict table ({reason}).\n\n"
+        "- NEEDS-HUMAN — re-run the Check reviewer; this bundle has no advisory review "
+        "and must not be accepted until one exists.\n",
+        encoding="utf-8",
+    )
 
 
 # Stub bases per 5/5/1 element — what a real reviewer would re-derive; the offline

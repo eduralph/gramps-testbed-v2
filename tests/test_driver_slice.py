@@ -93,6 +93,38 @@ class VerticalSlice(unittest.TestCase):
         self.assertIn("Validation", items[0])
         self.assertIn("is this the right thing?", items[0])
 
+    def test_assemble_tolerates_missing_review(self) -> None:
+        # A dropped reviewer leaves no check-review.md; assemble must NOT crash — it
+        # flags a §6 re-review item and still produces SUMMARY (recovers the bundle).
+        from pdca_harness import assemble
+        driver.run_issue(self.d, self.cfg)
+        (self.d / "check-review.md").unlink()
+        (self.d / "SUMMARY.md").unlink()
+        self.assertEqual(state.state(self.d), state.CHECKED)  # the crash state
+        assemble.assemble_summary(self.d, self.cfg)           # must not raise
+        self.assertTrue((self.d / "SUMMARY.md").exists())
+        self.assertTrue(signoff.open_needs_human(self.d / "SUMMARY.md"))  # re-review flagged
+
+    def test_review_failure_writes_fallback(self) -> None:
+        # A command-mode reviewer that exits non-zero (dropped connection) must leave a
+        # placeholder review flagging NEEDS-HUMAN, not nothing.
+        import dataclasses
+        cfg = dataclasses.replace(
+            self.cfg, reviewer=LeafConfig(mode="command", family="x", argv=["false"]))
+        leaves.run_review(self.d, cfg)
+        review = (self.d / "check-review.md").read_text(encoding="utf-8")
+        self.assertIn("NOT COMPLETED", review)
+        self.assertIn("- NEEDS-HUMAN", review)
+
+    def test_review_empty_output_writes_fallback(self) -> None:
+        # A reviewer that exits 0 but writes no check-review.md is the case that crashed
+        # the batch — it must also fall back, not silently leave the bundle review-less.
+        import dataclasses
+        cfg = dataclasses.replace(
+            self.cfg, reviewer=LeafConfig(mode="command", family="x", argv=["true"]))
+        leaves.run_review(self.d, cfg)
+        self.assertIn("- NEEDS-HUMAN", (self.d / "check-review.md").read_text(encoding="utf-8"))
+
     def test_iterate_to_do_clears_downstream(self) -> None:
         driver.run_issue(self.d, self.cfg)
         summary = self.d / "SUMMARY.md"
