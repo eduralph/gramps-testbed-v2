@@ -134,6 +134,37 @@ class FlowSlice(unittest.TestCase):
         self.assertEqual(set(results), {"BATCH1", "BATCH2"})
         self.assertTrue(all(s == state.COMPLETE for s in results.values()))
 
+    def test_batch_resumes_existing_without_new_briefs(self) -> None:
+        # A bundle already in flight (PLANNED) + a Plan session that briefs nothing
+        # NEW must still be driven to COMPLETE — so re-running `flow --from-csv`
+        # resumes where it left off instead of bailing with "no new briefs".
+        d = self.cfg.bundle("RESUME")
+        d.mkdir(parents=True)
+        (d / "brief.md").write_text(
+            "- **Slug:** resume-me\n- **Defect:** x\n- **Success criterion:** y\n"
+            "- **Repo + branch target:** repo @ main\n- **Test file:** resume_test.py\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(state.state(d), state.PLANNED)
+        orig = leaves.do_plan_batch
+        leaves.do_plan_batch = lambda cfg, csv: None  # this Plan session briefs nothing new
+        try:
+            results = flow.flow_batch(self.cfg, today="2026-06-04")
+        finally:
+            leaves.do_plan_batch = orig
+        self.assertEqual(results.get("RESUME"), state.COMPLETE)
+
+    def test_batch_nothing_to_do_returns_empty(self) -> None:
+        # No in-flight bundles + a Plan session that briefs nothing → {} (the caller
+        # treats this as success, exit 0, not an error).
+        orig = leaves.do_plan_batch
+        leaves.do_plan_batch = lambda cfg, csv: None
+        try:
+            results = flow.flow_batch(self.cfg, today="2026-06-04")
+        finally:
+            leaves.do_plan_batch = orig
+        self.assertEqual(results, {})
+
 
 class DesignProposalBrief(unittest.TestCase):
     """A GEPS-style feature brief is a richer Plan artifact, not a separate track."""

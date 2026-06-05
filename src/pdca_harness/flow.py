@@ -100,19 +100,28 @@ def flow_batch(
     today: str | None = None,
     max_passes: int = 10,
 ) -> dict[str, str]:
-    """Plan many → build all (unattended) → cheap-first sign-off queue → Act once.
+    """Plan many → drive every in-flight bundle to sign-off → Act once. **Resumable.**
 
-    Returns ``{issue_id: final_state}`` for every bundle the Plan session created.
+    Runs the batch Plan session, then builds / checks / signs off EVERY bundle that
+    has work left — the ones this session briefed AND any already in flight — so
+    re-running ``flow --from-csv`` picks up where it left off instead of failing on
+    "no new briefs". COMPLETE bundles (done) and UNPLANNED ones (no brief — e.g. an
+    issue the planner chose to skip) are left alone. Returns ``{issue_id: state}``.
     """
     today = today or datetime.date.today().isoformat()
 
-    before = _bundle_dirs(cfg)
     leaves.do_plan_batch(cfg, csv)
-    new = sorted(_bundle_dirs(cfg) - before)
-    if not new:
-        print("flow: Plan produced no new briefs", file=sys.stderr)
+    # Resume set: every bundle with a brief that isn't finished. UNPLANNED (skipped /
+    # un-briefed) and COMPLETE (done) are excluded, so a re-run is idempotent.
+    bundles = sorted(
+        (cfg.bundle_root / name for name in _bundle_dirs(cfg)
+         if state.state(cfg.bundle_root / name) not in (state.COMPLETE, state.UNPLANNED)),
+        key=lambda p: p.name,
+    )
+    if not bundles:
+        print("flow: nothing to do — no in-flight briefs (all COMPLETE or none authored; "
+              "brief new issues to add work).", file=sys.stderr)
         return {}
-    bundles = [cfg.bundle_root / name for name in new]
     names = {b.name for b in bundles}
 
     for _ in range(max_passes):

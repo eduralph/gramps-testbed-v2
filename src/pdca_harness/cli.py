@@ -173,7 +173,7 @@ def _flow(cfg: Config, args: argparse.Namespace) -> int:
         return 2
     results = flow.flow_batch(cfg, csv=args.from_csv, do_act=args.act, by=args.by)
     if not results:
-        return 1
+        return 0  # nothing in flight to drive (flow_batch printed why) — not an error
     for iid, st in sorted(results.items()):
         print(f"{st}\t{iid}")
     done = sum(1 for s in results.values() if s == state.COMPLETE)

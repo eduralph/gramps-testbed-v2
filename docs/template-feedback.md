@@ -72,9 +72,21 @@ Folded into the same files (feed back together):
 - `cli.py`: `flow` `issue_id` is now `nargs="?"` — omit it + pass `--from-csv` to
   batch; prints `{id: state}` + an `N/M complete` tally.
 - `.claude/agents/planner.md.jinja`: the "one issue or several (batch)" paragraph.
-- `Makefile`: `flow` accepts `CSV` without `ID` (batch); usage updated.
+- `Makefile`: `flow` accepts `CSV` without `ID` (batch); a `batch IDS="…"` target drives
+  specific already-briefed bundles by id; usage updated.
 - `tests/test_flow_slice.py`: `test_batch_plans_many_and_completes_all`,
-  `test_batch_iterate_then_complete`.
+  `test_batch_iterate_then_complete`, `test_batch_resumes_existing_without_new_briefs`,
+  `test_batch_nothing_to_do_returns_empty`.
+
+**Make `flow_batch` RESUMABLE (a live-run fix worth feeding back).** It first only
+drove bundles *created in that Plan session* (`after − before`), so re-running
+`flow --from-csv` to pick a batch back up failed with "Plan produced no new briefs"
+(non-zero exit) even though briefs were sitting in flight. Now it drives **every
+non-COMPLETE / non-UNPLANNED bundle** (this session's + any already in flight), and
+`cli._flow` treats an empty result as **success (exit 0)** with a clear "nothing to
+do" message — so a re-run resumes instead of erroring. Lesson for the template: a
+batch/continuous driver must be **idempotently resumable** (state-derived work set),
+not scoped to one invocation's freshly-created artifacts.
 
 ### Design-proposal (GEPS) extension — feature work as a richer Plan artifact
 Two insights: (1) a GEPS maps onto **Plan** (author the design with Claude), not a
