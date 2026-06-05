@@ -154,6 +154,30 @@ class FlowSlice(unittest.TestCase):
             leaves.do_plan_batch = orig
         self.assertEqual(results.get("RESUME"), state.COMPLETE)
 
+    def test_flow_ids_drives_listed_bundles_to_act(self) -> None:
+        # Two already-briefed bundles (no Plan beat) + a bogus id: both reach COMPLETE,
+        # the bogus id is skipped, and Act runs once at the end.
+        for iid in ("IDA", "IDB"):
+            d = self.cfg.bundle(iid)
+            d.mkdir(parents=True)
+            (d / "brief.md").write_text(
+                "- **Slug:** s\n- **Defect:** x\n- **Success criterion:** y\n"
+                "- **Repo + branch target:** repo @ main\n- **Test file:** t_test.py\n",
+                encoding="utf-8",
+            )
+        results = flow.flow_ids(self.cfg, ["IDA", "IDB", "GHOST"], do_act=True, today="2026-06-05")
+        self.assertEqual(set(results), {"IDA", "IDB"})
+        self.assertTrue(all(s == state.COMPLETE for s in results.values()))
+        self.assertTrue((self.cfg.process_dir / "act-log.md").exists())  # Act ran once
+
+    def test_flow_ids_skips_complete_and_unbriefed(self) -> None:
+        # An id with no bundle/brief and one already COMPLETE both fall out of the set.
+        done = self.cfg.bundle("DONE")
+        flow.flow(self.cfg, "DONE", today="2026-06-05")  # drive it to COMPLETE first
+        self.assertEqual(state.state(done), state.COMPLETE)
+        results = flow.flow_ids(self.cfg, ["DONE", "NEVER"], today="2026-06-05")
+        self.assertEqual(results, {})  # nothing left to drive
+
     def test_batch_nothing_to_do_returns_empty(self) -> None:
         # No in-flight bundles + a Plan session that briefs nothing → {} (the caller
         # treats this as success, exit 0, not an error).

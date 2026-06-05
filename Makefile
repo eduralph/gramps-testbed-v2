@@ -40,12 +40,13 @@ flow:
 	@test -n "$(ID)$(CSV)" || { echo 'usage: make flow ID=<issue-id> [CSV="<path>"] [ACT=1] [BY=<name>]'; echo '   or: make flow CSV="<path>" [ACT=1] [BY=<name>]   (batch: Plan briefs several)'; exit 2; }
 	$(PDCA) flow $(ID) $(if $(CSV),--from-csv "$(CSV)") $(if $(ACT),--act) $(if $(BY),--by "$(BY)")
 
-# Resume / drive specific already-briefed bundles by id (no Plan): each runs Do→Check
-# to a parked state, then the cheap-first sign-off queue is printed. The convenient
-# way to pick a run back up: `make batch IDS="11589 11786 12576"`.
+# Drive specific already-briefed bundles by id through the FULL cycle (no Plan):
+# Do → Check → interactive sign-off (cheap-first across the set) → Act once at the
+# end. Like `make flow` but seeded by ids — run it in a real terminal. NOACT=1 stops
+# after sign-off; BY=<name> sets §9 attribution. `make batch IDS="11589 11786 12576"`.
 batch:
-	@test -n "$(IDS)" || { echo 'usage: make batch IDS="<id> <id> ..."'; exit 2; }
-	$(PDCA) batch $(IDS)
+	@test -n "$(IDS)" || { echo 'usage: make batch IDS="<id> <id> ..." [NOACT=1] [BY=<name>]'; exit 2; }
+	$(PDCA) batch $(IDS) $(if $(NOACT),--no-act) $(if $(BY),--by "$(BY)")
 
 # Closing work of Check: contribute an ACCEPTED fix as a draft upstream PR (drafts
 # commit-msg.txt + pr-description.md, runs the T4 gate, then branch/apply/commit/push

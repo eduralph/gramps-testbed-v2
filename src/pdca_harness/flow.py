@@ -89,6 +89,47 @@ def flow(
 
 
 # ----------------------------------------------------------------------------
+# Shared multi-bundle driver: build all → cheap-first sign-off → Act once.
+# ----------------------------------------------------------------------------
+def _drive_and_act(
+    cfg: Config,
+    bundles: list[Path],
+    *,
+    do_act: bool,
+    by: str,
+    today: str,
+    max_passes: int = 10,
+) -> dict[str, str]:
+    """Drive a fixed set of in-flight bundles through the full cycle to Act.
+
+    The shared body of both batch entry points: each pass builds / gates / reviews
+    every bundle unattended, then walks the cheap-first sign-off queue
+    (:func:`queue.awaiting_signoff`) interactively, restricted to this set; iteration
+    re-loops. When all are COMPLETE, Act runs **once** across the batch. The endpoint
+    is Act — like any single cycle, just fanned over several bundles.
+    """
+    names = {b.name for b in bundles}
+    for _ in range(max_passes):
+        # Build-all (unattended): advance each bundle to AWAITING_SIGNOFF / COMPLETE.
+        for d in bundles:
+            _plan_if_unplanned(cfg, d, None)  # iterate-plan may have re-opened it
+            driver.run_issue(d, cfg)
+        # Sign-off, cheap-first, restricted to this batch.
+        pending = [e.bundle for e in queue.awaiting_signoff(cfg) if e.bundle.name in names]
+        if not pending:
+            break
+        for d in pending:
+            _signoff_and_apply(cfg, d, by=by, today=today)
+        if all(state.state(d) == state.COMPLETE for d in bundles):
+            break
+
+    results = {d.name.replace("issue_", ""): state.state(d) for d in bundles}
+    if do_act and any(s == state.COMPLETE for s in results.values()):
+        leaves.run_act(cfg, today)
+    return results
+
+
+# ----------------------------------------------------------------------------
 # Batch flow — one Plan session briefs several issues; build all, then sign off.
 # ----------------------------------------------------------------------------
 def flow_batch(
@@ -122,26 +163,44 @@ def flow_batch(
         print("flow: nothing to do — no in-flight briefs (all COMPLETE or none authored; "
               "brief new issues to add work).", file=sys.stderr)
         return {}
-    names = {b.name for b in bundles}
+    return _drive_and_act(cfg, bundles, do_act=do_act, by=by, today=today, max_passes=max_passes)
 
-    for _ in range(max_passes):
-        # Build-all (unattended): advance each bundle to AWAITING_SIGNOFF / COMPLETE.
-        for d in bundles:
-            _plan_if_unplanned(cfg, d, None)  # iterate-plan may have re-opened it
-            driver.run_issue(d, cfg)
-        # Sign-off, cheap-first, restricted to this batch.
-        pending = [e.bundle for e in queue.awaiting_signoff(cfg) if e.bundle.name in names]
-        if not pending:
-            break
-        for d in pending:
-            _signoff_and_apply(cfg, d, by=by, today=today)
-        if all(state.state(d) == state.COMPLETE for d in bundles):
-            break
 
-    results = {d.name.replace("issue_", ""): state.state(d) for d in bundles}
-    if do_act and any(s == state.COMPLETE for s in results.values()):
-        leaves.run_act(cfg, today)
-    return results
+# ----------------------------------------------------------------------------
+# Id-seeded flow — drive specific already-briefed bundles, no Plan beat.
+# ----------------------------------------------------------------------------
+def flow_ids(
+    cfg: Config,
+    ids: list[str],
+    *,
+    do_act: bool = False,
+    by: str = "",
+    today: str | None = None,
+    max_passes: int = 10,
+) -> dict[str, str]:
+    """Drive specific already-briefed bundles by id through the FULL cycle to Act.
+
+    Like :func:`flow_batch` but seeded by explicit ids with **no Plan beat** — the
+    bundles must already have a brief. Missing / un-briefed (UNPLANNED) ids are
+    skipped with a note (brief them at Plan first); already-COMPLETE ids are left
+    alone. Returns ``{issue_id: state}``.
+    """
+    today = today or datetime.date.today().isoformat()
+    bundles: list[Path] = []
+    for iid in ids:
+        d = cfg.bundle(iid)
+        s = state.state(d)
+        if not d.exists() or s == state.UNPLANNED:
+            print(f"flow: {d.name} — no brief.md, skipped (brief it at Plan first)", file=sys.stderr)
+            continue
+        if s == state.COMPLETE:
+            print(f"flow: {d.name} — already COMPLETE, skipped", file=sys.stderr)
+            continue
+        bundles.append(d)
+    if not bundles:
+        return {}
+    bundles.sort(key=lambda p: p.name)
+    return _drive_and_act(cfg, bundles, do_act=do_act, by=by, today=today, max_passes=max_passes)
 
 
 def _bundle_dirs(cfg: Config) -> set[str]:

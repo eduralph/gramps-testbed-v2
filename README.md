@@ -62,7 +62,7 @@ beat; `make flow` does not push for you.)
 | `make setup` | One-time: write the permission config so the interactive leaves don't prompt. |
 | `make flow ID=<id> [CSV="<path>"] [ACT=1] [BY=<name>]` | Run the full cycle for one issue. `CSV` seeds Plan; `ACT=1` runs Act; `BY` overrides §9 attribution (defaults to the project author). |
 | `make flow CSV="<path>"` | **Batch**: one Plan session may brief several issues; then every in-flight bundle builds unattended and you sign off the cheap-first queue. **Resumable** — re-run it to pick up where you left off (it skips/authors at Plan, then drives whatever's outstanding). |
-| `make batch IDS="<id> …"` | Resume / drive specific **already-briefed** bundles by id (no Plan): each runs Do→Check to a parked state, then prints the sign-off queue. |
+| `make batch IDS="<id> …" [NOACT=1] [BY=<name>]` | Drive specific **already-briefed** bundles by id through the **full cycle** (no Plan): Do→Check→sign-off (cheap-first across the set)→Act once at the end — `make flow` seeded by ids. Run it in a terminal. `NOACT=1` stops after sign-off. **Resumable** — re-run to pick up whatever is still in flight. |
 | `make publish ID=<id> [DRY=1] [BY=<name>]` | Closing work of Check: contribute an accepted fix as a **draft PR** (drafts the commit/PR artifacts, runs the T4 gate, branches from upstream, applies, commits, pushes, opens the draft). `DRY=1` previews. Ready/merge stay yours. |
 | `make rehearse ID=<id> [CSV="<path>"]` | Dry-run the *same* control flow with stub leaves + stub gates — **no Claude, no Docker, instant**. Watch `PLANNED → … → COMPLETE` before a real run. |
 | `make status` | List every bundle and its state. |
