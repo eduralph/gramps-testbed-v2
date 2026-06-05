@@ -76,6 +76,23 @@ vendored ruleset; each target carries its auditable origin per doc 16
 > (`engine/scripts/run-verify.sh` is the *generic template skeleton*, not the
 > gramps gate — the wired C4 gate is `ubuntu/run-verify.sh`.)
 - **Canonical fixture path:** `example.gramps`.
+- **Test placement — core vs addon (a doc-16-class convention).** Where a regression
+  test ships differs by target, and getting it wrong is a recurring Do error (it cost
+  iterations on issue 13636, where the brief seeded the *addon* folder for a *core*
+  fix). gramps' own doc 16 §Testing only codifies the addon side; the core side is
+  recorded here until it is carried upstream:
+  - **gramps core** → a **`test/`** package (singular), e.g. `gramps/gui/test/`,
+    `gramps/gen/lib/test/` (28 such dirs, **0** `tests/`), each with `__init__.py`,
+    holding **`<module>_test.py`** files (the `*_test.py` *suffix*; `run-unit.sh`
+    discovers `-p "*_test.py"`). **MUST NOT** create a `tests/` (plural) directory
+    anywhere under the core `gramps/` package — that is the addon convention and a
+    `tests/` package under core can trip the [Mantis 12691] submodule-binding trap.
+  - **addons** (`addons-source`) → a **`tests/`** package (plural) alongside the addon
+    module, holding **`test_<thing>.py`** files (the `test_*.py` *prefix*; loaded via
+    the dotted path `<Addon>.tests.<module>`), per doc 16 §Testing.
+  - So: **core = `test/` + `<x>_test.py`; addon = `tests/` + `test_<x>.py`.** The
+    suffix vs prefix flips with the folder; the brief's **Test file** field must name
+    the right one for the target branch.
 - **Reproduction runner(s) + commands:**
   - GUI / dogtail (AT-SPI): `./engine/scripts/ubuntu/run-interface.sh [pattern]` **(ported, advisory)** —
     runs `engine/interface/test_*.py` headless under Xvfb + dbus + `at-spi-bus-launcher`;
