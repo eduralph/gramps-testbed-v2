@@ -13,13 +13,22 @@ read it for tracker, branch targets, fixtures, and the conformance ruleset.
 (`pdca flow <id> [--from-csv …] [--act]`). State is the files in
 `results/issue_<id>/`; nothing is hidden in a database.
 
-The driver is deterministic — **no model decides control flow**. Models are
-invoked only at the **five leaves**: Plan (planner — interactive, turns the
-human's documents into `brief.md`), Do (builder — headless), Check (reviewer —
-headless, advisory), Check sign-off (signoff — interactive, captures the human's
-OK), and Act (act — interactive, suggests process deltas). The leaves fill
-*artifacts*; the state transitions, the gates, and the C6 accept-guard stay
-deterministic code. Each leaf is configurable in `pdca.toml` (`[leaves.*]`,
+The driver is deterministic — **no model decides control flow**. The cycle has the
+four PDCA beats (Plan · Do · Check · Act); models are invoked only at the **six
+leaves** across them — and the **Check beat holds three of those steps**:
+- **Plan** — its steps: (optionally) scrape the bug's Mantis thread
+  (`engine/scripts/scrape-mantis.sh`), then the planner leaf (interactive) authors
+  `brief.md` from the tracker row + notes.
+- **Do** — builder (headless): writes `patch.diff` + the test + `build-notes.md`.
+- **Check** — its model steps are **review** (reviewer — headless, advisory),
+  **sign-off** (signoff — interactive, captures the human's OK), and **publish**
+  (publisher — interactive, drafts the commit/PR artifacts for an accepted fix; the
+  deterministic `pdca publish` then opens the draft PR). Review, sign-off and publish
+  are *steps within Check*, not beats of their own.
+- **Act** — act (interactive): suggests process deltas across frozen cycles.
+
+The leaves fill *artifacts*; the state transitions, the gates, the C6 accept-guard,
+and the publish mechanics stay deterministic code. Each leaf is configurable in `pdca.toml` (`[leaves.*]`,
 `mode = stub|command`, `interactive`); `PDCA_LEAVES_MODE=stub` forces the offline
 placeholders for CI / `make`.
 

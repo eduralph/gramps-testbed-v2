@@ -13,7 +13,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from . import act, driver, flow, gates, queue, signoff, state
+from . import act, driver, flow, gates, publish, queue, signoff, state
 from .config import Config
 
 # Ordering for the cheap-first sign-off queue (docs 03 §sign-off queue).
@@ -76,6 +76,15 @@ def main(argv: list[str] | None = None) -> int:
     p_signoff.add_argument("--by", default="", help="who signed off")
     p_signoff.add_argument("--delta", default="", help="iteration delta note")
 
+    p_publish = sub.add_parser(
+        "publish", help="Check's closing work: contribute an accepted fix as a draft PR")
+    p_publish.add_argument("issue_id")
+    p_publish.add_argument("--dry-run", action="store_true",
+                           help="print the git/gh commands without running them")
+    p_publish.add_argument("--no-pr", action="store_true",
+                           help="push the branch but don't open the draft PR")
+    p_publish.add_argument("--by", default="", help="who published (recorded in publish.json)")
+
     args = parser.parse_args(argv)
     cfg = Config.load()
 
@@ -99,6 +108,9 @@ def main(argv: list[str] | None = None) -> int:
         return _act_log(cfg, args)
     if args.cmd == "signoff":
         return _signoff(cfg, args)
+    if args.cmd == "publish":
+        return publish.publish(cfg, args.issue_id, dry_run=args.dry_run,
+                               open_pr=not args.no_pr, by=args.by)
     return 2
 
 

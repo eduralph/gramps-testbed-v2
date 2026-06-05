@@ -192,6 +192,34 @@ class T4Contribution(unittest.TestCase):
                 "References #13636\n")
         self.assertEqual(t4_contribution.check_pr_body(body), [])
 
+    def test_publisher_stub_artifacts_pass_t4(self) -> None:
+        # The Check-closing publisher leaf's offline stub must write doc-16/T4-valid
+        # commit-msg.txt + pr-description.md — the publish slice relies on it.
+        import shutil
+        import sys
+        import tempfile
+        src = Path(__file__).resolve().parents[2] / "src"
+        sys.path.insert(0, str(src))
+        from pdca_harness import leaves  # noqa: E402
+        from pdca_harness.config import Config, LeafConfig  # noqa: E402
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            d = tmp / "issue_13636"
+            d.mkdir()
+            cfg = Config(
+                root=tmp, bundle_root=tmp, process_dir=tmp, templates_dir=tmp,
+                default_branch="main", tracker_system="", tracker_url="",
+                issue_id_example="", builder=LeafConfig(), reviewer=LeafConfig(),
+                publisher=LeafConfig(mode="stub"),
+            )
+            leaves._stub_publish(d, cfg)
+            self.assertEqual(
+                t4_contribution.check_commit_msg((d / "commit-msg.txt").read_text()), [])
+            self.assertEqual(
+                t4_contribution.check_pr_body((d / "pr-description.md").read_text()), [])
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
 
 if __name__ == "__main__":
     unittest.main()

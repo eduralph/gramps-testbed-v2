@@ -47,6 +47,14 @@ What happens, step by step:
 
 When sign-off ends, exit the Claude session (**Ctrl-D**) to let the flow continue.
 
+**Closing Check — contribute the fix.** Once a fix is accepted, `make publish ID=<id>`
+does the *closing work of Check*: a publisher leaf drafts `commit-msg.txt` +
+`pr-description.md` (doc-16-conformant, validated by the T4 gate), then the driver
+branches from `upstream/<base>`, applies the patch, commits, pushes, and opens a
+**draft PR** — and stops. You review CI and mark it ready/merge yourself. Preview the
+exact git/gh commands first with `DRY=1`. (This is Check's contribution arm, not a new
+beat; `make flow` does not push for you.)
+
 ## Commands
 
 | Command | What it does |
@@ -54,6 +62,7 @@ When sign-off ends, exit the Claude session (**Ctrl-D**) to let the flow continu
 | `make setup` | One-time: write the permission config so the interactive leaves don't prompt. |
 | `make flow ID=<id> [CSV="<path>"] [ACT=1] [BY=<name>]` | Run the full cycle for one issue. `CSV` seeds Plan; `ACT=1` runs Act; `BY` overrides §9 attribution (defaults to the project author). |
 | `make flow CSV="<path>"` | **Batch**: one Plan session may brief several issues; they all build unattended, then you sign off the cheap-first queue. |
+| `make publish ID=<id> [DRY=1] [BY=<name>]` | Closing work of Check: contribute an accepted fix as a **draft PR** (drafts the commit/PR artifacts, runs the T4 gate, branches from upstream, applies, commits, pushes, opens the draft). `DRY=1` previews. Ready/merge stay yours. |
 | `make rehearse ID=<id> [CSV="<path>"]` | Dry-run the *same* control flow with stub leaves + stub gates — **no Claude, no Docker, instant**. Watch `PLANNED → … → COMPLETE` before a real run. |
 | `make status` | List every bundle and its state. |
 | `make cli ARGS="<subcommand>"` | Any other `pdca` subcommand (e.g. `signoff 13636 --accept`). |

@@ -59,6 +59,15 @@ family = "claude"
 interactive = true
 argv = ["claude", "--agent", "signoff", "--permission-mode", "acceptEdits"]
 
+# Publisher — the closing work of Check: for an ACCEPTED fix, drafts commit-msg.txt +
+# pr-description.md WITH the human (doc 16). The deterministic `pdca publish` then
+# branches/applies/commits/pushes and opens the DRAFT PR; this leaf writes prose only.
+[leaves.publisher]
+mode = "command"
+family = "claude"
+interactive = true
+argv = ["claude", "--agent", "publisher", "--permission-mode", "acceptEdits"]
+
 [leaves.act]
 mode = "command"
 family = "claude"

@@ -53,6 +53,7 @@ class Config:
     reviewer: LeafConfig
     planner: LeafConfig = field(default_factory=LeafConfig)
     signoff: LeafConfig = field(default_factory=LeafConfig)
+    publisher: LeafConfig = field(default_factory=LeafConfig)
     act: LeafConfig = field(default_factory=LeafConfig)
     author: str = ""  # default §9 sign-off attribution (the maintainer)
     tracker_export_csv: str = ""  # default tracker CSV the planner reads the issue row from
@@ -112,6 +113,7 @@ class Config:
             reviewer=leaf("reviewer"),
             planner=leaf("planner"),
             signoff=leaf("signoff"),
+            publisher=leaf("publisher"),
             act=leaf("act"),
             author=data.get("project", {}).get("author", ""),
             gates_checks=gates_checks,

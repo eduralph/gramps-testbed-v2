@@ -197,7 +197,51 @@ hitting permission prompts. The **generic** fixes (feed back):
   `~/.claude.json` (`projects[<path>].hasTrustDialogAccepted`). The template's setup
   + README should say so plainly (one-time accept), not imply setup suppresses it.
 
+### Publish — Check's contribution arm (closing work of Check) — template-bound
+The cycle went quiet at COMPLETE; a `pdca publish <id>` step now contributes the
+accepted fix as a **draft PR** — the *closing work of Check*, not a new beat. Generic
+machinery (feed back):
+- `src/pdca_harness/publish.py` (NEW, verbatim): the deterministic mechanics —
+  guard (accepted-only), run the contribution leaf if artifacts missing, run the
+  configured **T4** gate (must pass), then branch from `upstream/<base>` → `git apply`
+  → commit → push → `gh pr create --draft` → STOP; record `publish.json`. Never codes
+  ready/merge. The T4 check is found generically via `cfg.gates_checks` (tier `T4`), so
+  it's decoupled from any one project's checker.
+- `src/pdca_harness/leaves.py` (verbatim): a sixth leaf — `run_publish` /
+  `_publish_prompt` / `_stub_publish` (the stub writes doc-16/T4-valid artifacts).
+- `src/pdca_harness/config.py` (verbatim): `Config.publisher`; `cli.py` (verbatim):
+  the `publish` subcommand; `Makefile` (verbatim): the `publish` target;
+  `tests/test_publish_slice.py` (NEW, verbatim).
+- `.claude/agents/publisher.md` → `template/.claude/agents/publisher.md.jinja` (jinja):
+  reuses the `builder_guard.py` hook (block ready/merge); `templates/commit-msg.txt.tpl`
+  (NEW). Genericize the gramps/doc-16 specifics.
+Two insights worth carrying: (a) **the T4 gate's inputs (`commit-msg.txt` /
+`pr-description.md`) only exist once you publish** — before that T4 is correctly N/A;
+publishing is what makes T4 a *real* check. (b) The split holds: the **leaf writes the
+prose**, **deterministic code does the git/PR mechanics** — and the mechanics stop at a
+**draft PR** (ready/merge is the human's sign-off disposition).
+
+### PDCA vocabulary — exactly four beats; steps live within beats — template-bound
+A maintainer correction worth propagating to the template's prose: **the cycle has
+exactly four beats (Plan · Do · Check · Act); never coin extra beats.** Review,
+sign-off and publish are *steps within Check*; scrape and brief are *steps within
+Plan*. A beat can have internal structure (Check also runs the 5/5/1 matrix), but the
+model leaves (planner/builder/reviewer/signoff/publisher/act) are invocation
+touchpoints, not beats. Feed back the wording fixes:
+- `template/CLAUDE.md.jinja`: describe **Check as one beat with three model steps**
+  (review / sign-off / publish), and Plan as scrape→brief — not a flat list that reads
+  as extra beats.
+- `template/.claude/agents/signoff.md.jinja`: "the Check sign-off **beat**" → "the
+  sign-off **step** of the Check beat". Drop any "Check-closing" / coined-beat labels
+  in `publisher.md.jinja`, and in `leaves.py` (verbatim) docstrings/comments.
+- `template/PCDA/quality-cycle/*` (if any instance-rendered copy): keep beats and steps
+  distinct. **Guard for the template:** don't let a new leaf/step's name imply a beat.
+
 ## Instance-only — do NOT feed back
+- The gramps **branch convention** (`fix/bug-<id>-<slug>` / `enhancement/<id>-<slug>`)
+  and the `repo_spec → ../<sibling>` resolution baked into `publish.py` are
+  gramps/fork-layout specific; a template should make the branch pattern + the
+  repo→checkout mapping configurable.
 - `engine/scripts/mantis_notes.py` + `scrape-mantis.sh` (Playwright/Chrome Mantis
   scraper) and the `[tracker].export_csv` **value** — gramps/Mantis specific. The
   *mechanism* of passing a tracker export + a notes file to the planner is generic

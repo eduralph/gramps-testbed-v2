@@ -40,6 +40,13 @@ flow:
 	@test -n "$(ID)$(CSV)" || { echo 'usage: make flow ID=<issue-id> [CSV="<path>"] [ACT=1] [BY=<name>]'; echo '   or: make flow CSV="<path>" [ACT=1] [BY=<name>]   (batch: Plan briefs several)'; exit 2; }
 	$(PDCA) flow $(ID) $(if $(CSV),--from-csv "$(CSV)") $(if $(ACT),--act) $(if $(BY),--by "$(BY)")
 
+# Closing work of Check: contribute an ACCEPTED fix as a draft upstream PR (drafts
+# commit-msg.txt + pr-description.md, runs the T4 gate, then branch/apply/commit/push
+# + `gh pr create --draft`). DRY=1 previews the commands. Ready/merge stay yours.
+publish:
+	@test -n "$(ID)" || { echo 'usage: make publish ID=<issue-id> [DRY=1] [BY=<name>]'; exit 2; }
+	$(PDCA) publish $(ID) $(if $(DRY),--dry-run) $(if $(BY),--by "$(BY)")
+
 # Same control flow with stub leaves + stub gates (no Claude / Docker / TTY), in an
 # ISOLATED throwaway bundle root so it never touches the real results/ a live run uses.
 rehearse:

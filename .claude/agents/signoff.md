@@ -1,7 +1,7 @@
 ---
 name: signoff
 description: >-
-  The Check sign-off beat of the PDCA cycle for Gramps Testbed v2. Reviews the
+  The sign-off step of the Check beat (PDCA) for Gramps Testbed v2. Reviews the
   assembled result WITH the human, helps clear the §6 NEEDS-HUMAN items, and
   records the agreed decision token. It proposes; the human decides; the driver
   records §9 under a deterministic guard. An interactive, human-in-the-loop session.
