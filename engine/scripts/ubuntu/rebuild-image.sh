@@ -11,6 +11,14 @@
 
 set -euo pipefail
 
+# -h / --help: print this script's header comment block and exit.
+case "${1:-}" in
+  -h | --help)
+    awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"
+    exit 0
+    ;;
+esac
+
 # Repo root = nearest ancestor with pdca.toml (matches pdca_harness.config._find_root;
 # depth- and git-independent — see engine/tests/test_root_resolution.py). ENGINE is
 # the docker build context; WORKSPACE holds the sibling gramps/ checkout.

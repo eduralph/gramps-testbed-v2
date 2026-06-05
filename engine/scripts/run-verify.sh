@@ -23,6 +23,14 @@
 #   4. exit 0 on red-then-green, non-zero otherwise
 set -euo pipefail
 
+# -h / --help: print this script's header comment block and exit.
+case "${1:-}" in
+  -h | --help)
+    awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"
+    exit 0
+    ;;
+esac
+
 BUNDLE="${PDCA_BUNDLE:?run from the driver — \$PDCA_BUNDLE must be set}"
 
 echo "engine/scripts/run-verify.sh: not yet implemented for this project." >&2

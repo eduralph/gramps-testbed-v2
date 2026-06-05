@@ -10,6 +10,14 @@
 
 set -euo pipefail
 
+# -h / --help: print this script's header comment block and exit.
+case "${1:-}" in
+  -h | --help)
+    awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"
+    exit 0
+    ;;
+esac
+
 # Repo root = nearest ancestor of this script containing pdca.toml. This matches
 # the driver's own root convention (pdca_harness.config._find_root): it is
 # depth-independent (NOT a fragile fixed-depth ../.. walk — see the reference

@@ -24,9 +24,11 @@ results/issue_selftest/
 # local bundle backups (moved aside before a live re-run; not for publication)
 .backup/
 
-# Mantis scraper (engine/scripts/mantis_notes.py): the persistent browser profile
-# holds your logged-in session/cookies — NEVER commit it. notes_json/ is scratch.
+# Mantis scraper (engine/scripts/mantis_notes.py + scrape-mantis.sh): the persistent
+# browser profiles hold your logged-in session/cookies — NEVER commit them.
+# pw-profile/ = Playwright launch mode; .cf-chrome-profile/ = the --attach debug Chrome.
 pw-profile/
+.cf-chrome-profile/
 notes_json/
 
 # wiki scrape cache (regenerable; the reference root-ignores it)

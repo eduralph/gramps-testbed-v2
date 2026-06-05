@@ -166,6 +166,19 @@ def detect_block(page) -> str | None:
     ):
         return "access-denied"
 
+    # If the real issue container is present, this IS the issue page — return None
+    # even when the page also carries a login/logout form. MantisBT keeps such a
+    # form in the page chrome while you are logged in, which otherwise made the
+    # selector check below false-positive as "login" on a perfectly good (and
+    # logged-in) issue page. Confirm the positive signal before the login heuristic.
+    try:
+        if page.query_selector(
+            "#view_all_bug_page, .bug-summary, td.bug-summary, td.category, [id^='bugnote-']"
+        ):
+            return None
+    except Exception:
+        pass
+
     if "login" in title or "log in" in title or "sign in" in title:
         return "login"
     try:
@@ -204,6 +217,12 @@ def main():
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--out", default="notes_json")
     ap.add_argument("--delay", type=float, default=1.5)
+    ap.add_argument(
+        "--yes",
+        action="store_true",
+        help="skip the 'press Enter to begin' pause in --attach mode (the caller, "
+        "e.g. scrape-mantis.sh, has already made the browser ready).",
+    )
     ap.add_argument(
         "--headless",
         action="store_true",
@@ -285,7 +304,8 @@ def main():
                 "\nAttached to your Chrome. Make sure you've already passed Cloudflare"
             )
             print("and logged in in that window, with an issue page visible.")
-            input("Press Enter to begin pulling issues... ")
+            if not args.yes:
+                input("Press Enter to begin pulling issues... ")
         else:
             # LAUNCH MODE: Playwright starts the browser. Simpler, but Cloudflare may
             # loop on the challenge because of automation flags. If you hit that loop,
