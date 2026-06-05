@@ -114,6 +114,21 @@ cmd = "./engine/scripts/ubuntu/run-addon-unit.sh"
 gating = false
 scope = "repo"
 
+# T3 runtime — interface SMOKE baseline (GUI comes up + opens a tree, driven
+# headless via Xvfb + AT-SPI + dogtail; engine/interface/test_smoke.py). Advisory
+# and scoped to the smoke test only: the full interface suite is a mix of green
+# tests and reproductions of UNMERGED upstream bugs (e.g. bug 14100 / gramps#2322),
+# so the whole-suite run is a characterization, not a clean gate — run it manually
+# with `./engine/scripts/ubuntu/run-interface.sh` (no arg). A per-fix interface-level
+# C4 (bundle-scoped, the bug's own interface test red→green) is the future extension.
+[[gates.checks]]
+id = "T3-interface"
+tier = "T3"
+label = "runtime: GUI interface smoke (launch + open tree, headless dogtail)"
+cmd = "./engine/scripts/ubuntu/run-interface.sh test_smoke.py"
+gating = false
+scope = "repo"
+
 # T1/T2/T4 conformance — the structure / shape / contribution tiers, mechanised
 # from wiki doc 16 ("Addon Development — Rules"), the foundation of the T1–T4
 # ladder. Each checker cites every rule back to doc16:LINE (see

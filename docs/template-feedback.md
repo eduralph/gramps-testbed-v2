@@ -206,6 +206,18 @@ the claude argv.
   ruleset is (here doc 16) — the matrix is generic, but every instance should be able
   to cite its tiers back to a written source, which is exactly what makes a gate
   auditable. A copier `conformance_ruleset_ref` hint string would make that explicit.
+- **Interface (GUI/dogtail) test tier** (`engine/interface/` suite + `engine/scripts/
+  ubuntu/run-interface.sh` + the `T3-interface` `[[gates.checks]]` row + the
+  `test_root_resolution.py` spec for the new runner): a headless AT-SPI/dogtail suite
+  run under Xvfb. Entirely *gramps GUI* specific, so **instance-only**. **No harness
+  change was needed** — the repo-scoped advisory-gate mechanism already carried it.
+  Insight worth the template's attention: an interface/E2E tier is best wired
+  **advisory and scoped to a smoke test**, not the full suite — the full suite mixes
+  green tests with reproductions of *unmerged* upstream bugs, so a whole-suite gate is
+  a characterization, not a pass/fail signal. The smoke ("does the app start") is the
+  per-checkout health gate. (This run also surfaced a real GUI-startup bug in the
+  gramps fork checkout — tracked as testbed issue #1 — which is exactly what an
+  advisory interface gate is for.)
 
 ## Design insights & gotchas (for the template maintainer)
 

@@ -61,16 +61,24 @@ vendored ruleset; each target carries its auditable origin per doc 16
 > `engine/` here — the reference repo's `agent-work/scripts/` + top-level `docker/`
 > were consolidated into one namespace on integration. **Ported & wired:**
 > `ubuntu/run-unit.sh` (T3-unit), `ubuntu/run-addon-unit.sh` (T3-addon-unit),
-> `ubuntu/run-verify.sh` (C4-verify, gating), the image helpers
-> `ubuntu/{rebuild-image,clean-build}.sh`, and the `scripts/lib/` helpers — all
-> live in `pdca.toml`. **Not yet ported:** the GUI/interface + manual runners and
-> the Windows variants (described below from the reference repo).
+> `ubuntu/run-verify.sh` (C4-verify, gating), `ubuntu/run-interface.sh`
+> (T3-interface smoke, advisory) + the interface suite at `engine/interface/`,
+> the image helpers `ubuntu/{rebuild-image,clean-build}.sh`, and the
+> `scripts/lib/` helpers — all live in `pdca.toml`. **Not yet ported:** the manual
+> QA runner and the Windows variants (described below from the reference repo).
 > (`engine/scripts/run-verify.sh` is the *generic template skeleton*, not the
 > gramps gate — the wired C4 gate is `ubuntu/run-verify.sh`.)
 - **Canonical fixture path:** `example.gramps`.
 - **Reproduction runner(s) + commands:**
-  - GUI / dogtail (AT-SPI): `./engine/scripts/ubuntu/run-interface.sh` *(not yet ported)*
-  - Visible manual QA: `./engine/scripts/ubuntu/run-manual.sh` *(not yet ported)*
+  - GUI / dogtail (AT-SPI): `./engine/scripts/ubuntu/run-interface.sh [pattern]` **(ported, advisory)** —
+    runs `engine/interface/test_*.py` headless under Xvfb + dbus + `at-spi-bus-launcher`;
+    the suite + `base.py` harness + `data/` fixtures were ported to `engine/interface/`.
+    The plumbing is verified end-to-end (gramps launches, AT-SPI queried, JUnit XML
+    emitted); the **full suite is a mix of green tests and reproductions of unmerged
+    upstream bugs** (e.g. `test_bug_0014100_*` → Mantis 14100 / gramps#2322), so it is
+    an advisory characterization, not a clean gate. The `T3-interface` gate runs only
+    `test_smoke.py` (the per-checkout GUI health check).
+  - Visible manual QA: `./engine/scripts/ubuntu/run-manual.sh` *(not yet ported — host-display launcher, not a gate)*
   - Inside the container the suite is `GRAMPS_RESOURCES=. python3 -m unittest discover -p "*_test.py"`.
 - **Verification runner (test suite):**
   - Per-fix C4 gate (red→green): `./engine/scripts/ubuntu/run-verify.sh` **(ported, gating)** —
@@ -188,13 +196,13 @@ List every project-specific script the cycle invokes (role → path + invocation
 | Tracker scrape | `triage/scripts/mantis_notes.py` | scrape Mantis comment threads → `triage/notes/issue_<id>.json` | [not ported — reference-repo tooling; absent here] |
 | Handoff / brief generator | `triage/scripts/make_handoff.py` | merge CSV export + notes → per-issue briefs | [not ported — superseded by the interactive **planner** leaf, which briefs from the CSV directly at Plan] |
 | Fork bootstrap | `engine/scripts/bootstrap-forks.sh` | clone gramps + addons-source forks as siblings, set `upstream` | [ported — root via pdca.toml marker, git-free] |
-| Repro / verification runners | `engine/scripts/ubuntu/run-*.sh`, `engine/scripts/windows/run-*.sh` | unit / addon-unit / verify / interface / manual | [partial — `ubuntu/{run-unit,run-addon-unit,run-verify,rebuild-image,clean-build}.sh` + `lib/` ported; interface/manual + windows pending] |
+| Repro / verification runners | `engine/scripts/ubuntu/run-*.sh`, `engine/scripts/windows/run-*.sh` | unit / addon-unit / verify / interface / manual | [partial — `ubuntu/{run-unit,run-addon-unit,run-verify,run-interface,rebuild-image,clean-build}.sh` + `lib/` + the `engine/interface/` suite ported; manual + windows pending] |
 | Per-fix correctness gate (C4) | `engine/scripts/ubuntu/run-verify.sh` | bundle-scoped: applies `patch.diff`, runs only its test, asserts red-without-fix / green-with-fix | [built — GATING; validated red→green] |
 | PR verification | `scripts/verify-pr.sh` | `./scripts/verify-pr.sh <org/repo> <PR#> [--watch]` (poll checks) | [not ported — reference-repo tooling; absent here] |
 | Conformance analyzers | `dev-tooling/{pyright,semgrep}/`, `dev-tooling/pre-commit/install.sh` | core shape/flow analyzers + fork hooks | [not ported — absent here; T1/T2 conformance gates (`engine/conformance/`) now cover structure/shape statically] |
 | Driver | `src/pdca_harness/` | `pdca run <id>` ; `pdca flow <id>` | [built — five model leaves wired (`[leaves.*] mode = "command"`); `pdca flow` runs the continuous Plan→Do→Check→sign-off→Act cycle] |
 | Act tooling (L4) | `src/pdca_harness/act.py` | `pdca act-index`, `pdca act-log --date <d>` | [built] |
-| Gates (single-sourced) | `pdca.toml` `[[gates.checks]]` | `pdca gates [<id>] [--working-tree]` | [built — C4-verify + `T3-unit`/`T3-addon-unit` + `T1-structure`/`T2-shape`/`T4-contribution` (doc-16-founded, advisory, `engine/conformance/`) live; interface-level C4 staged] |
+| Gates (single-sourced) | `pdca.toml` `[[gates.checks]]` | `pdca gates [<id>] [--working-tree]` | [built — C4-verify + `T3-unit`/`T3-addon-unit`/`T3-interface` (GUI smoke) + `T1-structure`/`T2-shape`/`T4-contribution` (doc-16-founded, advisory, `engine/conformance/`) live; per-fix interface-level C4 staged] |
 | Conformance checkers (doc 16) | `engine/conformance/{t1_structure,t2_shape,t4_contribution}.py` + `gate.py` | `python3 ./engine/conformance/gate.py {T1\|T2\|T4}` (bundle-scoped) | [built — §4 ladder; each MUST rule cites `doc16:LINE`; tested in `engine/tests/test_conformance.py`] |
 | Reviewer config | `AGENTS.md` + `.claude/agents/reviewer.md` | (model leaf) | [built — contract + `[leaves.reviewer] mode = "command"` wired; this instance runs the same-vendor `family = "claude"` fallback (decorrelated codex is the template default — see §4 and template-feedback #R)] |
 | Builder subagent | `.claude/agents/builder.md` + `.claude/hooks/builder_guard.py` | (model leaf) | [built — ready-mark blocked] |

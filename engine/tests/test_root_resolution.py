@@ -49,6 +49,7 @@ _RE = {  # the roots each kind of runner resolves
 SPECS = {
     "engine/scripts/ubuntu/run-unit.sh": _RE["full"],
     "engine/scripts/ubuntu/run-addon-unit.sh": _RE["full"],
+    "engine/scripts/ubuntu/run-interface.sh": _RE["full"],
     "engine/scripts/ubuntu/run-verify.sh": _RE["engine_ws"],
     "engine/scripts/ubuntu/rebuild-image.sh": _RE["engine_ws"],
     "engine/scripts/ubuntu/clean-build.sh": _RE["engine_ws"],
