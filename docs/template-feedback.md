@@ -249,6 +249,59 @@ touchpoints, not beats. Feed back the wording fixes:
 - `template/PCDA/quality-cycle/*` (if any instance-rendered copy): keep beats and steps
   distinct. **Guard for the template:** don't let a new leaf/step's name imply a beat.
 
+### Post-batch improvements (a live batch surfaced four) — mostly template-bound
+A real multi-issue batch run surfaced four gaps; three are generic and feed back.
+
+- **Reviewer always emits the full 5/5/1 verdict table.** The review prompt asked for
+  "per-item verdicts" but didn't mandate completeness, so the human-facing overview
+  was present on some bundles, missing on others. Fix is in the reviewer, not in
+  assembly (we want the verdicts to *live in* `check-review.md`, not be synthesized):
+  - `src/pdca_harness/gates.py` (verbatim): `canonical_elements()` — a public accessor
+    for the 11 `_FIVE_FIVE_ONE` rows, so the reviewer table is single-sourced with the
+    matrix the gates assemble.
+  - `src/pdca_harness/leaves.py` (verbatim): `_REVIEW_PROMPT` now mandates one
+    `| Item | Verdict | Basis |` row per element (PASS/FAIL/NEEDS-HUMAN/N/A); `_stub_review`
+    emits that same complete table (offline parity).
+  - `src/pdca_harness/assemble.py` (verbatim): `_needs_human` now lifts NEEDS-HUMAN from
+    **table rows** as well as legacy `- NEEDS-HUMAN` bullets, order-preserving + deduped —
+    so §6 fills regardless of the reviewer's shape.
+  - `.claude/agents/reviewer.md.jinja` (jinja): the "always emit the complete table"
+    section. *Generic lesson:* a judgment artifact the human reads each cycle should be
+    **mandated complete**, not left to the model's discretion.
+
+- **`batch` runs the full cycle, ending at Act** (was: parked at sign-off). `batch` is
+  now `flow` seeded by ids with no Plan beat — same machinery, same endpoint:
+  - `src/pdca_harness/flow.py` (verbatim): extract `_drive_and_act(cfg, bundles, …)` (the
+    multi-pass build-all → cheap-first sign-off → Act-once body) shared by `flow_batch`
+    (Plan-seeded) and the new `flow_ids(cfg, ids, …)` (id-seeded).
+  - `src/pdca_harness/cli.py` (verbatim): `_batch` calls `flow.flow_ids(..., do_act=…)`
+    instead of park-and-queue; the `batch` subparser gains `--no-act` / `--by`.
+  - `Makefile` (verbatim): the `batch` target gains `NOACT` / `BY`; it's now interactive
+    (sign-off/Act), like `flow`. *Generic lesson:* "drive several to done" and "drive
+    several to a parked queue" are the same loop with a different endpoint — share it.
+
+- **Transparent heartbeat (Tier 1 + 2): show *what* a leaf/gate is doing**, not just
+  that time passed (verbatim across `progress.py`, `leaves.py`, `gates.py`):
+  - `progress.py`: `run_with_heartbeat(..., status=Callable[[],str]|None)` appends a
+    per-tick snapshot; `bundle_activity(watch_dir, expected)` reports each artifact
+    (`name ✓ <size>` / `name —`), file-write staleness (`last write 12s ago`, soft
+    `⚠ no writes 6m`), and a running `grampstest-` test container (`running test (2m)`).
+    Best-effort — a probe exception can never break the run.
+  - `leaves.py`: `_invoke(..., label=, status=)`; `do_build` watches the bundle,
+    `_run_review_sandboxed` the sandbox. `gates.py`: `_run_one` watches the bundle/cwd.
+  - `tests/test_progress.py` (NEW, verbatim). *Note:* the container name filter
+    (`grampstest-`) is gramps-flavored — parameterize it when genericizing, or drop
+    Tier 2 from the template default and keep Tier 1 (artifacts + staleness), which is
+    project-agnostic.
+
+- **C4-verify now covers addon fixes** (`engine/scripts/ubuntu/run-verify.sh`,
+  **instance-only** — see Instance-only below). *Generic lesson worth carrying even
+  though the script isn't:* a per-fix verify gate must cover **every target kind the
+  project contributes to** (here core *and* addons — different checkout, test-name
+  convention, run env), not just the primary repo. The gate read the brief's target to
+  branch. A template's verify-gate skeleton should make "what am I patching/running"
+  pluggable rather than hard-code one repo.
+
 ## Instance-only — do NOT feed back
 - The gramps **branch convention** (`fix/bug-<id>-<slug>` / `enhancement/<id>-<slug>`)
   and the `repo_spec → ../<sibling>` resolution baked into `publish.py` are
