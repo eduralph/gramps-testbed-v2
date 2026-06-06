@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 import tempfile
 import time
 import unittest
@@ -63,6 +64,64 @@ class BundleActivity(unittest.TestCase):
         self.assertEqual(progress._compact_duration("About a minute ago"), "1m")
         self.assertEqual(progress._compact_duration("45 seconds ago"), "45s")
         self.assertEqual(progress._compact_duration(""), "")
+
+
+class StreamJsonToolLabel(unittest.TestCase):
+    """Tier 3 — parse Claude's --output-format stream-json for the live tool-use."""
+
+    def _line(self, name: str, inp: dict) -> str:
+        import json
+        return json.dumps({
+            "type": "assistant",
+            "message": {"content": [{"type": "tool_use", "name": name, "input": inp}]},
+        })
+
+    def test_tool_label_per_tool(self) -> None:
+        self.assertEqual(progress._tool_label("Edit", {"file_path": "/a/patch.diff"}),
+                         "Editing patch.diff")
+        self.assertEqual(progress._tool_label("Write", {"file_path": "b/build-notes.md"}),
+                         "Editing build-notes.md")
+        self.assertEqual(progress._tool_label("Read", {"file_path": "/x/glade.py"}),
+                         "Reading glade.py")
+        self.assertEqual(progress._tool_label("Bash", {"command": "./run-verify.sh foo\nbar"}),
+                         "Running ./run-verify.sh foo")
+        self.assertEqual(progress._tool_label("Grep", {"pattern": "navigation_type"}),
+                         "Searching navigation_type")
+        self.assertEqual(progress._tool_label("Task", {"description": "find flaky tests"}),
+                         "Subagent: find flaky tests")
+        self.assertEqual(progress._tool_label("WeirdTool", {}), "WeirdTool")
+
+    def test_stream_line_extracts_tool_use(self) -> None:
+        self.assertEqual(
+            progress._stream_tool_label(self._line("Edit", {"file_path": "p/patch.diff"})),
+            "Editing patch.diff")
+
+    def test_stream_line_last_tool_use_wins(self) -> None:
+        import json
+        line = json.dumps({"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "name": "Read", "input": {"file_path": "a.py"}},
+            {"type": "tool_use", "name": "Edit", "input": {"file_path": "b.py"}},
+        ]}})
+        self.assertEqual(progress._stream_tool_label(line), "Editing b.py")
+
+    def test_non_tool_lines_yield_empty(self) -> None:
+        import json
+        self.assertEqual(progress._stream_tool_label("not json at all"), "")
+        self.assertEqual(progress._stream_tool_label(
+            json.dumps({"type": "system", "subtype": "init"})), "")
+        self.assertEqual(progress._stream_tool_label(json.dumps({"type": "assistant",
+            "message": {"content": [{"type": "text", "text": "hi"}]}})), "")
+        self.assertEqual(progress._stream_tool_label(json.dumps({"type": "result"})), "")
+
+    def test_run_with_heartbeat_consumes_stream_json(self) -> None:
+        # Wiring smoke: a json-emitting child runs cleanly under stream_json (stdout is
+        # parsed, not echoed) and exits 0. The label logic is unit-tested above.
+        line = self._line("Edit", {"file_path": "/x/patch.diff"})
+        prog = f"import sys; sys.stdout.write({line!r} + '\\n'); sys.stdout.flush()"
+        rc, out = progress.run_with_heartbeat(
+            [sys.executable, "-c", prog], stream_json=True)
+        self.assertEqual(rc, 0)
+        self.assertEqual(out, "")  # stream_json consumes stdout for parsing, doesn't capture
 
 
 if __name__ == "__main__":
