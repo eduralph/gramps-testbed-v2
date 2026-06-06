@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 600" font-family="DejaVu Sans, Verdana, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 z" fill="#444"/>
+    </marker>
+    <marker id="arrowup" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 z" fill="#1a7f37"/>
+    </marker>
+  </defs>
+
+  <text x="410" y="30" text-anchor="middle" font-size="19" font-weight="bold" fill="#222">Gramps core — logical architecture</text>
+
+  <!-- Entry-point layer -->
+  <rect x="70" y="55" width="300" height="64" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="220" y="82" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e3a8a">gramps.gui</text>
+  <text x="220" y="103" text-anchor="middle" font-size="12" fill="#1e3a8a">GTK 3 / PyGObject — views · editors · widgets</text>
+
+  <rect x="450" y="55" width="300" height="64" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="600" y="82" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e3a8a">gramps.cli</text>
+  <text x="600" y="103" text-anchor="middle" font-size="12" fill="#1e3a8a">command-line / headless entry point</text>
+
+  <!-- Bundled plugins layer -->
+  <rect x="70" y="150" width="680" height="58" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <text x="410" y="173" text-anchor="middle" font-size="15" font-weight="bold" fill="#92400e">gramps.plugins — bundled plugins (ship with core)</text>
+  <text x="410" y="194" text-anchor="middle" font-size="12" fill="#92400e">reports · tools · views · gramplets · importers / exporters · docgen · quick views</text>
+
+  <!-- Headless core layer -->
+  <rect x="70" y="245" width="680" height="135" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="410" y="269" text-anchor="middle" font-size="15" font-weight="bold" fill="#14532d">gramps.gen — headless core (imports nothing else in gramps)</text>
+
+  <rect x="86" y="288" width="152" height="78" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="1.2"/>
+  <text x="162" y="322" text-anchor="middle" font-size="13" font-weight="bold" fill="#14532d">lib</text>
+  <text x="162" y="342" text-anchor="middle" font-size="11" fill="#14532d">data objects</text>
+  <text x="162" y="356" text-anchor="middle" font-size="11" fill="#14532d">(Person, …)</text>
+
+  <rect x="254" y="288" width="152" height="78" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="1.2"/>
+  <text x="330" y="322" text-anchor="middle" font-size="13" font-weight="bold" fill="#14532d">db</text>
+  <text x="330" y="342" text-anchor="middle" font-size="11" fill="#14532d">DbReadBase /</text>
+  <text x="330" y="356" text-anchor="middle" font-size="11" fill="#14532d">DbWriteBase · DbTxn</text>
+
+  <rect x="422" y="288" width="152" height="78" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="1.2"/>
+  <text x="498" y="322" text-anchor="middle" font-size="13" font-weight="bold" fill="#14532d">plug</text>
+  <text x="498" y="342" text-anchor="middle" font-size="11" fill="#14532d">plugin registry</text>
+  <text x="498" y="356" text-anchor="middle" font-size="11" fill="#14532d">register() / catalog</text>
+
+  <rect x="590" y="288" width="144" height="78" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="1.2"/>
+  <text x="662" y="316" text-anchor="middle" font-size="13" font-weight="bold" fill="#14532d">utils · config</text>
+  <text x="662" y="336" text-anchor="middle" font-size="11" fill="#14532d">const · errors</text>
+  <text x="662" y="350" text-anchor="middle" font-size="11" fill="#14532d">types</text>
+
+  <!-- Storage backend layer -->
+  <rect x="70" y="415" width="680" height="58" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="410" y="438" text-anchor="middle" font-size="15" font-weight="bold" fill="#4c1d95">Storage backend — gramps.plugins.db.dbapi</text>
+  <text x="410" y="459" text-anchor="middle" font-size="12" fill="#4c1d95">DBAPI → SQLite (PEP 249); the bsddb backend opens/upgrades legacy trees only</text>
+
+  <!-- Downward dependency arrows (imports) -->
+  <line x1="410" y1="119" x2="410" y2="148" stroke="#444" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="410" y1="208" x2="410" y2="243" stroke="#444" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+  <!-- Backend implements gen.db (upward) -->
+  <line x1="330" y1="413" x2="330" y2="368" stroke="#1a7f37" stroke-width="1.6" marker-end="url(#arrowup)"/>
+  <text x="338" y="398" text-anchor="start" font-size="11" font-style="italic" fill="#1a7f37">implements gen.db</text>
+
+  <!-- Right-margin semantics label -->
+  <line x1="785" y1="60" x2="785" y2="378" stroke="#9ca3af" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="800" y="220" text-anchor="middle" font-size="11.5" fill="#6b7280" transform="rotate(90 800 220)">each layer imports only layers below it</text>
+
+  <!-- gen self-containment callout -->
+  <text x="78" y="238" text-anchor="start" font-size="11" font-style="italic" fill="#14532d">▲ self-containment boundary — no gramps import crosses upward into gen</text>
+</svg>
