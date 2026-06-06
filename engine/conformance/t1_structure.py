@@ -21,19 +21,20 @@
 """T1 — Structure conformance (the *structural* tier of the T1–T4 conformance
 ladder, founded on wiki doc 16, "Addon Development — Rules").
 
-Each rule below is a **MUST** from ``wiki/pages/06 - Addon development/
-16-guidelines.md`` §Structure / §Source location, cited inline by ``doc16:LINE``
-so the gate is auditable back to the normative source (doc 16 §Conventions: "a
-rule … is cited inline so the rule is auditable").
+These are addon-packaging rules; they apply to an **addon** contribution only (a
+core-only patch is N/A — the gate handles that). Each rule is a **MUST** from the
+addon guideline's §Structure, cited by **section** (not line number) via
+:mod:`doc16` so the anchor survives edits to the vendored page (testbed issue #6).
 
-Checks one addon directory against the §Structure MUST rules:
+Checks one addon directory against the §Structure MUST rules (all cite
+``doc16-addon §Structure``):
 
-  * folder name == ``id`` in ``.gpr.py`` (case-insensitive)            doc16:30
-  * ``.gpr.py`` declares ``gramps_target_version``                     doc16:31
-  * ``fname`` points to a module shipped in the same folder            doc16:32
-  * NO ``__init__.py`` in the addon dir (Mantis 12691 trap)            doc16:35
-  * does NOT import a Gramps-injected name in ``.gpr.py``              doc16:34
-  * (SHOULD) ships ``tests/`` with an ``__init__.py`` marker           doc16:38
+  * folder name == ``id`` in ``.gpr.py`` (case-insensitive)
+  * ``.gpr.py`` declares ``gramps_target_version``
+  * ``fname`` points to a module shipped in the same folder
+  * NO ``__init__.py`` in the addon dir (Mantis 12691 trap)
+  * does NOT import a Gramps-injected name in ``.gpr.py``
+  * (SHOULD) ships ``tests/`` with an ``__init__.py`` marker
 
 CLI::
 
@@ -51,8 +52,13 @@ import os
 import re
 import sys
 
-# Names Gramps injects into the .gpr.py namespace — importing them is a defect
-# (doc16:34). ``_`` is handled separately (``import _`` exact match).
+import doc16
+
+# Every T1 MUST is a §Structure rule of the addon guideline.
+_CITE = doc16.cite("addon", "Structure")
+
+# Names Gramps injects into the .gpr.py namespace — importing them is a defect.
+# ``_`` is handled separately (``import _`` exact match).
 _INJECTED = ("register", "GRAMPLET", "STABLE", "UNSTABLE", "EXPERIMENTAL")
 
 
@@ -68,7 +74,7 @@ def check_addon(addon_dir: str) -> tuple[list[str], list[str]]:
     """Return ``(violations, advisories)`` for one addon directory.
 
     ``violations`` are MUST breaches (gate-relevant); ``advisories`` are SHOULD
-    breaches (informational). Both name the addon and cite ``doc16:LINE``.
+    breaches (informational). Both name the addon and cite ``doc16-addon §Structure``.
     """
     must: list[str] = []
     should: list[str] = []
@@ -76,39 +82,39 @@ def check_addon(addon_dir: str) -> tuple[list[str], list[str]]:
 
     gprs = sorted(glob.glob(os.path.join(addon_dir, "*.gpr.py")))
     if not gprs:
-        must.append(f"{name}: no .gpr.py — addon registers via .gpr.py (doc16:30)")
+        must.append(f"{name}: no .gpr.py — addon registers via .gpr.py ({_CITE})")
         return must, should
     text = _gpr_text(gprs)
 
-    # doc16:30 MUST — folder name matches the id in .gpr.py (case-insensitive;
-    # a multi-register addon conforms if the folder matches ANY of its ids).
+    # MUST — folder name matches the id in .gpr.py (case-insensitive; a
+    # multi-register addon conforms if the folder matches ANY of its ids).
     ids = re.findall(r"""\bid\s*=\s*["']([^"']+)["']""", text)
     if ids and name.lower() not in {i.strip().lower() for i in ids}:
         must.append(
             f"{name}: folder name does not match any .gpr.py id "
-            f"{ids} (doc16:30)"
+            f"{ids} ({_CITE})"
         )
 
-    # doc16:31 MUST — gramps_target_version is declared.
+    # MUST — gramps_target_version is declared.
     if not re.search(r"\bgramps_target_version\s*=", text):
-        must.append(f"{name}: .gpr.py declares no gramps_target_version (doc16:31)")
+        must.append(f"{name}: .gpr.py declares no gramps_target_version ({_CITE})")
 
-    # doc16:32 MUST — every fname points to a module present in the folder.
+    # MUST — every fname points to a module present in the folder.
     for fn in re.findall(r"""\bfname\s*=\s*["']([^"']+)["']""", text):
         if not os.path.isfile(os.path.join(addon_dir, fn)):
             must.append(
-                f"{name}: fname '{fn}' is not a file in the addon folder (doc16:32)"
+                f"{name}: fname '{fn}' is not a file in the addon folder ({_CITE})"
             )
 
-    # doc16:35 MUST NOT — an __init__.py in the addon dir itself breaks the
-    # plugin loader (the Mantis 12691 submodule-binding trap).
+    # MUST NOT — an __init__.py in the addon dir itself breaks the plugin loader
+    # (the Mantis 12691 submodule-binding trap).
     if os.path.isfile(os.path.join(addon_dir, "__init__.py")):
         must.append(
             f"{name}: addon dir has __init__.py — breaks plugin loading "
-            f"(doc16:35, Mantis 12691)"
+            f"({_CITE}, Mantis 12691)"
         )
 
-    # doc16:34 MUST NOT — import a name Gramps injects into the .gpr.py namespace.
+    # MUST NOT — import a name Gramps injects into the .gpr.py namespace.
     injected = re.compile(
         r"^\s*(?:import\s+_(?:\s|$)"
         r"|from\s+\S+\s+import\s+.*\b(?:" + "|".join(_INJECTED) + r")\b"
@@ -120,16 +126,16 @@ def check_addon(addon_dir: str) -> tuple[list[str], list[str]]:
                 if injected.match(line):
                     must.append(
                         f"{name}: {os.path.basename(g)}:{ln} imports a "
-                        f"Gramps-injected name (doc16:34)"
+                        f"Gramps-injected name ({_CITE})"
                     )
 
-    # doc16:38 SHOULD — ship a tests/ package with an __init__.py marker.
+    # SHOULD — ship a tests/ package with an __init__.py marker.
     tests_dir = os.path.join(addon_dir, "tests")
     if not os.path.isdir(tests_dir):
-        should.append(f"{name}: no tests/ package (doc16:38, SHOULD)")
+        should.append(f"{name}: no tests/ package ({_CITE}, SHOULD)")
     elif not os.path.isfile(os.path.join(tests_dir, "__init__.py")):
         should.append(
-            f"{name}: tests/ lacks the __init__.py marker (doc16:38, SHOULD)"
+            f"{name}: tests/ lacks the __init__.py marker ({_CITE}, SHOULD)"
         )
 
     return must, should

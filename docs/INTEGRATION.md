@@ -148,22 +148,27 @@ vendored ruleset; each target carries its auditable origin per doc 16
 For each tier: the written ruleset it consumes, its **home**, and the
 **single-sourced command** the driver and CI both run.
 
-**The T1–T4 ladder is founded on wiki doc 16** —
-[`wiki/pages/06 - Addon development/16-guidelines.md`](../wiki/pages/06%20-%20Addon%20development/16-guidelines.md),
-titled "Addon Development — Rules", written in RFC-2119 MUST/SHOULD/MAY. Its
-sections *are* the tiers: §Structure / §Source location → **T1**, §Coding style
-→ **T2**, §Runtime / §Testing → **T3**, §Contributor workflow / §Verification
-before commit / §Commit messages / §Mantis trailers → **T4**. The
-`engine/conformance/{t1_structure,t2_shape,t4_contribution}.py` checkers
-mechanize the statically-decidable **MUST** rules, each citing its rule back to
-`doc16:LINE` (doc 16 §Conventions requires every rule be auditable to source).
+**The T1–T4 ladder is founded on wiki doc 16**, written in RFC-2119
+MUST/SHOULD/MAY, and the checkers are **target-aware**: a **core** fix is judged
+against the Gramps-core page
+([`wiki/pages/05 - Gramps development/16-guidelines.md`](../wiki/pages/05%20-%20Gramps%20development/16-guidelines.md))
+plus core's `AGENTS.md` (the coding standard its §Coding style defers to), an
+**addon** fix against the addon page
+([`wiki/pages/06 - Addon development/16-guidelines.md`](../wiki/pages/06%20-%20Addon%20development/16-guidelines.md)).
+Their sections *are* the tiers: §Structure → **T1** (addon-only), §Coding style
+(→ `AGENTS.md` §File Headers / §Logging) → **T2**, §Runtime / §Testing → **T3**,
+§Contributor workflow / §Commit messages / §Mantis trailer keywords → **T4**. The
+`engine/conformance/{t1_structure,t2_shape,t4_contribution}.py` checkers (via the
+shared `doc16.py`) cite each rule back to its source **by section heading, not
+line number**, so an edit to a vendored page doesn't invalidate the anchor; the
+`Doc16Anchors` test asserts every cited section still exists (testbed issue #6).
 
 | Tier | Written ruleset | Home | Single-sourced command | Status |
 |---|---|---|---|---|
-| T1 structure | doc 16 §Structure / §Source location (folder==id, `gramps_target_version`, `fname`, no `__init__.py`, no injected imports) | `engine/conformance/t1_structure.py` | `python3 ./engine/conformance/gate.py T1` (audits the addon the patch touches) | [built — advisory `T1-structure`, bundle-scoped] |
-| T2 shape | doc 16 §Coding style (GPL header MUST; no diagnostic `print()`); `black --check` is a separate formatter gate | `engine/conformance/t2_shape.py` | `python3 ./engine/conformance/gate.py T2` | [built — advisory `T2-shape`, bundle-scoped; type-hint/docstring/`cb_` SHOULDs left to reviewer judgment] |
+| T1 structure | `doc16-addon §Structure` (folder==id, `gramps_target_version`, `fname`, no `__init__.py`, no injected imports) — addon-packaging, so addon-only | `engine/conformance/t1_structure.py` | `python3 ./engine/conformance/gate.py T1` (audits the addon the patch touches) | [built — advisory `T1-structure`, bundle-scoped] |
+| T2 shape | `AGENTS.md §File Headers` (GPL header MUST; empty `__init__.py` marker exempt) + `§Logging` (no diagnostic `print()`) — applies to **core and addon** `.py`; `black` is a separate formatter gate | `engine/conformance/t2_shape.py` | `python3 ./engine/conformance/gate.py T2` | [built — advisory `T2-shape`, bundle-scoped; checks touched addon dirs AND core files; type-hint/docstring/`cb_` SHOULDs left to reviewer judgment] |
 | T3 runtime | doc 16 §Runtime / §Testing; gramps test suite (stdlib `unittest`) | local Docker mirror + upstream CI | `./engine/scripts/ubuntu/run-unit.sh` ; `./engine/scripts/ubuntu/run-addon-unit.sh` | [built — both ported & wired (advisory `T3-unit` / `T3-addon-unit`); lib helpers + image helpers ported. The addon-unit catalog/sysdeps sub-gates skip until their tests are ported] |
-| T4 contribution | doc 16 §Commit messages + §Mantis trailers + §Contributor-workflow PR-body rules (commit/PR conventions, §8) | `engine/conformance/t4_contribution.py` | `python3 ./engine/conformance/gate.py T4` (validates the bundle's `commit-msg.txt` / `pr-description.md`) | [built — advisory `T4-contribution`, bundle-scoped] |
+| T4 contribution | `{core,addon} §Commit messages` + `§Mantis trailer keywords`; the four-section PR body (Root cause / Fix / Verified against / Test) is `doc16-core §Contributor workflow` — **core-only** | `engine/conformance/t4_contribution.py` | `python3 ./engine/conformance/gate.py T4` (validates the bundle's `commit-msg.txt` / `pr-description.md` against the patch's target) | [built — advisory `T4-contribution`, bundle-scoped] |
 | T5 judgment | reviewer contract below | Check reviewer + sign-off | (model) | [planned] |
 
 - **Why advisory (gating = false):** T1/T2/T4 audit the *touched* contribution and
@@ -252,7 +257,7 @@ List every project-specific script the cycle invokes (role → path + invocation
 | Driver | `src/pdca_harness/` | `pdca run <id>` ; `pdca flow <id>` | [built — five model leaves wired (`[leaves.*] mode = "command"`); `pdca flow` runs the continuous Plan→Do→Check→sign-off→Act cycle] |
 | Act tooling (L4) | `src/pdca_harness/act.py` | `pdca act-index`, `pdca act-log --date <d>` | [built] |
 | Gates (single-sourced) | `pdca.toml` `[[gates.checks]]` | `pdca gates [<id>] [--working-tree]` | [built — C4-verify + `T3-unit`/`T3-addon-unit`/`T3-interface` (GUI smoke) + `T1-structure`/`T2-shape`/`T4-contribution` (doc-16-founded, advisory, `engine/conformance/`) live; per-fix interface-level C4 staged] |
-| Conformance checkers (doc 16) | `engine/conformance/{t1_structure,t2_shape,t4_contribution}.py` + `gate.py` | `python3 ./engine/conformance/gate.py {T1\|T2\|T4}` (bundle-scoped) | [built — §4 ladder; each MUST rule cites `doc16:LINE`; tested in `engine/tests/test_conformance.py`] |
+| Conformance checkers (doc 16) | `engine/conformance/{t1_structure,t2_shape,t4_contribution}.py` + `gate.py` + `doc16.py` | `python3 ./engine/conformance/gate.py {T1\|T2\|T4}` (bundle-scoped, target-aware) | [built — §4 ladder; each MUST cites its source **by section** (core vs addon per target), anchors guarded by `Doc16Anchors`; tested in `engine/tests/test_conformance.py`] |
 | Reviewer config | `AGENTS.md` + `.claude/agents/reviewer.md` | (model leaf) | [built — contract + `[leaves.reviewer] mode = "command"` wired; this instance runs the same-vendor `family = "claude"` fallback (decorrelated codex is the template default — see §4 and template-feedback #R)] |
 | Builder subagent | `.claude/agents/builder.md` + `.claude/hooks/builder_guard.py` | (model leaf) | [built — ready-mark blocked] |
 

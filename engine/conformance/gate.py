@@ -22,15 +22,19 @@
 doc 16; see ``t1_structure.py`` / ``t2_shape.py`` / ``t4_contribution.py``).
 
 These tiers check the *contribution*, so the gate scope is ``bundle``: the
-target is derived from ``$PDCA_BUNDLE`` rather than the whole working tree.
+target is derived from ``$PDCA_BUNDLE`` rather than the whole working tree, and
+**the contribution target picks the guideline** (testbed issue #6):
 
-  * **T1 / T2** — the addon(s) the bundle's ``patch.diff`` touches, resolved
-    under ``../addons-source/``. A core-only patch (no addon path) is **N/A**:
-    the §Structure / §Coding-style addon rules don't apply, so the gate passes
-    with a note.
-  * **T4** — the bundle's ``commit-msg.txt`` (doc 16 §Commit messages) and/or
-    ``pr-description.md`` (doc 16 §Contributor-workflow PR-body rules). Neither
-    present → **N/A** → pass.
+  * **T1** — addon-packaging structure (§Structure), so addon-only: the addon(s)
+    the patch touches under ``../addons-source/``. A core-only patch is **N/A**.
+  * **T2** — code-shape MUSTs (``AGENTS.md`` §File Headers / §Logging) apply to
+    **both** core and addon code, so it checks the touched addon dirs AND the
+    touched core ``.py`` files (resolved under ``../gramps/``). N/A only if the
+    patch touches no checkable ``.py`` path.
+  * **T4** — the bundle's ``commit-msg.txt`` / ``pr-description.md``, judged
+    against the **core** or **addon** guideline by whether the patch touches an
+    addon (the four-section PR body is a core-only MUST). Neither file present →
+    **N/A** → pass.
 
 These gates are **advisory** (``gating = false`` in ``pdca.toml``): they audit
 the touched contribution and surface doc-16 violations as evidence for the
@@ -78,19 +82,42 @@ def _bundle() -> Path:
 _DIFF_B = re.compile(r"^(?:diff --git a/\S+ b/|\+\+\+ b/)(\S+)")
 
 
-def _touched_addons(patch: Path, addons_root: Path) -> list[Path]:
-    """Addon directories under ``addons_root`` referenced by the patch's b-paths."""
+def _patch_bpaths(patch: Path) -> list[str]:
+    """The b-side paths the patch touches (deduped, in first-seen order)."""
     if not patch.is_file():
         return []
-    found: dict[str, Path] = {}
+    seen: dict[str, None] = {}
     for line in patch.read_text(encoding="utf-8", errors="replace").splitlines():
         m = _DIFF_B.match(line)
-        if not m:
-            continue
-        first = m.group(1).split("/", 1)[0]  # leading path segment = addon dir
+        if m:
+            seen.setdefault(m.group(1), None)
+    return list(seen)
+
+
+def _touched_addons(patch: Path, addons_root: Path) -> list[Path]:
+    """Addon directories under ``addons_root`` referenced by the patch's b-paths."""
+    found: dict[str, Path] = {}
+    for p in _patch_bpaths(patch):
+        first = p.split("/", 1)[0]  # leading path segment = addon dir
         cand = addons_root / first
         if first and first not in found and cand.is_dir():
             found[first] = cand
+    return list(found.values())
+
+
+def _touched_core_files(patch: Path, addons_root: Path, core_root: Path) -> list[Path]:
+    """Existing core ``.py`` files the patch touches (resolved under ``core_root``).
+
+    A b-path is core (not addon) when its leading segment is not an addon dir.
+    New files the patch *adds* don't yet exist on disk, so they're skipped — T2
+    audits the touched code present in the checkout, like the addon-dir scan."""
+    found: dict[str, Path] = {}
+    for p in _patch_bpaths(patch):
+        if not p.endswith(".py") or (addons_root / p.split("/", 1)[0]).is_dir():
+            continue
+        f = core_root / p
+        if f.is_file() and str(f) not in found:
+            found[str(f)] = f
     return list(found.values())
 
 
@@ -107,17 +134,27 @@ def main(argv: list[str] | None = None) -> int:
     tier = argv[0]
     bundle = _bundle()
     root = _repo_root()
+    patch = bundle / "patch.diff"
     addons_root = (root.parent / "addons-source").resolve()
+    core_root = (root.parent / "gramps").resolve()
+    addons = _touched_addons(patch, addons_root)
+    target = "addon" if addons else "core"
 
-    if tier in ("T1", "T2"):
-        addons = _touched_addons(bundle / "patch.diff", addons_root)
+    if tier == "T1":
         if not addons:
-            return _na(tier, "no addons-source path in patch.diff (core-only change)")
-        if tier == "T1":
-            return t1_structure.main([str(a) for a in addons])
-        return t2_shape.main([str(a) for a in addons])
+            return _na("T1", "no addons-source path in patch.diff "
+                             "(core-only change; §Structure is addon-only)")
+        return t1_structure.main([str(a) for a in addons])
 
-    # T4 — the contribution wrapper.
+    if tier == "T2":
+        paths = [str(a) for a in addons] + [
+            str(f) for f in _touched_core_files(patch, addons_root, core_root)
+        ]
+        if not paths:
+            return _na("T2", "no checkable .py path in patch.diff")
+        return t2_shape.main(paths)
+
+    # T4 — the contribution wrapper, judged against the target's guideline.
     args: list[str] = []
     commit_msg = bundle / "commit-msg.txt"
     pr_body = bundle / "pr-description.md"
@@ -127,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:
         args += ["--pr-body", str(pr_body)]
     if not args:
         return _na("T4", "no commit-msg.txt or pr-description.md in the bundle")
-    return t4_contribution.main(args)
+    return t4_contribution.main(args + ["--target", target])
 
 
 if __name__ == "__main__":

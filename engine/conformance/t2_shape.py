@@ -18,27 +18,33 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, see <https://www.gnu.org/licenses/>.
 #
-"""T2 — Shape conformance (the *static code-shape* tier of T1–T4, founded on
-wiki doc 16 §Coding style).
+"""T2 — Shape conformance (the *static code-shape* tier of T1–T4).
 
 T2 is the AST/text-level scanner: rules that can be decided by reading the
-source, no runtime needed (that is T3). Each rule is cited ``doc16:LINE`` back
-to ``wiki/pages/06 - Addon development/16-guidelines.md``.
+source, no runtime needed (that is T3). The two mechanised MUSTs are core's
+in-repo coding standard — ``AGENTS.md``, which **both** guidelines' §Coding style
+defer to — so they apply to core *and* addon ``.py`` files alike. Cited by
+**section** (not line number) via :mod:`doc16` so the anchor survives edits to the
+source (testbed issue #6).
 
 Per ``.py`` file:
 
-  * MUST: a GPL-2.0-or-later licence header with copyright               doc16:99
-  * MUST NOT: ``print()`` for diagnostic output (use a module logger)    doc16:71
+  * MUST: a GPL-2.0-or-later licence header with copyright   (AGENTS.md §File Headers)
+  * MUST NOT: ``print()`` for diagnostic output              (AGENTS.md §Logging)
+
+An effectively-empty package marker (a 0-byte / comment-only ``__init__.py``) is
+**exempt** from the header MUST — a marker carries no code to license (resolves
+the 11589 §10 / act-log 2026-06-06 question, pinned to §File Headers' "every new
+``.py`` file" referring to files with content).
 
 CLI::
 
     t2_shape.py <path> [<path> …]        # files or directories (recursed)
 
-Prints one ``T2 ✗ …`` line per MUST violation; exits 1 iff any was found.
-``black --check`` (doc16:106, SHOULD) is intentionally NOT run here — it is a
-formatter gate, run separately when the target repo enforces it; type hints /
-docstrings / ``cb_`` prefixes (doc16:101-105, SHOULD) are reviewer judgment, not
-mechanised, to keep T2 false-positive-free.
+Prints one ``T2 ✗ …`` line per MUST violation; exits 1 iff any was found. Black
+(§Black, SHOULD) is a separate formatter gate; type hints / docstrings / ``cb_``
+prefixes (SHOULD) are reviewer judgment, not mechanised, to keep T2
+false-positive-free.
 """
 
 from __future__ import annotations
@@ -47,6 +53,11 @@ import argparse
 import os
 import re
 import sys
+
+import doc16
+
+_CITE_HEADER = doc16.cite("agents", "File Headers")
+_CITE_PRINT = doc16.cite("agents", "Logging")
 
 # A GPL header is present if any of these markers appears in the file's head.
 _GPL_MARKERS = (
@@ -57,13 +68,23 @@ _GPL_MARKERS = (
 _HEADER_LINES = 40  # licence headers sit at the very top of the file
 
 # A diagnostic print: ``print(`` not inside a comment. We do not try to prove a
-# given print is "diagnostic" vs "output" — doc16:71 is a blanket MUST NOT for
+# given print is "diagnostic" vs "output" — the rule is a blanket MUST NOT for
 # diagnostics, and as an advisory gate the human weighs any report-sink case.
 _PRINT = re.compile(r"^\s*print\s*\(")
 
 
+def _is_empty_marker(path: str, lines: list[str]) -> bool:
+    """True for an effectively-empty ``__init__.py`` package marker — no code, only
+    blank lines / comments. Such a marker is exempt from the header MUST."""
+    if os.path.basename(path) != "__init__.py":
+        return False
+    return not any(
+        ln.strip() and not ln.lstrip().startswith("#") for ln in lines
+    )
+
+
 def check_file(path: str) -> list[str]:
-    """Return the list of MUST violations (each citing ``doc16:LINE``) for one file."""
+    """Return the list of MUST violations (each citing its section) for one file."""
     violations: list[str] = []
     name = os.path.basename(path)
     try:
@@ -73,14 +94,14 @@ def check_file(path: str) -> list[str]:
         return [f"{name}: unreadable ({exc})"]
 
     head = "".join(lines[:_HEADER_LINES])
-    if not any(m in head for m in _GPL_MARKERS):
+    if not _is_empty_marker(path, lines) and not any(m in head for m in _GPL_MARKERS):
         violations.append(f"{name}: no GPL licence header in the first "
-                          f"{_HEADER_LINES} lines (doc16:99)")
+                          f"{_HEADER_LINES} lines ({_CITE_HEADER})")
 
     for ln, line in enumerate(lines, 1):
         if _PRINT.match(line):
             violations.append(f"{name}:{ln} print() for diagnostics — use a "
-                              f"module logger (doc16:71)")
+                              f"module logger ({_CITE_PRINT})")
     return violations
 
 

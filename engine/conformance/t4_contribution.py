@@ -18,33 +18,39 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, see <https://www.gnu.org/licenses/>.
 #
-"""T4 — Contribution conformance (the *contribution-shape* tier of T1–T4,
-founded on wiki doc 16 §Commit messages, §Mantis trailer keywords, and the
-PR-body rules in §Contributor workflow).
+"""T4 — Contribution conformance (the *contribution-shape* tier of T1–T4).
 
 T4 checks the *contribution wrapper* — the commit message and the PR body — not
-the code. Each rule is cited ``doc16:LINE`` back to
-``wiki/pages/06 - Addon development/16-guidelines.md``.
+the code, and it is **target-aware**: the commit-message rules are shared by both
+guidelines' §Commit messages, but the **four-section PR body** (Root cause / Fix /
+Verified against / Test) is a **core-only** rule (core §Contributor workflow); the
+addon guideline only requires a Mantis bug reference in the PR body. So an addon
+contribution is never failed against the core PR-body rule, nor vice versa
+(testbed issue #6). Cited by **section** via :mod:`doc16` so anchors survive page
+edits.
 
-Commit message (``check_commit_msg``):
+Commit message (``check_commit_msg``, both targets — §Commit messages /
+§Mantis trailer keywords):
 
-  * MUST: summary (line 1) is ≤ 70 characters                          doc16:137
-  * MUST: a single blank line separates summary from description       doc16:138
-  * MUST: description body wrapped at ≤ 80 characters                  doc16:138
-  * MUST: another commit is referenced by FULL hash, not a short hash  doc16:141
-  * MUST: the Mantis trailer is the last line, after a blank line      doc16:142
-  * MUST: the trailer uses the ``Keyword #NNNN`` form (not bare/URL)   doc16:144-165
+  * MUST: summary (line 1) is ≤ 70 characters
+  * MUST: a single blank line separates summary from description
+  * MUST: description body wrapped at ≤ 80 characters
+  * MUST: another commit is referenced by FULL hash, not a short hash
+  * MUST: the Mantis trailer is the last line, after a blank line
+  * MUST: the trailer uses the ``Keyword #NNNN`` form (not bare/URL)
 
 PR body (``check_pr_body``):
 
-  * MUST: structured Root cause / Fix / Verified against / Test        doc16:118
-  * MUST: references the Mantis bug with ``#NNNN``                     doc16:119
+  * MUST (**core only**): structured Root cause / Fix / Verified against / Test
+    (core §Contributor workflow)
+  * MUST: references the Mantis bug with ``#NNNN`` (core §Contributor workflow /
+    addon §addons-source: bug reference in PR body)
 
 CLI::
 
-    t4_contribution.py --commit-msg <file>      # validate a commit message
-    t4_contribution.py --pr-body <file>         # validate a PR body
-    # '-' reads stdin. Either or both may be given.
+    t4_contribution.py --commit-msg <file> [--target core|addon]
+    t4_contribution.py --pr-body <file>   [--target core|addon]
+    # '-' reads stdin. Either or both may be given. --target defaults to core.
 
 Prints one ``T4 ✗ …`` line per violation; exits 1 iff any was found.
 """
@@ -55,71 +61,74 @@ import argparse
 import re
 import sys
 
-# doc16:144-163 — the Mantis trailer keywords. "resolve" closes the bug on
-# commit; "link" cross-references without closing. Both take the #NNNN form.
+import doc16
+
+# The Mantis trailer keywords. "resolve" closes the bug on commit; "link"
+# cross-references without closing. Both take the #NNNN form.
 _RESOLVE_KW = ("Fixes", "Fixed", "Resolves", "Resolved")
 _LINK_KW = ("Bug", "Bugs", "Issue", "Report")
 _TRAILER = re.compile(
     r"^(?:" + "|".join(_RESOLVE_KW + _LINK_KW) + r")\s+#\d+(?:\s*,\s*#\d+)*\.?$"
 )
-# A trailer keyword used with a BARE number or a URL — the doc16:165 anti-pattern
-# (misses the MantisBT auto-link). Used to give a precise message.
+# A trailer keyword used with a BARE number or a URL — the anti-pattern that
+# misses the MantisBT auto-link. Used to give a precise message.
 _TRAILER_KW_ANY = re.compile(
     r"^(?:" + "|".join(_RESOLVE_KW + _LINK_KW) + r")\b", re.IGNORECASE
 )
-# doc16:141 — a short hash in brackets does not auto-link; require the full hash.
+# A short hash in brackets does not auto-link; require the full hash.
 _SHORT_HASH = re.compile(r"\[[0-9a-f]{7,12}\]")
 
 _SUMMARY_MAX = 70
 _BODY_WRAP = 80
 
 
-def check_commit_msg(text: str) -> list[str]:
-    """Return the list of MUST violations (each citing ``doc16:LINE``)."""
+def check_commit_msg(text: str, target: str = "core") -> list[str]:
+    """Return the commit-message MUST violations (each citing its section)."""
+    cm = doc16.cite(target, "Commit messages")
+    tk = doc16.cite(target, "Mantis trailer keywords")
     violations: list[str] = []
     lines = text.rstrip("\n").split("\n")
     if not lines or not lines[0].strip():
-        return ["commit: empty summary line (doc16:137)"]
+        return [f"commit: empty summary line ({cm})"]
 
-    # doc16:137 — summary ≤ 70 chars.
+    # summary ≤ 70 chars.
     summary = lines[0]
     if len(summary) > _SUMMARY_MAX:
         violations.append(
-            f"commit: summary is {len(summary)} chars > {_SUMMARY_MAX} (doc16:137)"
+            f"commit: summary is {len(summary)} chars > {_SUMMARY_MAX} ({cm})"
         )
 
-    # doc16:138 — a single blank line separates summary from description.
+    # a single blank line separates summary from description.
     if len(lines) > 1 and lines[1].strip():
-        violations.append("commit: no blank line after the summary (doc16:138)")
+        violations.append(f"commit: no blank line after the summary ({cm})")
 
-    # doc16:138 — description body wrapped at ≤ 80 chars.
+    # description body wrapped at ≤ 80 chars.
     for ln, line in enumerate(lines[2:], start=3):
         if len(line) > _BODY_WRAP:
             violations.append(
-                f"commit:{ln} body line is {len(line)} chars > {_BODY_WRAP} (doc16:138)"
+                f"commit:{ln} body line is {len(line)} chars > {_BODY_WRAP} ({cm})"
             )
 
-    # doc16:141 — full hash, not a bracketed short hash.
+    # full hash, not a bracketed short hash.
     for ln, line in enumerate(lines, start=1):
         if _SHORT_HASH.search(line):
             violations.append(
-                f"commit:{ln} short-hash reference — use the full hash (doc16:141)"
+                f"commit:{ln} short-hash reference — use the full hash ({cm})"
             )
 
-    # doc16:142 + doc16:144-165 — the Mantis trailer is the last non-empty line
-    # and uses the Keyword #NNNN form.
+    # the Mantis trailer is the last non-empty line and uses the Keyword #NNNN form.
     nonempty = [ln for ln in lines if ln.strip()]
     last = nonempty[-1].strip() if nonempty else ""
     if not _TRAILER.match(last):
         if _TRAILER_KW_ANY.match(last):
             violations.append(
                 f"commit: trailer must use the '#NNNN' form, not a bare number "
-                f"or URL (doc16:165) — got: {last[:50]!r}"
+                f"or URL ({tk}) — got: {last[:50]!r}"
             )
         else:
             violations.append(
                 f"commit: last line is not a Mantis trailer "
-                f"(e.g. 'Fixes #12345') (doc16:142,144) — got: {last[:50]!r}"
+                f"(e.g. 'Fixes #12345') ({tk}) — got: {last[:50]!r}"
             )
     else:
         # The trailer line exists and is well-formed; it MUST follow a blank line.
@@ -128,29 +137,38 @@ def check_commit_msg(text: str) -> list[str]:
             idx -= 1
         if idx > 0 and lines[idx - 1].strip():
             violations.append(
-                "commit: Mantis trailer is not separated from the body by a "
-                "blank line (doc16:142)"
+                f"commit: Mantis trailer is not separated from the body by a "
+                f"blank line ({cm})"
             )
     return violations
 
 
-# doc16:118 — the four required PR-body sections.
+# The four required PR-body sections — a CORE rule (core §Contributor workflow).
 _PR_SECTIONS = ("Root cause", "Fix", "Verified against", "Test")
 _BUG_REF = re.compile(r"#\d+")
 
 
-def check_pr_body(text: str) -> list[str]:
-    """Return the list of MUST violations for a PR body (doc16:118-119)."""
+def check_pr_body(text: str, target: str = "core") -> list[str]:
+    """Return the PR-body MUST violations for the given target.
+
+    The four-section structure (Root cause / Fix / Verified against / Test) is a
+    **core-only** MUST; the addon guideline only mandates a Mantis bug reference.
+    """
     violations: list[str] = []
     low = text.lower()
-    for section in _PR_SECTIONS:
-        if section.lower() not in low:
-            violations.append(
-                f"pr-body: missing '{section}' section — body must be "
-                f"Root cause / Fix / Verified against / Test (doc16:118)"
-            )
+    if target == "core":
+        cite = doc16.cite("core", "Contributor workflow")
+        for section in _PR_SECTIONS:
+            if section.lower() not in low:
+                violations.append(
+                    f"pr-body: missing '{section}' section — core PR body must be "
+                    f"Root cause / Fix / Verified against / Test ({cite})"
+                )
+        bug_cite = cite
+    else:
+        bug_cite = doc16.cite("addon", "addons-source: bug reference in PR body")
     if not _BUG_REF.search(text):
-        violations.append("pr-body: no Mantis bug reference '#NNNN' (doc16:119)")
+        violations.append(f"pr-body: no Mantis bug reference '#NNNN' ({bug_cite})")
     return violations
 
 
@@ -165,20 +183,23 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="T4 Contribution conformance (doc 16)")
     ap.add_argument("--commit-msg", help="commit message file ('-' for stdin)")
     ap.add_argument("--pr-body", help="PR body file ('-' for stdin)")
+    ap.add_argument("--target", choices=("core", "addon"), default="core",
+                    help="contribution target — picks the guideline (default: core)")
     ns = ap.parse_args(argv)
     if not ns.commit_msg and not ns.pr_body:
         ap.error("give --commit-msg and/or --pr-body")
 
     violations: list[str] = []
     if ns.commit_msg:
-        violations += check_commit_msg(_read(ns.commit_msg))
+        violations += check_commit_msg(_read(ns.commit_msg), ns.target)
     if ns.pr_body:
-        violations += check_pr_body(_read(ns.pr_body))
+        violations += check_pr_body(_read(ns.pr_body), ns.target)
 
     for line in violations:
         print(f"T4 ✗ {line}")
     if not violations:
-        print("T4 ✓ contribution: commit/PR wrapper conforms to doc 16 §Contributor workflow")
+        print(f"T4 ✓ contribution: commit/PR wrapper conforms to doc16-{ns.target} "
+              f"§Contributor workflow")
     return 1 if violations else 0
 
 
