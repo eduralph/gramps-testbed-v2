@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import io
 import shutil
+import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -56,7 +57,11 @@ def _bundle(cfg: Config, issue_id: str, *, brief_body: str, accepted: bool) -> P
 
 _FIX_BRIEF = (
     "- **Slug:** my-fix\n"
-    "- **Repo + branch target:** gramps-project/gramps @ maintenance/gramps61\n"
+    # Parser-clean field form (`**Label**:` — colon OUTSIDE the bold). The
+    # `**Label:**` form real briefs/templates use leaks the closing `**` into the
+    # value (a tracked `parse_fields` bug); this fixture isolates publish.py's
+    # branch/head logic from that so the head-owner assertion is meaningful.
+    "- **Repo + branch target**: gramps-project/gramps @ maintenance/gramps61\n"
 )
 
 
@@ -102,6 +107,49 @@ class PublishSlice(unittest.TestCase):
         with redirect_stdout(buf):
             publish.publish(self.cfg, "FEAT", dry_run=True)
         self.assertIn("checkout -B enhancement/FEAT-add-thing upstream/master", buf.getvalue())
+
+    def test_commit_stages_patch_added_files(self) -> None:
+        """Regression (#23): the commit must stage patch-ADDED files (the new test),
+        not only modified-tracked ones — `git apply` + `add --all` + `commit -F`,
+        never `commit -aF` (whose `-a` silently drops a new file from the commit)."""
+        _bundle(self.cfg, "ADD", brief_body=_FIX_BRIEF, accepted=True)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            publish.publish(self.cfg, "ADD", dry_run=True)
+        out = buf.getvalue()
+        self.assertIn("add --all", out)       # stages new files (the regression test)
+        self.assertIn("commit -F", out)
+        self.assertNotIn("commit -aF", out)   # the dropped-new-file bug must not return
+
+    def test_pr_head_is_fork_owner_qualified(self) -> None:
+        """Regression (#23): a fork-based PR's --head must be OWNER:BRANCH, else gh
+        resolves the branch against the base repo (--repo) and fails 'Head ref must
+        be a branch'. (No sibling checkout here, so the owner falls back to the base
+        owner — the assertion is on the OWNER:BRANCH *shape*, not the value.)"""
+        _bundle(self.cfg, "HEAD", brief_body=_FIX_BRIEF, accepted=True)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            publish.publish(self.cfg, "HEAD", dry_run=True)
+        out = buf.getvalue()
+        self.assertRegex(out, r"--head \S+:fix/bug-HEAD-my-fix\b")  # owner-qualified
+        self.assertNotIn("--head fix/bug-HEAD-my-fix", out)         # never a bare branch
+
+    def test_fork_owner_parses_origin_url(self) -> None:
+        """`_fork_owner` extracts the GitHub owner from origin (ssh + https forms)."""
+        for url, owner in (
+            ("git@github.com:eduralph/gramps.git", "eduralph"),
+            ("https://github.com/eduralph/gramps.git", "eduralph"),
+            ("https://github.com/eduralph/gramps", "eduralph"),
+        ):
+            repo = Path(tempfile.mkdtemp())
+            try:
+                subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+                subprocess.run(["git", "-C", str(repo), "remote", "add", "origin", url],
+                               check=True)
+                self.assertEqual(publish._fork_owner(repo), owner)
+            finally:
+                shutil.rmtree(repo, ignore_errors=True)
+        self.assertEqual(publish._fork_owner(Path(tempfile.gettempdir()) / "nope"), "")
 
 
 if __name__ == "__main__":

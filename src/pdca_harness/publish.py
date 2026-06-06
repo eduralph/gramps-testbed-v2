@@ -84,11 +84,21 @@ def publish(
         git("fetch", "upstream"),
         git("checkout", "-B", branch, f"upstream/{base}"),
         git("apply", str((d / "patch.diff").resolve())),
-        git("commit", "-aF", str((d / COMMIT_MSG).resolve())),
+        # `git apply` leaves patch-ADDED files (e.g. the regression test) UNTRACKED;
+        # `commit -a` stages only modified-tracked files and would silently drop
+        # them. Stage everything the patch did, then commit — the checkout is clean
+        # (checkout -B off upstream + the _check_repo guard), so `add --all` picks up
+        # exactly the patch's files, nothing stray.
+        git("add", "--all"),
+        git("commit", "-F", str((d / COMMIT_MSG).resolve())),
         git("push", "-u", "origin", branch),
     ]
+    # The branch is pushed to the FORK (origin); a cross-repo PR head must be
+    # OWNER:BRANCH or gh resolves it against --repo (the base) and fails with
+    # "Head ref must be a branch". Owner derived from origin's URL.
+    head = f"{_fork_owner(repo) or repo_spec.split('/')[0]}:{branch}"
     pr_cmd = ["gh", "pr", "create", "--draft", "--repo", repo_spec, "--base", base,
-              "--head", branch, "--title", summary_line,
+              "--head", head, "--title", summary_line,
               "--body-file", str((d / PR_BODY).resolve())]
 
     if dry_run:
@@ -174,6 +184,16 @@ def _t4_passes(cfg: Config, d: Path) -> bool:
             print((r.stdout or r.stderr).strip(), file=sys.stderr)
             return False
     return True
+
+
+def _fork_owner(repo: Path) -> str:
+    """The GitHub owner of the fork the branch is pushed to (origin), e.g.
+    ``"eduralph"`` from ``git@github.com:eduralph/gramps.git`` or the https form.
+    Used to form the cross-repo PR ``--head OWNER:BRANCH``. "" if undetectable."""
+    url = subprocess.run(["git", "-C", str(repo), "remote", "get-url", "origin"],
+                         capture_output=True, text=True).stdout.strip()
+    m = re.search(r"[:/]([^/]+)/[^/]+?(?:\.git)?$", url)
+    return m.group(1) if m else ""
 
 
 def _check_repo(repo: Path) -> int:
