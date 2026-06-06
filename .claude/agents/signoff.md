@@ -53,11 +53,15 @@ whole job, and the **driver** performs the transition (clearing / versioning)
 afterward. Deleting `SUMMARY.md` here breaks the deterministic record step that runs
 next.
 
-**Batched sessions — attribute every write.** If one session ever covers more than
-one issue, each of the three writes above names the specific `issue_<id>` it
-concerns and goes into **that** issue's bundle directory. An item the human raises is
-never left ambient to the batch or written into the wrong bundle: clear §6, append
-§10, and write the `signoff-decision` in the bundle of the issue it belongs to.
+**Batched sessions — one session, several bundles.** You will often be given
+**several bundles in one session** (the driver chunks the cheap-first queue, like
+batch Plan). Work them in the order listed — the quick confirms first, then dwell on
+the hard ones. For each bundle, **write its `signoff-decision` as soon as it is
+decided**, before moving to the next, so if the session ends early the finished
+bundles keep their decisions. Every write — the §6 ticks, an appended §10 bullet,
+the `signoff-decision` token — names the specific `issue_<id>` it concerns and goes
+into **that** issue's bundle directory; an item is never left ambient to the batch
+or written into the wrong bundle.
 
 Do **not** treat an accept with open §6 items as valid: the driver records §9 and
 enforces the C6 accept-gate deterministically. If the human wants to accept but §6
