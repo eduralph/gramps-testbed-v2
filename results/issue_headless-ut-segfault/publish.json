@@ -1,0 +1,8 @@
+{
+  "branch": "fix/bug-headless-ut-segfault-headless-unit-discovery-segfault",
+  "pr_url": "https://github.com/gramps-project/gramps/pull/2357",
+  "base": "maintenance/gramps61",
+  "repo": "gramps-project/gramps",
+  "by": "Eduard Ralph",
+  "date": "2026-06-06"
+}

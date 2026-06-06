@@ -1,0 +1,19 @@
+Fix headless crash: don't build a Gtk widget at import in LinkTag
+
+The headless core unit-test suite aborted during test discovery with
+"Trace/breakpoint trap (core dumped)" (SIGTRAP). Importing
+gramps.gui.widgets.grampletpane -- on its own or transitively via
+gramps.plugins.lib.libpersonview -> gui.views.listview -> pageview ->
+grampletbar -- killed the interpreter before any test ran.
+
+The body of class LinkTag computed the theme link colour at import time by
+constructing a Gtk.Label and reading its style context. With no display Gtk
+escalates "can't create a GtkStyleContext without a display connection" to a
+fatal Gtk-ERROR, which raises SIGTRAP and aborts the whole process.
+
+A LinkTag is only ever constructed while rendering links, i.e. with a display,
+so compute the colour lazily on first construction (cached on the class) rather
+than in the class body. Importing the module no longer builds any widget, while
+the behaviour with a display is unchanged.
+
+Fixes #0000

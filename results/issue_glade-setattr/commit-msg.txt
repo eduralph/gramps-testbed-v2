@@ -1,0 +1,23 @@
+Fix crash on every Glade() construction that blocked GUI startup
+
+Constructing any Glade object aborted immediately, so the GUI could not
+start: opening a tree, the Database Manager, and the standard dialogs all
+failed before showing a window. The Glade.__setattr__ guard rejected the
+class's own private attributes with "Ad-hoc attribute _Glade__dirname is
+not permitted." -- it whitelisted the source-level names __toplevel,
+__filename and __dirname, but Python name-mangles those assignments to
+_Glade__toplevel, _Glade__filename and _Glade__dirname, so the guard
+never matched them. A second fault in the same method passed self twice to
+the already-bound super().__setattr__, which would raise TypeError as soon
+as the guard was satisfied.
+
+This whitelists the mangled attribute names and drops the duplicate self
+argument, so a Glade loads its file and starts up normally while still
+rejecting genuinely unexpected attributes. Both faults were introduced by
+f8c1fc0f507b30d2bd4ec949bd8b95de489b7c4d ("Don't use slots on
+GObject-derived classes."), which touched only this file, so reversing
+them here restores GUI startup completely. The break was reported on
+GitHub PR #2313 by petr-fedorov (name mangling), reproduced on Windows /
+Python 3.14 by hgohel.
+
+Fixes #14153

@@ -1,0 +1,132 @@
+{
+  "issue_dir": "issue_glade-setattr",
+  "overall": "pass",
+  "rows": [
+    {
+      "check": "C1 Spec",
+      "result": "none",
+      "oracle": "brief.md",
+      "rule_id": "",
+      "path_line": "",
+      "gating": false,
+      "element": "C1"
+    },
+    {
+      "check": "C2 Reproduction (red pre-fix)",
+      "result": "none",
+      "oracle": "(no gate configured)",
+      "rule_id": "",
+      "path_line": "",
+      "gating": false,
+      "element": "C2"
+    },
+    {
+      "check": "C3 Change",
+      "result": "none",
+      "oracle": "patch.diff",
+      "rule_id": "",
+      "path_line": "",
+      "gating": false,
+      "element": "C3"
+    },
+    {
+      "check": "C4 fix verified: test red pre-fix, green post-fix",
+      "result": "pass",
+      "oracle": "./engine/scripts/ubuntu/run-verify.sh",
+      "rule_id": "C4-verify",
+      "path_line": "C4-verify: green-with-fix=PASS / red-without-fix=PASS",
+      "gating": true,
+      "element": "C4"
+    },
+    {
+      "check": "C5 Causal adequacy",
+      "result": "none",
+      "oracle": "reviewer + human sign-off",
+      "rule_id": "",
+      "path_line": "",
+      "gating": false,
+      "element": "C5"
+    },
+    {
+      "check": "T1 structure: addon layout vs doc 16 \u00a7Structure (folder==id, target_version, fname, no __init__.py)",
+      "result": "pass",
+      "oracle": "python3 ./engine/conformance/gate.py T1",
+      "rule_id": "T1-structure",
+      "path_line": "T1 \u2013 N/A: no addons-source path in patch.diff (core-only change; \u00a7Structure is addon-only)",
+      "gating": false,
+      "element": "T1"
+    },
+    {
+      "check": "T2 shape: code shape vs doc 16 \u00a7Coding style (GPL header, no diagnostic print)",
+      "result": "pass",
+      "oracle": "python3 ./engine/conformance/gate.py T2",
+      "rule_id": "T2-shape",
+      "path_line": "T2 \u2713 shape: 1 file(s) conform to doc 16 \u00a7Coding style",
+      "gating": false,
+      "element": "T2"
+    },
+    {
+      "check": "T3 runtime: gramps core unit suite (whole-suite baseline)",
+      "result": "fail",
+      "oracle": "python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-unit.sh",
+      "rule_id": "T3-unit",
+      "path_line": "T3-baseline [delta]: DELTA: runner exited 133 with no parsed failures and no matching baseline signature (a new failure ",
+      "gating": false,
+      "element": "T3"
+    },
+    {
+      "check": "T3 runtime: addon suites \u2014 addons-source gramps60 \u00d7 core 6.0 (matrix)",
+      "result": "fail",
+      "oracle": "CORE_VERSION=6.0 PDCA_T3_BASELINE=engine/baselines/run-addon-unit-60.json python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-addon-unit.sh",
+      "rule_id": "T3-addon-unit-60",
+      "path_line": "T3-baseline [delta]: DELTA: runner exited 1 with no parsed failures and no matching baseline signature (a new failure mo",
+      "gating": false,
+      "element": "T3"
+    },
+    {
+      "check": "T3 runtime: addon suites \u2014 addons-source gramps61 \u00d7 core 6.1 (matrix)",
+      "result": "fail",
+      "oracle": "CORE_VERSION=6.1 PDCA_T3_BASELINE=engine/baselines/run-addon-unit-61.json python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-addon-unit.sh",
+      "rule_id": "T3-addon-unit-61",
+      "path_line": "T3-baseline [delta]: DELTA: runner exited 1 with no parsed failures and no matching baseline signature (a new failure mo",
+      "gating": false,
+      "element": "T3"
+    },
+    {
+      "check": "T3 runtime: GUI interface smoke (launch + open tree, headless dogtail)",
+      "result": "fail",
+      "oracle": "python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-interface.sh test_smoke.py",
+      "rule_id": "T3-interface",
+      "path_line": "T3-baseline [delta]: DELTA: 1 new failure(s) not in baseline: setUpClass (interface.test_smoke.SmokeTest)",
+      "gating": false,
+      "element": "T3"
+    },
+    {
+      "check": "T4 contribution: commit/PR wrapper vs doc 16 \u00a7Commit messages + \u00a7Contributor workflow",
+      "result": "pass",
+      "oracle": "python3 ./engine/conformance/gate.py T4",
+      "rule_id": "T4-contribution",
+      "path_line": "T4 \u2013 N/A: no commit-msg.txt or pr-description.md in the bundle",
+      "gating": false,
+      "element": "T4"
+    },
+    {
+      "check": "T5 Judgment",
+      "result": "none",
+      "oracle": "reviewer + human sign-off",
+      "rule_id": "",
+      "path_line": "",
+      "gating": false,
+      "element": "T5"
+    },
+    {
+      "check": "Validation \u2014 fitness-to-purpose",
+      "result": "none",
+      "oracle": "human at sign-off",
+      "rule_id": "",
+      "path_line": "",
+      "gating": false,
+      "element": "V"
+    }
+  ]
+}
