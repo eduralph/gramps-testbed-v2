@@ -145,6 +145,42 @@ class VerticalSlice(unittest.TestCase):
         self.assertTrue((self.d / "brief.v1.md").exists())
         self.assertFalse((self.d / "brief.md").exists())
 
+    def test_iterate_do_carries_forward_into_brief(self) -> None:
+        # An iterate-do must fold the prior attempt's insight into brief.md BEFORE the
+        # downstream clear, so the rebuilt Do (which reads brief.md only) isn't blind:
+        # the §9 rationale + the failing gate, in an `## Iteration N — carry-forward`
+        # block that survives the clear.
+        driver.run_issue(self.d, self.cfg)
+        summary = self.d / "SUMMARY.md"
+        # A failing gating gate, so the carry-forward has gate evidence to lift.
+        gates_json = self.d / "check-gates.json"
+        gates_json.write_text(json.dumps({"overall": "fail", "rows": [
+            {"check": "C4-verify", "result": "fail", "path_line": "red-without-fix=FAIL",
+             "oracle": "run-verify.sh", "rule_id": "C4-verify", "gating": True},
+        ]}), encoding="utf-8")
+        signoff.record(summary, action="iterate-do", by="tester", date="2026-01-01",
+                       delta="test asserts the wrong attribute; assert navigation_type instead")
+        self.assertEqual(state.state(self.d), state.ITERATE_DO)
+
+        driver.advance(self.d, self.cfg)  # carry-forward, then clear
+
+        self.assertEqual(state.state(self.d), state.PLANNED)
+        self.assertTrue((self.d / "brief.md").exists())          # survived the clear
+        brief_text = (self.d / "brief.md").read_text(encoding="utf-8")
+        self.assertIn("## Iteration 1 — carry-forward", brief_text)
+        self.assertIn("assert navigation_type instead", brief_text)   # the §9 rationale
+        self.assertIn("C4-verify", brief_text)                        # the failing gate
+        self.assertIn("Success criterion", brief_text)                # the end-result nudge
+
+    def test_carry_forward_noop_without_insight(self) -> None:
+        # No rationale and no failing gate → no carry-forward block appended.
+        driver.run_issue(self.d, self.cfg)
+        (self.d / "check-gates.json").write_text(
+            json.dumps({"overall": "pass", "rows": []}), encoding="utf-8")
+        signoff.record(self.d / "SUMMARY.md", action="iterate-do", by="t", date="2026-01-01")
+        driver.advance(self.d, self.cfg)
+        self.assertNotIn("carry-forward", (self.d / "brief.md").read_text(encoding="utf-8"))
+
 
 class ConfiguredGates(unittest.TestCase):
     """The config-driven, single-sourced gates (docs 04)."""

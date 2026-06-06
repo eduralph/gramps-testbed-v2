@@ -10,10 +10,11 @@ preserved on iterate-to-Plan.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
-from . import assemble, brief, gates, leaves, state
+from . import assemble, brief, gates, leaves, signoff, state
 from .config import Config
 
 
@@ -52,10 +53,12 @@ def advance(d: Path, cfg: Config) -> None:
         assemble.assemble_summary(d, cfg)  # pure code → SUMMARY.md §1–8
     elif s == state.ITERATE_DO:
         _say(f"→ {d.name}: iterate-to-Do — clearing downstream, rebuilding…")
-        _clear_downstream_of_brief(d)  # re-run Do against the same brief
+        _carry_forward_into_brief(d)   # fold prior insight in BEFORE the clear
+        _clear_downstream_of_brief(d)  # re-run Do against the (now annotated) brief
     elif s == state.ITERATE_PLAN:
         _say(f"→ {d.name}: iterate-to-Plan — versioning brief…")
-        _version_brief_and_clear(d)  # preserve brief.vN.md; human re-authors
+        _carry_forward_into_brief(d)   # rides into brief.vN.md for the re-authoring human
+        _version_brief_and_clear(d)    # preserve brief.vN.md; human re-authors
     # UNPLANNED / AWAITING_SIGNOFF / COMPLETE: nothing for the driver to do.
 
 
@@ -69,6 +72,53 @@ def run_issue(d: Path, cfg: Config) -> str:
 # ----------------------------------------------------------------------------
 # Iterate transitions — a deliberate clear, not an idempotency violation.
 # ----------------------------------------------------------------------------
+def _carry_forward_into_brief(d: Path) -> None:
+    """Fold the previous iteration's insight into ``brief.md`` BEFORE an iterate clears
+    the downstream — so the next Do/Plan isn't blind (the rebuild reads brief.md only,
+    and brief.md is the one downstream artifact that survives the clear).
+
+    Sources: the §9 sign-off rationale (``signoff.iteration_delta``) and the failing
+    gating gate evidence from ``check-gates.json``. Best-effort — a carry-forward must
+    never break the transition, so any error is swallowed.
+    """
+    brief_path = d / "brief.md"
+    if not brief_path.exists():
+        return
+    try:
+        delta = signoff.iteration_delta(d / "SUMMARY.md")
+        fails = _failing_gate_lines(d / "check-gates.json")
+        if not delta and not fails:
+            return
+        n = brief_path.read_text(encoding="utf-8").count("## Iteration ") + 1
+        out = [f"\n## Iteration {n} — carry-forward (from the previous attempt)\n"]
+        if delta:
+            out.append(f"- Sign-off rationale: {delta}\n")
+        for f in fails:
+            out.append(f"- Failing gate: {f}\n")
+        out.append("- Address the above; do NOT re-attempt the rejected approach "
+                   "unchanged. Satisfy the brief's Success criterion (the end result).\n")
+        with brief_path.open("a", encoding="utf-8") as fh:
+            fh.write("".join(out))
+    except Exception:  # noqa: BLE001 — carry-forward is advisory; never break the iterate
+        pass
+
+
+def _failing_gate_lines(gates_json: Path) -> list[str]:
+    """``"check — evidence"`` for each failing gating row in check-gates.json (best-effort)."""
+    if not gates_json.exists():
+        return []
+    try:
+        data = json.loads(gates_json.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return []
+    out: list[str] = []
+    for r in data.get("rows", []):
+        if r.get("result") == "fail" and r.get("gating"):
+            ev = r.get("path_line") or r.get("oracle") or ""
+            out.append(f"{r.get('check', '?')} — {ev}".strip(" —"))
+    return out
+
+
 def _clear_downstream_of_brief(d: Path) -> None:
     """Iterate-to-Do: unlink every Do+Check artifact so state() → PLANNED.
 

@@ -226,8 +226,13 @@ def do_build(d: Path, cfg: Config) -> None:
 
 def _build_prompt(d: Path) -> str:
     return (
-        f"You are the Do builder. Read {d}/brief.md. Produce, in the bundle directory "
-        f"{d}: (1) patch.diff — a unified diff against the brief's target branch; "
+        f"You are the Do builder. Read {d}/brief.md in full. If it has an "
+        "`## Iteration N — carry-forward` section, the PREVIOUS attempt was rejected: "
+        "read it first and ADDRESS it — do NOT re-submit the rejected approach unchanged. "
+        "Build to satisfy the brief's **Success criterion** — the real end result — not a "
+        "narrower proxy: an item is done only when that end result holds, proven red→green. "
+        f"Produce, in the bundle directory {d}: (1) patch.diff — a unified diff against the "
+        "brief's target branch; "
         "(2) the test file the brief names, red before the fix and green after; "
         "(3) build-notes.md — your rationale (withheld from the reviewer). Cite "
         "path:line on the target branch for every change. To check the test red→green "
@@ -400,7 +405,10 @@ def _signoff_prompt(d: Path) -> str:
         f"the human clear the §6 NEEDS-HUMAN items in {d}/SUMMARY.md (change "
         f"`- [ ]` to `- [x]` only with their explicit OK). Then write the agreed "
         f"decision as a single token — one of: {', '.join(sorted(VALID_DECISIONS))} — "
-        f"into {d}/{SIGNOFF_DECISION}. Do not edit §9 yourself; the driver records it "
+        f"on the FIRST line of {d}/{SIGNOFF_DECISION}. On `iterate-do` / `iterate-plan`, "
+        "add the human's rationale on the lines BELOW the token — *why* this attempt was "
+        "rejected and *what to change next* — so the next iteration isn't blind (the "
+        "driver carries it into the brief). Do not edit §9 yourself; the driver records it "
         "under a deterministic guard."
     )
 
@@ -441,9 +449,11 @@ def _signoff_batch_prompt(bundles: list[Path]) -> str:
         "Work them in order. For EACH bundle, review its SUMMARY.md / patch.diff / "
         "check-gates.md / check-review.md with the human, help clear that bundle's §6 "
         "NEEDS-HUMAN items (`- [ ]` → `- [x]` only with their explicit OK), then write "
-        f"the agreed decision token — one of: {', '.join(sorted(VALID_DECISIONS))} — into "
-        f"THAT bundle's {SIGNOFF_DECISION} file **as soon as it is decided** (so if the "
-        "session ends early the finished bundles keep their decisions). Every write names "
+        f"the agreed decision token — one of: {', '.join(sorted(VALID_DECISIONS))} — on the "
+        f"FIRST line of THAT bundle's {SIGNOFF_DECISION} file **as soon as it is decided** "
+        "(so if the session ends early the finished bundles keep their decisions); on an "
+        "`iterate-*`, add the human's rationale (why rejected / what to change) on the lines "
+        "below the token. Every write names "
         "its own `issue_<id>` bundle — never leave an item ambient to the batch or write "
         "it into the wrong bundle. Do not edit §9 yourself; the driver records it under a "
         "deterministic guard."
@@ -451,12 +461,29 @@ def _signoff_batch_prompt(bundles: list[Path]) -> str:
 
 
 def signoff_decision(d: Path) -> str:
-    """The token the sign-off leaf wrote, or "" if absent/invalid."""
+    """The decision token (first line of ``signoff-decision``), or "" if absent/invalid.
+
+    The file is ``<token>`` optionally followed by a free-text **rationale** on the
+    remaining lines (read by :func:`signoff_rationale`) — the human's "why iterate /
+    what to change" that the driver carries forward into the brief on an iterate."""
     p = d / SIGNOFF_DECISION
     if not p.exists():
         return ""
-    token = p.read_text(encoding="utf-8").strip()
+    lines = p.read_text(encoding="utf-8").splitlines()
+    token = lines[0].strip() if lines else ""
     return token if token in VALID_DECISIONS else ""
+
+
+def signoff_rationale(d: Path) -> str:
+    """The iterate rationale the sign-off leaf wrote below the token, or "" if none.
+
+    Lines after the first of ``signoff-decision`` — the actionable insight ("why this
+    Do attempt was rejected / what to change next") that the flow records into §9 and
+    the driver folds into the brief's carry-forward so the next iteration isn't blind."""
+    p = d / SIGNOFF_DECISION
+    if not p.exists():
+        return ""
+    return "\n".join(p.read_text(encoding="utf-8").splitlines()[1:]).strip()
 
 
 # ----------------------------------------------------------------------------

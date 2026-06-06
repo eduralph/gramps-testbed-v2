@@ -490,6 +490,37 @@ tool-use (parses the model CLI's structured event stream). The tool-use tier is
 keep it a no-op for others; never make it the only signal, since a non-claude or
 non-streaming leaf must still get Tiers 1+2.
 
+### iterate-do carries the prior iteration's insight into the brief — template-bound
+
+A live cycle surfaced it: on `iterate-do` the driver clears the downstream
+(`SUMMARY.md` / `build-notes.md` / `patch.diff` / `check-*`) and Do re-runs reading
+**`brief.md` only** — which is unchanged — so the builder repeats the rejected
+approach **blind**. The §9 "Iteration delta" field existed but the flow recorded no
+delta, and the clear wiped `SUMMARY.md` anyway. `brief.md` is the one downstream
+artifact that survives, so that's where the carry-forward must land.
+
+| # | Instance path | Upstream target | Kind | What to feed back |
+|---|---|---|---|---|
+| 21 | `src/pdca_harness/{leaves,flow,signoff,driver}.py` + `.claude/agents/{signoff,builder}.md` + `tests/test_driver_slice.py` | same under `template/…` (the two agents `.jinja`) | verbatim + **jinja** | `signoff-decision` carries an optional **rationale** below the token (`leaves.signoff_rationale`; `signoff_decision` now reads line 1); `signoff.md` directs the agent to write it on an `iterate-*`. `flow._apply_decision` flattens it and passes `signoff.record(..., delta=)` → §9. `signoff.iteration_delta()` reads §9 (regex anchored with `[ \t]`, **not** `\s`, so an empty field can't run past the newline — a real bug the test caught). `driver._carry_forward_into_brief()` appends an `## Iteration N — carry-forward` block (the §9 rationale + the failing gating gate from `check-gates.json`) to `brief.md` **before** the clear (rides into `brief.vN.md` on iterate-plan); `builder.md` + `_build_prompt` read and address it. Generic — no project literals. |
+
+*Generic lesson:* an iterate that "clears the downstream so the rebuild starts clean"
+must first **persist the why** into the one surviving input the next beat reads — else
+the loop relearns nothing and repeats. The decision token says *what* (iterate-do); the
+rationale says *why / what to change*, and it has to travel into the brief.
+
+### Do targets the end result, not a proxy, before "done" — template-bound
+
+Sibling of #21 from the same run. The builder could pass a narrow/mechanical check
+without achieving the brief's actual **Success criterion**.
+
+| # | Instance path | Upstream target | Kind | What to feed back |
+|---|---|---|---|---|
+| 22 | `src/pdca_harness/leaves.py` (`_build_prompt`) + `.claude/agents/builder.md` | `template/…` (`builder.md.jinja`) | verbatim + **jinja** | The Do prompt + builder agent mandate building to the brief's **Success criterion** (the real end result), proven red→green — a green mechanical check on something adjacent is not "done." Mirrors the global "a green mechanical check is not a correctness verification." Generic. |
+
+*Generic lesson:* the completion bar for Do is the brief's stated outcome, verified —
+not the nearest green light. State it in the leaf prompt **and** the agent, since the
+leaf prompt is part of the harness contract.
+
 ## Instance-only — do NOT feed back
 - The gramps **branch convention** (`fix/bug-<id>-<slug>` / `enhancement/<id>-<slug>`)
   and the `repo_spec → ../<sibling>` resolution baked into `publish.py` are
