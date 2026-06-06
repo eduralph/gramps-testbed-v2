@@ -45,6 +45,21 @@ BUNDLE="${PDCA_BUNDLE:?run-verify.sh is bundle-scoped — \$PDCA_BUNDLE must be 
 PATCH="$BUNDLE/patch.diff"
 [ -f "$PATCH" ] || { echo "run-verify.sh: no patch.diff in $BUNDLE" >&2; exit 1; }
 
+# --- patch classification helpers (unit-tested by engine/tests/test_verify_classification.py) ---
+# Files the patch ADDS: a `--- /dev/null` header line immediately precedes their
+# `+++ b/<path>` (unified-diff headers come in adjacent pairs). A `git apply`
+# leaves an added file UNTRACKED, so it must be `rm`-ed — not `git checkout`-ed —
+# to revert it for the red pass, and cleaned from the checkout after the run.
+_added_files() {
+  awk '
+    /^--- / { prev = $0; next }
+    /^\+\+\+ b\// { p = $0; sub(/^\+\+\+ b\//, "", p); if (prev == "--- /dev/null") print p }
+  ' "$1"
+}
+# Is $1 an element of the remaining args? (empty arg list -> not a member)
+_in_list() { local x="$1"; shift; local e; for e in "$@"; do [ "$e" = "$x" ] && return 0; done; return 1; }
+# --- end patch classification helpers ---
+
 # Detect the target from the brief: an addons-source fix verifies differently from a
 # gramps-core fix — different checkout, test-name convention, and run env. Default core.
 MODE=core
@@ -56,6 +71,7 @@ fi
 # check. Core tests use the *_test.py SUFFIX (gramps/**/test/); addon tests use the
 # test_*.py PREFIX (addons-source/<Addon>/tests/) — see INTEGRATION.md §3.
 mapfile -t FILES < <(grep -E '^\+\+\+ b/' "$PATCH" | sed -E 's|^\+\+\+ b/||')
+mapfile -t ADDED < <(_added_files "$PATCH")   # files the patch creates (test and/or prod)
 TEST_REL=""
 PROD=()
 for f in "${FILES[@]}"; do
@@ -71,6 +87,15 @@ want_test=$([ "$MODE" = addon ] && echo 'test_*.py' || echo '*_test.py')
 [ -n "$TEST_REL" ] || { echo "run-verify.sh: patch ships no $MODE test ($want_test) to verify" >&2; exit 1; }
 [ "${#PROD[@]}" -gt 0 ] || { echo "run-verify.sh: patch has no production change to revert" >&2; exit 1; }
 MODULE="$(printf '%s' "${TEST_REL%.py}" | tr '/' '.')"   # core: gramps.gui.test.x_test ; addon: Addon.tests.test_x
+
+# Split the production change for the red pass: a brand-new prod file must be
+# REMOVED (it is untracked after `git apply`; `git checkout` would error and, under
+# `set -e`, abort the whole revert), a modified prod file `git checkout`-ed.
+PROD_MOD=()
+PROD_NEW=()
+for f in "${PROD[@]}"; do
+  if _in_list "$f" "${ADDED[@]}"; then PROD_NEW+=("$f"); else PROD_MOD+=("$f"); fi
+done
 
 # Per-mode: which checkout we patch, the container cwd, and the run env. Addon tests
 # need a display (xvfb) so a @skipUnless(_HAS_GTK_DISPLAY) actually RUNS instead of
@@ -92,9 +117,16 @@ git -C "$REPO" diff --quiet || {
   echo "run-verify.sh: $REPO has uncommitted changes — refusing to patch it" >&2; exit 1; }
 # Always restore the checkout, even if interrupted; and kill a hung container so a
 # test can't block the cycle forever. Tunable via GRAMPS_TEST_TIMEOUT (seconds).
+# Restore = revert modified tracked files AND remove the files the patch added (left
+# untracked by `git apply`, so `git checkout -- .` does not touch them) — otherwise a
+# back-to-back run false-fails on `git apply` "already exists in working directory".
 TIMEOUT="${GRAMPS_TEST_TIMEOUT:-900}"
 CNAME="grampstest-$$"
-trap 'git -C "$REPO" checkout -- . 2>/dev/null || true; docker rm -f "$CNAME" 2>/dev/null || true' EXIT
+_restore_checkout() {
+  git -C "$REPO" checkout -- . 2>/dev/null || true
+  [ "${#ADDED[@]}" -gt 0 ] && (cd "$REPO" && rm -f -- "${ADDED[@]}") 2>/dev/null || true
+}
+trap '_restore_checkout; docker rm -f "$CNAME" 2>/dev/null || true' EXIT
 
 # The image tag tracks the gramps checkout's version regardless of mode (same base).
 GRAMPS_VERSION="$(sed -nE 's/^VERSION_TUPLE *= *\(([0-9]+), *([0-9]+), *([0-9]+)\).*$/\1.\2.\3/p' "$WORKSPACE/gramps/gramps/version.py")"
@@ -105,14 +137,15 @@ if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   docker build -f "$ENGINE/docker/Dockerfile.ubuntu" -t "$IMAGE" "$ENGINE"
 fi
 
-echo "→ C4-verify ($MODE): $MODULE  (test: $TEST_REL ; reverting: ${PROD[*]})"
+echo "→ C4-verify ($MODE): $MODULE  (test: $TEST_REL ; reverting: ${PROD_MOD[*]:-—} ; removing: ${PROD_NEW[*]:-—})"
 rc=0
 timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
   -v "$WORKSPACE":/workspace \
   -w "$CWD" \
   -e PATCH="/workspace/${BUNDLE#"$WORKSPACE"/}/patch.diff" \
   -e MODULE="$MODULE" \
-  -e PROD="${PROD[*]}" \
+  -e PROD_MOD="${PROD_MOD[*]}" \
+  -e PROD_NEW="${PROD_NEW[*]}" \
   -e RUNENV="$RUNENV" \
   -e XVFB="$XVFB" \
   "$IMAGE" \
@@ -128,7 +161,8 @@ timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
     if env $RUNENV $XVFB python3 -m unittest "$MODULE" 2>&1; then green=0; else green=1; fi
 
     echo "→ red check (production change reverted, test kept):"
-    git checkout -- $PROD
+    [ -n "$PROD_MOD" ] && git checkout -- $PROD_MOD   # revert modified prod files
+    [ -n "$PROD_NEW" ] && rm -f -- $PROD_NEW           # remove prod files the patch added
     if env $RUNENV $XVFB python3 -m unittest "$MODULE" 2>&1; then red=0; else red=1; fi
 
     echo "C4-verify: green-with-fix=$([ $green -eq 0 ] && echo PASS || echo FAIL)" \
