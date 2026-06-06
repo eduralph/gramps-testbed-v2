@@ -125,25 +125,32 @@ class VerticalSlice(unittest.TestCase):
         leaves.run_review(self.d, cfg)
         self.assertIn("- NEEDS-HUMAN", (self.d / "check-review.md").read_text(encoding="utf-8"))
 
-    def test_iterate_to_do_clears_downstream(self) -> None:
+    def test_iterate_to_do_archives_downstream(self) -> None:
+        # iterate-do ARCHIVES the prior attempt into iteration-v1/ (never deletes it):
+        # the downstream leaves the top level → state PLANNED, brief.md stays, and the
+        # patch is preserved under iteration-v1/.
         driver.run_issue(self.d, self.cfg)
         summary = self.d / "SUMMARY.md"
         signoff.record(summary, action="iterate-do", by="tester", date="2026-01-01")
         self.assertEqual(state.state(self.d), state.ITERATE_DO)
-        driver.advance(self.d, self.cfg)  # performs the clear
+        driver.advance(self.d, self.cfg)  # archive + rebuild
         self.assertEqual(state.state(self.d), state.PLANNED)
-        self.assertFalse((self.d / "patch.diff").exists())
-        self.assertFalse((self.d / "test_toy.py").exists())
-        self.assertTrue((self.d / "brief.md").exists())
+        self.assertFalse((self.d / "patch.diff").exists())          # left the top level
+        self.assertTrue((self.d / "brief.md").exists())             # brief stays for the rebuild
+        self.assertTrue((self.d / "iteration-v1" / "patch.diff").exists())   # preserved, not deleted
+        self.assertTrue((self.d / "iteration-v1" / "SUMMARY.md").exists())
 
-    def test_iterate_to_plan_versions_brief(self) -> None:
+    def test_iterate_to_plan_archives_attempt(self) -> None:
+        # iterate-plan archives the WHOLE attempt incl. the brief → state UNPLANNED;
+        # the brief + downstream are preserved under iteration-v1/, never deleted.
         driver.run_issue(self.d, self.cfg)
         summary = self.d / "SUMMARY.md"
         signoff.record(summary, action="iterate-plan", by="tester", date="2026-01-01")
         driver.advance(self.d, self.cfg)
         self.assertEqual(state.state(self.d), state.UNPLANNED)
-        self.assertTrue((self.d / "brief.v1.md").exists())
-        self.assertFalse((self.d / "brief.md").exists())
+        self.assertFalse((self.d / "brief.md").exists())                     # left the top level
+        self.assertTrue((self.d / "iteration-v1" / "brief.md").exists())     # preserved
+        self.assertTrue((self.d / "iteration-v1" / "patch.diff").exists())   # attempt preserved
 
     def test_iterate_do_carries_forward_into_brief(self) -> None:
         # An iterate-do must fold the prior attempt's insight into brief.md BEFORE the
