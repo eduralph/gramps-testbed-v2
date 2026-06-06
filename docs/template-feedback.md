@@ -455,6 +455,41 @@ in an arbitrary state" as the normal case, not the exception. Audit every multi-
 sweep (`_drive_and_act`, `queue.*`) for an isolation boundary, not just each
 `read_text()` for a guard.
 
+### Batch the interactive sign-off — one session per chunk (testbed #2) — template-bound
+
+The batch sweep restarted a fresh interactive session **per bundle** to sign off N
+parked bundles (N startups + re-orientations). Batch Plan already runs one session
+over several issues; sign-off now gets the same shape, chunked. All harness
+machinery → **feed back verbatim** (+ the agent `.jinja`).
+
+| # | Instance path | Upstream target | Kind | What to feed back |
+|---|---|---|---|---|
+| 19 | `src/pdca_harness/{leaves,flow}.py` + `.claude/agents/signoff.md` + `tests/test_flow_slice.py` | `template/src/pdca_harness/{leaves,flow}.py` + `template/.claude/agents/signoff.md.jinja` + `template/tests/test_flow_slice.py` | verbatim + **jinja** | `leaves.run_signoff_batch(cfg, bundles)` + `_signoff_batch_prompt` (one seeded session over a cheap-first chunk; stub loops `_stub_signoff`); split `flow._signoff_and_apply` into `_apply_decision(cfg, d, *, by, today, apply_now)` (the C6-guarded record/transition, reused by single-issue and batch) + the single-issue convenience; `flow._drive_and_act` chunks the queue by `SIGNOFF_BATCH_SIZE` (=5) and runs one session per chunk, the session wrapped so a drop applies what it wrote. `signoff.md.jinja`: affirmative batch-mode note (several bundles per session, write each decision as soon as decided, attribute every write to its `issue_<id>`). Tests: iterate-then-complete via the batch entry point; a 6-bundle queue chunks into sessions of 5 + 1. Generic — no project literals. |
+
+*Generic lesson:* "drive several to a parked sign-off queue" and "sign several off"
+are the same loop as batch Plan — **one human session per chunk, decision-per-bundle
+written as it goes, chunked to bound context + blast radius**. Keep the C6 record
+deterministic and shared (`_apply_decision`) between single and batch so batching
+adds no second accept-path. (The headless reviewer stays per-bundle/sandboxed —
+batching a *withholding* leaf would break its independence.)
+
+### Heartbeat Tier 3 — live tool-use stream (testbed #4) — template-bound
+
+Tiers 1+2 showed elapsed time + artifact/staleness; Tier 3 shows *what* a long
+headless leaf is doing right now by parsing Claude's stream-json. Generic machinery
+→ **feed back verbatim**.
+
+| # | Instance path | Upstream target | Kind | What to feed back |
+|---|---|---|---|---|
+| 20 | `src/pdca_harness/progress.py` + `src/pdca_harness/leaves.py` + `tests/test_progress.py` | `template/src/pdca_harness/{progress,leaves}.py` + `template/tests/test_progress.py` | verbatim | `progress.run_with_heartbeat(stream_json=)` pipes+parses stdout (stderr still inherits the terminal), tracks the latest tool-use in the drain thread, and prepends `▸ <tool>` to each tick; `_stream_tool_label` / `_tool_label` map an `assistant` event's `tool_use` to a compact label. `leaves._invoke(stream_json=)` appends `--output-format stream-json --verbose` **only for a headless `family == "claude"` leaf** (a no-op for codex, so the cross-vendor default is unaffected); `do_build` + `_run_review_sandboxed` opt in. Tests on the pure parsers + a wiring smoke. Generic — no project literals. |
+
+*Generic lesson:* a heartbeat's three tiers are independent and additive — elapsed
+time (always), artifact/staleness probe (filesystem, vendor-agnostic), and live
+tool-use (parses the model CLI's structured event stream). The tool-use tier is
+**vendor-specific** (here Claude's stream-json), so gate it on the leaf family and
+keep it a no-op for others; never make it the only signal, since a non-claude or
+non-streaming leaf must still get Tiers 1+2.
+
 ## Instance-only — do NOT feed back
 - The gramps **branch convention** (`fix/bug-<id>-<slug>` / `enhancement/<id>-<slug>`)
   and the `repo_spec → ../<sibling>` resolution baked into `publish.py` are
