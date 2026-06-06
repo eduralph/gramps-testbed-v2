@@ -125,6 +125,24 @@ vendored ruleset; each target carries its auditable origin per doc 16
 - **What counts as a successful repro:** JUnit XML under `test-results/<addon>/`;
   interface failures drop screenshots in `artifacts/screenshots/`. A valid repro =
   the regression test is **red before** the fix and **green after**.
+- **Known T3 baseline signature (target-branch environmental reds).** The three
+  whole-suite T3 advisory gates are red on an *unmodified* checkout (gramps
+  `maintenance/gramps61` / addons-source `maintenance/gramps60`) for reasons no
+  per-fix patch touches. Recorded 2026-06-06 from cycles 11589 / 11786 / 12576 /
+  13205 / 13636 (Act review, `process/act-log.md`). Compare a cycle's T3 result
+  against this signature and raise §6 **only for a new or changed failure type**:
+  1. `T3-unit` (core suite) — `Trace/breakpoint trap (core dumped)` segfault during
+     `unittest`/`xmlrunner` discovery. Underlying defect not yet isolated → tracked.
+  2. `T3-addon-unit` — pip install fails (3) because `QuiltView` and `CombinedView`
+     declare `gramps_target_version` "6.0", rejected by core 6.1.0-beta1; this
+     transitively reds the addon-gated `gen.merge` tests. Addon-maintenance (bump
+     the addons' `target_version`), **not** a core defect (issue_13636 §10).
+  3. `T3-interface` (GUI smoke) — `_ErrorHolder`: Dashboard/gramplet startup crash
+     `AttributeError: Ad-hoc attribute _Glade__dirname is not permitted`; the window
+     never appears. Separate **core** bug (issue_13636 §10).
+  A T3 gate matching this signature is known-baseline noise, not a regression — the
+  signal is a *new* failure. Re-promote a gate to `gating` (`pdca.toml:107-110`) once
+  its underlying defect is fixed and that suite is green-baseline.
 
 ## 4. Conformance ruleset (answers the validation-tooling matrix for this repo)
 For each tier: the written ruleset it consumes, its **home**, and the

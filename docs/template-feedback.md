@@ -371,6 +371,69 @@ A real multi-issue batch run surfaced four gaps; three are generic and feed back
   writes*, not just a list of don'ts — "write the token" was read as license to also
   "do what the token implies."
 
+### Act beat — routing follow-up items (not just process deltas) — template-bound
+
+A live cycle (gramps issue 13205) surfaced a finding that was *neither* the fix nor
+a system-process delta — a testbed-gate defect that had to be **filed and tracked**,
+not turned into a ruleset/gate change. The Act agent only knew how to produce
+process deltas, so the routing dimension was implicit. Made it explicit.
+
+| # | Instance path | Upstream target | Kind | What to feed back |
+|---|---|---|---|---|
+| 14 | `.claude/agents/act.md` | `template/.claude/agents/act.md.jinja` | **jinja** | New "**Routing follow-up items**" section: triage each non-delta finding into (a) another bug → the tracker, (b) a design issue → a dedicated design phase outside the cycle, (c) a testbed/driver issue → owning repo per the template-vs-instance boundary, (d) other → an open Act item; record the routing (with link) in the same dated entry. **Already written generic** — "project under test", "tracker", "this testbed repo" / "`pdca-harness` template", `INTEGRATION §1`, `docs/template-feedback.md` — so it ports as-is; keep the existing `description:` → `{{ project_name }}` genericize note from #8. |
+| 15 | `process/act-log.md` (template comment) | `template/process/act-log.md.jinja` | copy | Added a "**Follow-ups routed (not process deltas)**" block to the entry template (alongside "Process deltas"): a line each for tracker bug / design issue / testbed-or-driver issue / other open item, each with a link slot. Generic; copy verbatim into the `.jinja` (it carries no project literals). |
+
+*Generic lesson:* the Act beat has two distinct outputs — **process deltas** (it
+changes the system) and **routed follow-ups** (it hands a piece of work to an owner
+and records the link). The original agent + log template only modelled the first;
+a cycle's most important finding can be the second.
+
+### Sign-off leaf — append-only channel to §10 Act candidates — template-bound
+
+At sign-off of gramps issue 11589 the human surfaced a follow-up (does an empty
+package `__init__.py` need a GPL header, or should the T2 gate exempt it?). The
+**sign-off leaf refused to record it**: its write allow-list is §6 tick + the
+`signoff-decision` token only, and it read §10 as off-limits "deterministic-record
+territory." So a legitimate Act candidate had to be written out-of-band by a
+different actor — exactly how such items fall through.
+
+The narrow allow-list is *correct* for the decision record (§6 ticks, §9 decision,
+the gate rows — touching those would re-decide the contribution). But §10 Act
+candidates is **not** decision territory: it is explicitly non-binding "hints for
+the next Act review," append-only, with no effect on disposition. Sign-off is the
+natural moment for an Act candidate to surface, so the boundary is drawn one section
+too wide.
+
+| # | Instance path | Upstream target | Kind | What to feed back |
+|---|---|---|---|---|
+| 16 | `.claude/agents/signoff.md` | `template/.claude/agents/signoff.md.jinja` | **jinja** | Widen the sign-off write allow-list by **one narrow channel**: permit **append-only** additions of a human-dictated bullet to **§10 Act candidates** (never edit/delete existing lines; never touch §6 ticks, §9 decision, or gate rows). State it as an explicit allow-list item so it is not read as license to edit the rest of the record. Generic — no project literals; keep the existing `description:` → `{{ project_name }}` genericize note. |
+
+*Generic lesson:* a leaf's write allow-list should distinguish the **decision
+record** (off-limits — editing it re-decides the contribution) from **append-only
+advisory sections** (§10 hints) that the same human touch-point legitimately feeds.
+Forbidding both under one "don't touch the record" rule pushes routine follow-ups
+out-of-band, where they fall through.
+
+### Batched sign-off — items must name their originating issue context — template-bound
+
+Sibling of the §10 channel above, exposed by the **batched** interactive sign-off
+(one session over several issues — cf. open testbed issue #2, "Batch the interactive
+sign-off into one session like Plan"). When one session signs off issues *x, y, z*,
+a follow-up / Act candidate / decision rationale raised in that session is **ambient
+to the whole batch** — the record does not say *which* issue it belongs to, so its
+validating / sign-off context is lost. A batched session multiplies the §10-routing
+problem: there are now N bundles' §10 sections and the item must reach the right one.
+
+| # | Instance path | Upstream target | Kind | What to feed back |
+|---|---|---|---|---|
+| 17 | `.claude/agents/signoff.md` + the batched-sign-off flow (`src/pdca_harness/flow.py` / `leaves.py` when batching lands) | `template/.claude/agents/signoff.md.jinja` + `template/src/pdca_harness/{flow,leaves}.py` | **jinja** + verbatim | Require every item a batched sign-off records (a §10 Act candidate, a NEEDS-HUMAN clearance note, the decision rationale) to be **tagged with the specific issue id(s)** it pertains to, and written into **that bundle's** files — never left ambient to the batch. State it as: "in a batched session, each write names its `issue_<id>` and targets that bundle." Mirror the rule the batch-planning extension already needs (one Plan session → several issues, each brief in its own bundle). Generic — no project literals. |
+
+*Generic lesson:* batching a human touch-point (Plan or sign-off) across issues adds
+an **attribution requirement** the single-issue flow never needed — every artifact
+the session emits must carry the issue id and land in that issue's bundle. A batch
+header "cycles considered: x, y, z" is not enough; the *items* must be addressed,
+not just the session.
+
 ## Instance-only — do NOT feed back
 - The gramps **branch convention** (`fix/bug-<id>-<slug>` / `enhancement/<id>-<slug>`)
   and the `repo_spec → ../<sibling>` resolution baked into `publish.py` are

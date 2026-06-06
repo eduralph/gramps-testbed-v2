@@ -26,21 +26,38 @@ and especially **§6 NEEDS-HUMAN** — the items only a human can clear.
 1. For each §6 item, surface the evidence and ask the human to decide. Only with
    their **explicit OK** change a `- [ ]` to `- [x]` in `SUMMARY.md`. Never
    self-clear a NEEDS-HUMAN item.
-2. Once the human has decided the disposition, write the agreed token — exactly
+2. If, while reviewing, the human raises a follow-up the next Act review should see
+   (a bug to file, a cleanup, an open question), **append** their dictated text as a
+   short one-line bullet under **§10 Act candidates** in `SUMMARY.md`. Append only —
+   never edit or remove an existing §10 bullet, and touch no other section. Keep it a
+   pointer, not a write-up: a full **process delta** is recorded in
+   `docs/template-feedback.md` at the Act beat, not stored in the summary.
+3. Once the human has decided the disposition, write the agreed token — exactly
    one of `accept`, `iterate-do`, `iterate-plan` — into a file named
-   **`signoff-decision`** in the bundle directory. That is your only output of record.
+   **`signoff-decision`** in the bundle directory. That is your decision output of record.
 
 ## Boundaries — the guard is the driver's, not yours
 
-**You write exactly two things, nothing else:** (a) `- [ ]` → `- [x]` in §6 of
-`SUMMARY.md`, only with the human's explicit OK; and (b) the `signoff-decision`
-token file. That is the complete list. **Never delete or modify any other bundle
-file** — not `SUMMARY.md` §9 / §1–§8, not `patch.diff`, `check-gates.*`,
-`check-review.md`, the test, or the brief. In particular, `iterate-do` /
-`iterate-plan` do **not** mean "reset the bundle": you do NOT clear the downstream,
-re-version the brief, or `rm` anything — writing the token is the whole job, and the
-**driver** performs the transition (clearing / versioning) afterward. Deleting
-`SUMMARY.md` here breaks the deterministic record step that runs next.
+**You write exactly three things, nothing else:** (a) `- [ ]` → `- [x]` in §6 of
+`SUMMARY.md`, only with the human's explicit OK; (b) **append-only** bullets under
+**§10 Act candidates** of `SUMMARY.md`, dictated by the human (append a new line —
+never edit or delete an existing §10 line); and (c) the `signoff-decision` token
+file. That is the complete list. §10 is the one append channel you have because it
+is non-binding "hints for the next Act review" and has no effect on disposition;
+everything that *is* the decision record stays off-limits. **Never delete or modify
+any other part of any bundle file** — not `SUMMARY.md` §9 / §1–§8, not `patch.diff`,
+`check-gates.*`, `check-review.md`, the test, or the brief. In particular,
+`iterate-do` / `iterate-plan` do **not** mean "reset the bundle": you do NOT clear
+the downstream, re-version the brief, or `rm` anything — writing the token is the
+whole job, and the **driver** performs the transition (clearing / versioning)
+afterward. Deleting `SUMMARY.md` here breaks the deterministic record step that runs
+next.
+
+**Batched sessions — attribute every write.** If one session ever covers more than
+one issue, each of the three writes above names the specific `issue_<id>` it
+concerns and goes into **that** issue's bundle directory. An item the human raises is
+never left ambient to the batch or written into the wrong bundle: clear §6, append
+§10, and write the `signoff-decision` in the bundle of the issue it belongs to.
 
 Do **not** treat an accept with open §6 items as valid: the driver records §9 and
 enforces the C6 accept-gate deterministically. If the human wants to accept but §6

@@ -32,6 +32,33 @@ template field, a ruleset rule, a gate, or an agent-skill adjustment.
 **Suggest improvements only if sensible.** If nothing recurring surfaced, say so
 plainly and record "no delta warranted" — a forced change is worse than none.
 
+## Routing follow-up items (not every finding is a process delta)
+
+A cycle often surfaces work that is neither the fix nor a system-process delta — it
+must land somewhere else and be **tracked**, not fixed here. A process delta changes
+the *system*; a routed item is a *piece of work* you hand to its owner. Triage each
+such item into exactly one of:
+
+- **Another bug — in the project under test or one of its addons.** File it in the
+  **tracker** as a new report (tracker + cross-link form: INTEGRATION §1) and record
+  the new id in the act-log entry. Do not try to fix it in this beat.
+- **A design issue** — the resolution needs architecture/UX decisions, not just
+  code. It needs a dedicated planning/design phase **outside** the PDCA cycle: name
+  it, say why, and hand it to the human to schedule. Do not author a brief for it.
+- **A testbed or PDCA-driver issue.** File it in the **owning repo** and link it,
+  per the template-vs-instance boundary (`docs/template-feedback.md`): an
+  instance/engine problem (`engine/**`, project gate values) → a GitHub issue on
+  this testbed repo; a harness-machinery problem (`src/pdca_harness/**`, the agents,
+  `pdca.toml` leaf/gate *schema*, `CLAUDE.md`) → a `template-feedback.md` entry
+  raised against the `pdca-harness` template.
+- **Anything else** → keep it as an **open Act item**: record it with a determined
+  owner / next step and revisit it at the next review.
+
+These routings are *in addition to* the process deltas above — record them in the
+same dated entry (e.g. "filed `<tracker>` #NNNN", "opened testbed issue #N") **with
+the link**, so the follow-up is auditable. Routing an item is **not** re-deciding
+the contribution.
+
 ## Boundaries
 
 Act never re-decides a contribution's disposition, re-runs the validator/suite, or
