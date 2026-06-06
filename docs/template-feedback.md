@@ -521,6 +521,55 @@ without achieving the brief's actual **Success criterion**.
 not the nearest green light. State it in the leaf prompt **and** the agent, since the
 leaf prompt is part of the harness contract.
 
+### Live-publish fixes (first real `pdca publish` surfaced two) — template-bound
+
+The first end-to-end `pdca publish` (gramps `issue_glade-setattr` → the fork) pushed
+a branch but produced **no PR**, and the commit was **missing the regression test** —
+two distinct defects in the deterministic publish mechanics, both generic. They also
+cascaded: the dropped test file, left untracked, dirtied the checkout so the *next*
+bundle's publish refused on `_check_repo`.
+
+| # | Instance path | Upstream target | Kind | What to feed back |
+|---|---|---|---|---|
+| 23 | `src/pdca_harness/publish.py` (+ `tests/test_publish_slice.py`) | `template/src/pdca_harness/publish.py` (+ `template/tests/test_publish_slice.py`) | verbatim | **(a) The commit dropped patch-ADDED files.** The step list did `git apply` → `git commit -aF`; `-a` stages only modified-tracked files, so the patch's NEW file (the regression test) was never committed — the pushed branch had the fix but no test, and the stray untracked file then made the next publish refuse on `_check_repo`. Fixed to `git apply` → `git add --all` → `git commit -F` (the checkout is clean — `checkout -B` off upstream + the `_check_repo` guard — so `add --all` stages exactly the patch's files, nothing stray). **(b) The PR head wasn't fork-qualified.** `gh pr create --repo <base> --head <branch>` resolves `<branch>` against the *base* repo, where it doesn't exist → `GraphQL: Head ref must be a branch, No commits between …`; the branch lives on the fork (origin), so the head must be `OWNER:BRANCH`. New `_fork_owner(repo)` parses origin's URL; head = `f"{_fork_owner(repo) or <base-owner>}:{branch}"`. Both generic — no project literals. |
+
+*Generic lesson:* a patch-applying publisher must **(1) stage *added* files, not just
+modified** — `commit -a` silently drops a new test, the most important file in a fix
+PR (this is the same forgot-the-new-file class as the C4 verify-gate "clean *added*
+paths too" lesson: `git apply` plus any `-a`/`checkout`-shaped op keeps overlooking
+untracked additions — audit every apply→commit/revert path for it); and **(2) a
+fork-based PR's `--head` must be `OWNER:BRANCH`** or `gh` looks on the base repo and
+fails opaquely. Both failed *quietly* — publish printed the gh error but still exited
+0 with an empty `pr_url` in `publish.json`, so it read as "done." Worth two guards in
+the template: a `tests/test_publish_slice.py` assertion that the step list stages new
+files **and** the PR head is owner-qualified, and consider making an `open_pr` failure
+a non-zero exit (or a louder banner) rather than a silent empty `pr_url`. (The
+`OWNER:BRANCH` derivation assumes the push-to-fork layout already flagged instance-only
+below — a template should let the head/remote mapping be configured, defaulting to
+origin's owner.)
+
+### Patches must be commit-ready for the target repo (its pre-commit hooks) — template-bound
+
+The very next publish (`issue_headless-ut-segfault`) failed at the **commit step**,
+not in `publish.py`: the gramps fork runs `black` as a pre-commit hook, and the
+builder's new test file wasn't black-clean (an extra blank line after the imports).
+**No PDCA gate caught it** — T2 ("shape") checks the GPL header and absence of
+diagnostic prints, not formatting — so the cycle ran all the way to a draft-PR attempt
+before the *target repo's own* hook rejected the commit, leaving a checked-out branch
+with a failed commit to reset.
+
+| # | Instance path | Upstream target | Kind | What to feed back |
+|---|---|---|---|---|
+| 24 | `.claude/agents/builder.md` + `src/pdca_harness/leaves.py` (`_build_prompt`); the formatter/hook check itself is **instance-only** (the tool is gramps's `black` / `.pre-commit-config.yaml`) | `template/.claude/agents/builder.md.jinja` + `template/src/pdca_harness/leaves.py` | **jinja** + verbatim | The Do prompt + builder agent must make the patch **commit-ready for the target repo** — i.e. pass the target's configured pre-commit hooks (here `black`; generally the project's formatter/linters). State it generically: "run the project's formatter / pre-commit before declaring done; a patch the target's commit hook would reject is not done." The *specific* tool is instance-only. **Stronger option worth a copier hint:** a Check / pre-publish gate that runs the target's `pre-commit run --files <patched>` (or formatter `--check`) so a formatting miss is an iterate-do at Check, not a commit failure at publish — the same spirit as C4 catching a bad test. |
+
+*Generic lesson:* the publish commit runs **the target repo's** hooks, which the PDCA
+gates don't model — so "all gates green" did **not** mean "committable." A contribution
+harness must make patches commit-ready for the *destination* (formatter / lint / hook
+clean), enforced before publish: the builder produces clean output and/or a gate runs
+the target's pre-commit in `--check` mode. Otherwise the failure surfaces at the worst
+place — mid-publish, after branch+apply, leaving a half-done checkout. (Pairs with #23:
+publish-time failures are expensive to unwind; push these checks left.)
+
 ## Instance-only — do NOT feed back
 - The gramps **branch convention** (`fix/bug-<id>-<slug>` / `enhancement/<id>-<slug>`)
   and the `repo_spec → ../<sibling>` resolution baked into `publish.py` are
