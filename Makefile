@@ -31,7 +31,7 @@ export PYTHONPATH := src
 PDCA := $(PYTHON) -m pdca_harness.cli
 
 .DEFAULT_GOAL := test
-.PHONY: test check flow rehearse status cli install setup
+.PHONY: test check flow rehearse status cli install setup worktrees batch publish
 
 # --- the cycle -------------------------------------------------------------
 # Live, continuous, Claude-driven. Give ID for one issue, or just CSV for a batch
@@ -83,6 +83,26 @@ open('.claude/settings.local.json', 'w'), indent=2)"
 	@echo "      ~/.claude.json, not these settings, so setup can't pre-set it. The very"
 	@echo "      first interactive session asks once 'trust this folder?'; accept it and"
 	@echo "      it persists for every later run."
+
+# --- addon test matrix: per-version worktrees ------------------------------
+# The addon gates (T3-addon-unit-6{0,1}, C4-verify addon mode) test each
+# addons-source maintenance branch against its MATCHING core — a gramps60 fix is
+# cherry-picked to gramps61, so both must stay green. This creates the pinned,
+# clean git worktrees those runs use: gramps + addons-source on maintenance/
+# gramps6{0,1}, detached so they don't contend for the primary checkout's branch.
+# Idempotent — skips any worktree that already exists.
+worktrees:
+	@ws=$$(cd .. && pwd); \
+	for spec in "gramps gramps-6.0 maintenance/gramps60" \
+	            "gramps gramps-6.1 maintenance/gramps61" \
+	            "addons-source addons-source-6.0 maintenance/gramps60" \
+	            "addons-source addons-source-6.1 maintenance/gramps61"; do \
+	  set -- $$spec; repo="$$ws/$$1"; wt="$$ws/$$2"; br="$$3"; \
+	  if [ -d "$$wt" ]; then echo "✔ $$wt (exists)"; \
+	  else echo "→ git -C $$1 worktree add --detach $$2 $$br"; \
+	    git -C "$$repo" worktree add --detach "$$wt" "$$br" || exit 1; fi; \
+	done; \
+	echo "worktrees ready — the addon matrix uses gramps-6.{0,1} + addons-source-6.{0,1}."
 
 # --- optional real install (venv console script) ---------------------------
 install: .venv/bin/pdca

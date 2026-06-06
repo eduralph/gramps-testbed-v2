@@ -97,59 +97,17 @@ for f in "${PROD[@]}"; do
   if _in_list "$f" "${ADDED[@]}"; then PROD_NEW+=("$f"); else PROD_MOD+=("$f"); fi
 done
 
-# Per-mode: which checkout we patch, the container cwd, and the run env. Addon tests
-# need a display (xvfb) so a @skipUnless(_HAS_GTK_DISPLAY) actually RUNS instead of
-# skipping, plus GRAMPS_RESOURCES + the gi_bootstrap shim (mirrors run-addon-unit.sh).
-if [ "$MODE" = addon ]; then
-  REPO="$WORKSPACE/addons-source"
-  CWD=/workspace/addons-source
-  RUNENV="GRAMPS_RESOURCES=/workspace/gramps PYTHONPATH=/workspace/$TESTBED_NAME/engine/scripts/lib/gi_bootstrap"
-  XVFB="xvfb-run -a"
-else
-  REPO="$WORKSPACE/gramps"
-  CWD=/workspace/gramps
-  RUNENV="GRAMPS_RESOURCES=."
-  XVFB=""
-fi
-
-[ -d "$REPO/.git" ] || { echo "run-verify.sh: no $MODE checkout at $REPO" >&2; exit 1; }
-git -C "$REPO" diff --quiet || {
-  echo "run-verify.sh: $REPO has uncommitted changes — refusing to patch it" >&2; exit 1; }
-# Always restore the checkout, even if interrupted; and kill a hung container so a
-# test can't block the cycle forever. Tunable via GRAMPS_TEST_TIMEOUT (seconds).
-# Restore = revert modified tracked files AND remove the files the patch added (left
-# untracked by `git apply`, so `git checkout -- .` does not touch them) — otherwise a
-# back-to-back run false-fails on `git apply` "already exists in working directory".
+# What to verify against. A core fix runs ONCE against the primary gramps checkout.
+# An addon fix runs the version MATRIX — each addons-source maintenance branch against
+# its MATCHING core, in the pinned worktrees (`make worktrees`): a gramps60 fix is
+# cherry-picked to gramps61, so the fix must hold red→green on BOTH cores. (Addon mode
+# needs a display via xvfb so a @skipUnless(_HAS_GTK_DISPLAY) RUNS; core mode is plain.)
+if [ "$MODE" = addon ]; then LEGS=(6.0 6.1); else LEGS=(core); fi
 TIMEOUT="${GRAMPS_TEST_TIMEOUT:-900}"
-CNAME="grampstest-$$"
-_restore_checkout() {
-  git -C "$REPO" checkout -- . 2>/dev/null || true
-  [ "${#ADDED[@]}" -gt 0 ] && (cd "$REPO" && rm -f -- "${ADDED[@]}") 2>/dev/null || true
-}
-trap '_restore_checkout; docker rm -f "$CNAME" 2>/dev/null || true' EXIT
 
-# The image tag tracks the gramps checkout's version regardless of mode (same base).
-GRAMPS_VERSION="$(sed -nE 's/^VERSION_TUPLE *= *\(([0-9]+), *([0-9]+), *([0-9]+)\).*$/\1.\2.\3/p' "$WORKSPACE/gramps/gramps/version.py")"
-: "${GRAMPS_VERSION:?could not detect Gramps version}"
-IMAGE="${GRAMPS_TESTBED_IMAGE:-gramps-testbed:ubuntu-$GRAMPS_VERSION}"
-if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
-  echo "→ building $IMAGE"
-  docker build -f "$ENGINE/docker/Dockerfile.ubuntu" -t "$IMAGE" "$ENGINE"
-fi
-
-echo "→ C4-verify ($MODE): $MODULE  (test: $TEST_REL ; reverting: ${PROD_MOD[*]:-—} ; removing: ${PROD_NEW[*]:-—})"
-rc=0
-timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
-  -v "$WORKSPACE":/workspace \
-  -w "$CWD" \
-  -e PATCH="/workspace/${BUNDLE#"$WORKSPACE"/}/patch.diff" \
-  -e MODULE="$MODULE" \
-  -e PROD_MOD="${PROD_MOD[*]}" \
-  -e PROD_NEW="${PROD_NEW[*]}" \
-  -e RUNENV="$RUNENV" \
-  -e XVFB="$XVFB" \
-  "$IMAGE" \
-  bash -c '
+# The container body — install core, apply the patch, assert green-with-fix then
+# red-without-the-production-change. Identical per leg; the mounts/env/image differ.
+read -r -d '' INNER <<'INNER_EOF' || true
     set -e
     cleanup() { git checkout -- . 2>/dev/null || true; }
     trap cleanup EXIT
@@ -168,9 +126,74 @@ timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
     echo "C4-verify: green-with-fix=$([ $green -eq 0 ] && echo PASS || echo FAIL)" \
          "/ red-without-fix=$([ $red -ne 0 ] && echo PASS || echo FAIL)"
     [ "$green" -eq 0 ] && [ "$red" -ne 0 ]
-  ' || rc=$?
-if [ "$rc" = 124 ] || [ "$rc" = 137 ]; then
-  echo "$(basename "$0"): test run exceeded ${TIMEOUT}s — killed it (raise GRAMPS_TEST_TIMEOUT for longer runs)." >&2
-  docker kill "$CNAME" >/dev/null 2>&1 || true
-fi
-exit "$rc"
+INNER_EOF
+
+# Restore every checkout we patch (revert tracked + remove patch-added files) even on
+# interrupt, and kill any leg's container. Host-side git works on worktrees fine.
+_TOUCHED=()
+_restore_one() {  # $1 = repo dir
+  git -C "$1" checkout -- . 2>/dev/null || true
+  [ "${#ADDED[@]}" -gt 0 ] && (cd "$1" && rm -f -- "${ADDED[@]}") 2>/dev/null || true
+}
+_restore_all() {
+  local r; for r in "${_TOUCHED[@]:-}"; do [ -n "$r" ] && _restore_one "$r"; done
+  docker ps -aq --filter "name=grampstest-$$" | xargs -r docker rm -f >/dev/null 2>&1 || true
+}
+trap _restore_all EXIT
+
+# Verify one leg; return 0 iff the red→green contract held. $1 = core | 6.0 | 6.1.
+_verify_leg() {
+  local leg="$1" gramps_dir repo cwd runenv xvfb image gv cname d gd label rc=0
+  local mounts=()
+  if [ "$leg" = core ]; then
+    gramps_dir="$WORKSPACE/gramps"; repo="$WORKSPACE/gramps"; cwd=/workspace/gramps
+    runenv="GRAMPS_RESOURCES=."; xvfb=""
+    mounts=( -v "$WORKSPACE":/workspace )         # core mode unchanged: whole-workspace mount
+  else
+    gramps_dir="$WORKSPACE/gramps-$leg"; repo="$WORKSPACE/addons-source-$leg"
+    cwd=/workspace/addons-source
+    runenv="GRAMPS_RESOURCES=/workspace/gramps PYTHONPATH=/workspace/$TESTBED_NAME/engine/scripts/lib/gi_bootstrap"
+    xvfb="xvfb-run -a"
+    for d in "$gramps_dir" "$repo"; do
+      [ -d "$d" ] || { echo "run-verify.sh: worktree $d missing — run 'make worktrees'." >&2; return 1; }
+    done
+    mounts=( -v "$gramps_dir":/workspace/gramps -v "$repo":/workspace/addons-source \
+             -v "$REPO_ROOT":/workspace/"$TESTBED_NAME" )
+    # A worktree's .git is a file pointing at the primary gitdir — bind-mount it so
+    # in-container `git apply`/`checkout` resolve (a primary .git dir needs no mount).
+    for d in "$gramps_dir" "$repo"; do
+      if [ -f "$d/.git" ]; then gd="$(git -C "$d" rev-parse --path-format=absolute --git-common-dir)"; mounts+=( -v "$gd":"$gd" ); fi
+    done
+  fi
+  [ -d "$repo/.git" ] || [ -f "$repo/.git" ] || { echo "run-verify.sh: no checkout at $repo" >&2; return 1; }
+  git -C "$repo" diff --quiet || { echo "run-verify.sh: $repo has uncommitted changes — refusing to patch it" >&2; return 1; }
+  _TOUCHED+=( "$repo" )
+
+  gv="$(sed -nE 's/^VERSION_TUPLE *= *\(([0-9]+), *([0-9]+), *([0-9]+)\).*$/\1.\2.\3/p' "$gramps_dir/gramps/version.py")"
+  : "${gv:?could not detect Gramps version from $gramps_dir}"
+  image="${GRAMPS_TESTBED_IMAGE:-gramps-testbed:ubuntu-$gv}"
+  if ! docker image inspect "$image" >/dev/null 2>&1; then
+    echo "→ building $image"; docker build -f "$ENGINE/docker/Dockerfile.ubuntu" -t "$image" "$ENGINE"
+  fi
+  cname="grampstest-$$-$leg"
+  label="$MODE"; [ "$leg" != core ] && label="$MODE, core $gv"
+  echo "→ C4-verify ($label): $MODULE  (test: $TEST_REL ; reverting: ${PROD_MOD[*]:-—} ; removing: ${PROD_NEW[*]:-—})"
+  timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$cname" \
+    "${mounts[@]}" -w "$cwd" \
+    -e PATCH="/workspace/${BUNDLE#"$WORKSPACE"/}/patch.diff" \
+    -e MODULE="$MODULE" -e PROD_MOD="${PROD_MOD[*]}" -e PROD_NEW="${PROD_NEW[*]}" \
+    -e RUNENV="$runenv" -e XVFB="$xvfb" \
+    "$image" bash -c "$INNER" || rc=$?
+  if [ "$rc" = 124 ] || [ "$rc" = 137 ]; then
+    echo "$(basename "$0"): leg $leg exceeded ${TIMEOUT}s — killed it (raise GRAMPS_TEST_TIMEOUT)." >&2
+    docker kill "$cname" >/dev/null 2>&1 || true
+  fi
+  _restore_one "$repo"   # leave this leg clean for the next (EXIT trap is the backstop)
+  return "$rc"
+}
+
+overall=0
+for leg in "${LEGS[@]}"; do
+  _verify_leg "$leg" || overall=1
+done
+exit "$overall"

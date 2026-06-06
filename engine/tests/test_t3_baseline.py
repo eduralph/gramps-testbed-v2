@@ -84,13 +84,16 @@ class Classify(unittest.TestCase):
 
 
 class ShippedManifests(unittest.TestCase):
-    """The three seeded baselines load and recognise their documented evidence."""
+    """Seeded baselines load and recognise their documented evidence."""
 
+    # Manifests that carry a documented run-level signature for a standing red.
     CASES = {
         "run-unit": "… Trace/breakpoint trap (core dumped)",
-        "run-addon-unit": "× gramps[testing] install failed — 3 failure(s)",
         "run-interface": "AttributeError: ... _Glade__dirname ... _ErrorHolder",
     }
+    # The addon matrix manifests test each branch against its MATCHING core, so the
+    # old version-mismatch red is gone — they're expected green-baseline (no signature).
+    MATRIX = ("run-addon-unit-60", "run-addon-unit-61")
 
     def test_each_manifest_loads_and_matches_its_signature(self) -> None:
         for stem, evidence in self.CASES.items():
@@ -104,6 +107,16 @@ class ShippedManifests(unittest.TestCase):
                 v = t3_baseline.classify({}, 1, evidence, m)
                 self.assertEqual(v["verdict"], "baseline",
                                  f"{stem}: documented evidence should match baseline")
+
+    def test_addon_matrix_manifests_load_clean(self) -> None:
+        for stem in self.MATRIX:
+            path = t3_baseline.BASELINE_DIR / f"{stem}.json"
+            with self.subTest(manifest=stem):
+                self.assertTrue(path.is_file(), f"missing manifest {path}")
+                m = t3_baseline.load_manifest(path)
+                # Matched core → no standing red; a green run is green-baseline.
+                self.assertEqual(m.get("known_failures", []), [])
+                self.assertEqual(t3_baseline.classify({}, 0, "OK", m)["verdict"], "green")
 
 
 if __name__ == "__main__":

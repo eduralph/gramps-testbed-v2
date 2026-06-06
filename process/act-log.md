@@ -72,10 +72,14 @@
   `AttributeError: Ad-hoc attribute _Glade__dirname is not permitted` (the recurring
   `T3-interface` `_ErrorHolder` baseline) → **file in Mantis**. Owner: human (Mantis
   login required, host-side per INTEGRATION §1). Next step: file + record the id here.
-- **Another bug (addon-maintenance — addons-source):** `QuiltView` and `CombinedView`
-  ship `gramps_target_version` "6.0", rejected by core 6.1.0-beta1 (the recurring
-  `T3-addon-unit` pip-install ×3 baseline) → bump `target_version` on both addons.
-  Owner: human. Next step: file on addons-source + record the link here.
+- ~~**Another bug (addon-maintenance — addons-source):** `QuiltView` and `CombinedView`
+  ship `gramps_target_version` "6.0" … → bump `target_version` on both addons.~~
+  **CORRECTED (this routing was wrong).** The addons are *correct per-branch* — "6.0"
+  on `maintenance/gramps60`, "6.1" on `maintenance/gramps61` (fixes cherry-pick
+  forward). The `T3-addon-unit` red was a **testbed matrix gap**: it ran the gramps60
+  addons against 6.1 core (a version mismatch core 6.1 rejects by exact-minor match),
+  not an addon defect. Fixed by making the addon gates a per-version matrix (each
+  branch × its matching core) → **testbed issue #10**. No addon code change.
 - **Open Act item:** isolate the `T3-unit` `Trace/breakpoint trap (core dumped)`
   segfault, then file as a core bug. Owner: human. Next step: diagnose on an unmodified
   `maintenance/gramps61` checkout; revisit next review.

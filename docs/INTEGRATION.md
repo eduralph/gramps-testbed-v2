@@ -137,10 +137,10 @@ vendored ruleset; each target carries its auditable origin per doc 16
   three documented reds:
   1. `T3-unit` (core suite) — `Trace/breakpoint trap (core dumped)` segfault during
      `unittest`/`xmlrunner` discovery. Underlying defect not yet isolated → tracked.
-  2. `T3-addon-unit` — pip install fails (3) because `QuiltView` and `CombinedView`
-     declare `gramps_target_version` "6.0", rejected by core 6.1.0-beta1; this
-     transitively reds the addon-gated `gen.merge` tests. Addon-maintenance (bump
-     the addons' `target_version`), **not** a core defect (issue_13636 §10).
+  2. ~~`T3-addon-unit` — gramps60-target addons vs 6.1 core~~ **RESOLVED:** this was a
+     testbed **version-mismatch**, not an addon defect — fixed by the addon matrix
+     (each addons-source branch × its matching core; `T3-addon-unit-6{0,1}`,
+     testbed issue #10). No standing baseline.
   3. `T3-interface` (GUI smoke) — `_ErrorHolder`: Dashboard/gramplet startup crash
      `AttributeError: Ad-hoc attribute _Glade__dirname is not permitted`; the window
      never appears. Separate **core** bug (issue_13636 §10).
@@ -171,7 +171,7 @@ line number**, so an edit to a vendored page doesn't invalidate the anchor; the
 |---|---|---|---|---|
 | T1 structure | `doc16-addon §Structure` (folder==id, `gramps_target_version`, `fname`, no `__init__.py`, no injected imports) — addon-packaging, so addon-only | `engine/conformance/t1_structure.py` | `python3 ./engine/conformance/gate.py T1` (audits the addon the patch touches) | [built — advisory `T1-structure`, bundle-scoped] |
 | T2 shape | `AGENTS.md §File Headers` (GPL header MUST; empty `__init__.py` marker exempt) + `§Logging` (no diagnostic `print()`) — applies to **core and addon** `.py`; `black` is a separate formatter gate | `engine/conformance/t2_shape.py` | `python3 ./engine/conformance/gate.py T2` | [built — advisory `T2-shape`, bundle-scoped; checks touched addon dirs AND core files; type-hint/docstring/`cb_` SHOULDs left to reviewer judgment] |
-| T3 runtime | doc 16 §Runtime / §Testing; gramps test suite (stdlib `unittest`), baseline-diffed against `engine/baselines/*.json` | local Docker mirror + upstream CI | `t3_baseline.py ./engine/scripts/ubuntu/run-unit.sh` (likewise run-addon-unit / run-interface) | [built — both ported & wired (advisory `T3-unit` / `T3-addon-unit`); wrapped by `t3_baseline.py` so only a delta from the recorded baseline raises §6 (issue #7). The addon-unit catalog/sysdeps sub-gates skip until their tests are ported] |
+| T3 runtime | doc 16 §Runtime / §Testing; gramps test suite (stdlib `unittest`), baseline-diffed against `engine/baselines/*.json` | local Docker mirror + upstream CI | `t3_baseline.py ./engine/scripts/ubuntu/run-unit.sh` (likewise run-interface); addon gates are a **version matrix** — `T3-addon-unit-6{0,1}` run `CORE_VERSION=6.x run-addon-unit.sh` in the pinned `make worktrees` checkouts | [built — advisory `T3-unit` / `T3-interface` + the `T3-addon-unit-6{0,1}` matrix (each addons-source branch × its matching core; issue #10); all wrapped by `t3_baseline.py` so only a delta from the recorded baseline raises §6 (issue #7)] |
 | T4 contribution | `{core,addon} §Commit messages` + `§Mantis trailer keywords`; the four-section PR body (Root cause / Fix / Verified against / Test) is `doc16-core §Contributor workflow` — **core-only** | `engine/conformance/t4_contribution.py` | `python3 ./engine/conformance/gate.py T4` (validates the bundle's `commit-msg.txt` / `pr-description.md` against the patch's target) | [built — advisory `T4-contribution`, bundle-scoped] |
 | T5 judgment | reviewer contract below | Check reviewer + sign-off | (model) | [planned] |
 

@@ -620,6 +620,23 @@ leaf prompt is part of the harness contract.
   red that produces no useful per-test result, e.g. a crash before discovery) and an
   `--update` capture mode. A template E2E/runtime-gate skeleton should offer this
   baseline-diff wrapper rather than a bare exit-code gate.
+- **Addon × core test matrix** (`engine/scripts/ubuntu/run-addon-unit.sh` +
+  `run-verify.sh` addon mode + the `T3-addon-unit-6{0,1}` `pdca.toml` rows +
+  `engine/baselines/run-addon-unit-6{0,1}.json` + the `worktrees` `Makefile` target;
+  testbed issue #10): addons live on two maintenance branches (`gramps60` target
+  "6.0", `gramps61` target "6.1") and a fix is cherry-picked gramps60→gramps61, so
+  each must pass against its **matching** core. The runners take `CORE_VERSION` and
+  test in pinned per-version **git worktrees**; `run-verify.sh` (C4) loops both cores
+  so a cherry-pick that breaks on the other branch fails the per-fix gate. The gramps
+  version pins, branch names, and addon repo are **instance-only**. Two patterns worth
+  the template's attention, though: **(a)** when the project under test ships parallel
+  maintenance lines that cross-port fixes, the gate is a **version matrix** (each
+  branch × its matching dependency), not a single run — parametrise the runner by a
+  target-version env, don't hard-code the one checkout; **(b)** to test several
+  versions from sibling checkouts without disturbing the human's working tree, use
+  **pinned, detached `git worktree`s** — and note the Docker gotcha (verified): a
+  worktree's `.git` is a *file* pointing at the primary gitdir, so bind-mount that
+  gitdir at its own absolute path or in-container git fails.
 
 ## Design insights & gotchas (for the template maintainer)
 

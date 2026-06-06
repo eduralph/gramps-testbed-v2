@@ -44,13 +44,45 @@ WORKSPACE="$(cd "$REPO_ROOT/.." && pwd)"
 TESTBED_NAME="$(basename "$REPO_ROOT")"
 cd "$WORKSPACE"
 
-if [[ ! -d "$WORKSPACE/addons-source" ]]; then
-  echo "addons-source/ is missing — run ./engine/scripts/bootstrap-forks.sh first." >&2
+# --- contribution-target matrix (testbed issue: addon × core version) ----------
+# Addons live on addons-source maintenance/gramps6{0,1}; a gramps60 fix is
+# cherry-picked to gramps61, so an addon must pass against BOTH cores. CORE_VERSION
+# (6.0|6.1) selects the pinned, clean per-version git worktrees `make worktrees`
+# created (gramps-6.x / addons-source-6.x), so gramps60-target addons test against
+# 6.0 core and gramps61 against 6.1. A bare run (no CORE_VERSION) uses the primary
+# ../gramps + ../addons-source checkouts, unchanged.
+GRAMPS_DIR="$WORKSPACE/gramps"
+ADDONS_DIR="$WORKSPACE/addons-source"
+if [ -n "${CORE_VERSION:-}" ]; then
+  case "$CORE_VERSION" in
+    6.0) GRAMPS_DIR="$WORKSPACE/gramps-6.0"; ADDONS_DIR="$WORKSPACE/addons-source-6.0" ;;
+    6.1) GRAMPS_DIR="$WORKSPACE/gramps-6.1"; ADDONS_DIR="$WORKSPACE/addons-source-6.1" ;;
+    *) echo "run-addon-unit.sh: unknown CORE_VERSION '$CORE_VERSION' (expected 6.0 or 6.1)" >&2; exit 2 ;;
+  esac
+  for wt in "$GRAMPS_DIR" "$ADDONS_DIR"; do
+    [ -d "$wt" ] || { echo "run-addon-unit.sh: worktree $wt is missing — run 'make worktrees'." >&2; exit 1; }
+  done
+fi
+
+if [[ ! -d "$ADDONS_DIR" ]]; then
+  echo "$ADDONS_DIR is missing — run ./engine/scripts/bootstrap-forks.sh first." >&2
   exit 1
 fi
 
-GRAMPS_VERSION="$(sed -nE 's/^VERSION_TUPLE *= *\(([0-9]+), *([0-9]+), *([0-9]+)\).*$/\1.\2.\3/p' "$WORKSPACE/gramps/gramps/version.py")"
-: "${GRAMPS_VERSION:?could not detect Gramps version from gramps/version.py}"
+# A git worktree's `.git` is a FILE pointing at the primary repo's gitdir, which
+# does not resolve inside the container; bind-mount that gitdir at its own absolute
+# path so in-container git (and a git-aware pip build) works (verified). A primary
+# checkout has a real `.git` dir under its own mount, so no extra mount is needed.
+GIT_MOUNTS=()
+for dir in "$GRAMPS_DIR" "$ADDONS_DIR"; do
+  if [ -f "$dir/.git" ]; then
+    gd="$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir)"
+    GIT_MOUNTS+=( -v "$gd":"$gd" )
+  fi
+done
+
+GRAMPS_VERSION="$(sed -nE 's/^VERSION_TUPLE *= *\(([0-9]+), *([0-9]+), *([0-9]+)\).*$/\1.\2.\3/p' "$GRAMPS_DIR/gramps/version.py")"
+: "${GRAMPS_VERSION:?could not detect Gramps version from $GRAMPS_DIR/gramps/version.py}"
 IMAGE="${GRAMPS_TESTBED_IMAGE:-gramps-testbed:ubuntu-$GRAMPS_VERSION}"
 
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
@@ -61,7 +93,7 @@ fi
 # Auto-clean stale gramps/build/ before the in-container pip install (uid-mismatch
 # PermissionError from gramps' build_hook rmtree; clean-build.sh picks host-side
 # rm or container-as-root rm based on actual permissions).
-build_dir="$WORKSPACE/gramps/build"
+build_dir="$GRAMPS_DIR/build"
 if [[ -d "$build_dir" ]] && [[ "$(stat -c %u "$build_dir" 2>/dev/null || echo 0)" != "$(id -u)" ]]; then
   echo "→ stale gramps/build/ detected (uid mismatch); calling clean-build.sh"
   "$ENGINE/scripts/ubuntu/clean-build.sh"
@@ -77,7 +109,10 @@ CNAME="grampstest-$$"
 trap 'docker rm -f "$CNAME" >/dev/null 2>&1 || true' EXIT
 rc=0
 timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
-  -v "$WORKSPACE":/workspace \
+  -v "$GRAMPS_DIR":/workspace/gramps \
+  -v "$ADDONS_DIR":/workspace/addons-source \
+  -v "$REPO_ROOT":/workspace/"$TESTBED_NAME" \
+  "${GIT_MOUNTS[@]}" \
   -w /workspace \
   -e "TARGET_ADDONS=$TARGET_ADDONS" \
   -e "TESTBED_NAME=$TESTBED_NAME" \

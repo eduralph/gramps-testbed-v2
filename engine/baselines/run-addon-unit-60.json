@@ -1,0 +1,8 @@
+{
+  "runner": "run-addon-unit.sh",
+  "core_version": "6.0",
+  "target": "addons-source maintenance/gramps60 (target \"6.0\") against gramps maintenance/gramps60 (6.0.8) — pinned worktrees gramps-6.0 / addons-source-6.0",
+  "note": "Matched-core leg of the addon matrix (testbed issue: addon × core version). The old single-manifest red was the version MISMATCH (gramps60 addons vs 6.1 core); with the matched core that's gone, so this leg should be green-baseline. known_failures starts empty; capture any residual per-addon reds with `CORE_VERSION=6.0 t3_baseline.py ./engine/scripts/ubuntu/run-addon-unit.sh --update`. run_level_signatures left empty — add one only for a genuinely environmental red (e.g. an addon dep that won't pip-install in the image), with its cause + tracking.",
+  "run_level_signatures": [],
+  "known_failures": []
+}

@@ -119,14 +119,24 @@ cmd = "python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-u
 gating = false
 scope = "repo"
 
-# T3 runtime — the addon unit suites (per-addon test_*.py across addons-source).
-# Advisory for the same reason as T3-unit; baseline-diffed against
-# engine/baselines/run-addon-unit.json (issue #7).
+# T3 runtime — the addon unit suites, as a VERSION MATRIX. Addons live on
+# addons-source maintenance/gramps6{0,1}; a gramps60 fix is cherry-picked forward to
+# gramps61, so each branch's addons must pass against its MATCHING core. Each row
+# runs the suite in the pinned per-version worktrees (`make worktrees`) via
+# CORE_VERSION, baseline-diffed against its own manifest. Advisory like T3-unit.
 [[gates.checks]]
-id = "T3-addon-unit"
+id = "T3-addon-unit-60"
 tier = "T3"
-label = "runtime: addon unit suites (whole-suite baseline)"
-cmd = "python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-addon-unit.sh"
+label = "runtime: addon suites — addons-source gramps60 × core 6.0 (matrix)"
+cmd = "CORE_VERSION=6.0 PDCA_T3_BASELINE=engine/baselines/run-addon-unit-60.json python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-addon-unit.sh"
+gating = false
+scope = "repo"
+
+[[gates.checks]]
+id = "T3-addon-unit-61"
+tier = "T3"
+label = "runtime: addon suites — addons-source gramps61 × core 6.1 (matrix)"
+cmd = "CORE_VERSION=6.1 PDCA_T3_BASELINE=engine/baselines/run-addon-unit-61.json python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-addon-unit.sh"
 gating = false
 scope = "repo"
 
