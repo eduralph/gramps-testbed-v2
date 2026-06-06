@@ -1,0 +1,14 @@
+{
+  "runner": "run-interface.sh",
+  "target": "gramps maintenance/gramps61 GUI smoke (unmodified)",
+  "note": "Known pre-existing reds on the unmodified target tree (testbed issue #7, act-log 2026-06-06). Matches baseline => environmental, not a regression; only a NEW failure raises §6. Capture per-test ids with `t3_baseline.py './engine/scripts/ubuntu/run-interface.sh test_smoke.py' --update`.",
+  "run_level_signatures": [
+    {
+      "regex": "_ErrorHolder|_Glade__dirname",
+      "match": "_ErrorHolder (Glade __setattr__ name-mangling startup crash)",
+      "cause": "Dashboard/gramplet startup crash: `AttributeError: Ad-hoc attribute _Glade__dirname is not permitted` (gramps/gui/glade.py __setattr__ name-mangling); the window never appears, setUpClass times out.",
+      "tracking": "testbed issue #1 (core fix to gramps/gui/glade.py)"
+    }
+  ],
+  "known_failures": []
+}

@@ -1,0 +1,14 @@
+{
+  "runner": "run-unit.sh",
+  "target": "gramps maintenance/gramps61 (unmodified)",
+  "note": "Known pre-existing reds on the unmodified target tree (testbed issue #7, act-log 2026-06-06). A run that matches this baseline is environmental, not a regression — only a NEW failure raises §6. run_level_signatures are authored from the documented evidence; known_failures (per-test ids) are captured from a real Docker run with `t3_baseline.py ./engine/scripts/ubuntu/run-unit.sh --update`. Re-promote this gate to gating once the suite is green-baseline (pdca.toml).",
+  "run_level_signatures": [
+    {
+      "regex": "Trace/breakpoint trap \\(core dumped\\)",
+      "match": "Trace/breakpoint trap (core dumped)",
+      "cause": "core unit suite segfaults during unittest/xmlrunner discovery; underlying defect not yet isolated",
+      "tracking": "act-log 2026-06-06 open Act item (isolate on an unmodified maintenance/gramps61 checkout, then file as a core bug)"
+    }
+  ],
+  "known_failures": []
+}

@@ -108,22 +108,25 @@ scope = "bundle"
 # (gating = false): on a checkout with any pre-existing failure it is red as a
 # baseline and never sees the bundle's patch, so it cannot gate a single fix —
 # C4-verify above is the per-fix gate. Re-gate this once the suite is green-baseline.
+# Wrapped in t3_baseline.py: it runs the suite, then diffs the result against the
+# recorded baseline (engine/baselines/run-unit.json) — a matching baseline exits 0
+# ("known reds"), only a NEW failure exits 1, so only a delta raises §6 (issue #7).
 [[gates.checks]]
 id = "T3-unit"
 tier = "T3"
 label = "runtime: gramps core unit suite (whole-suite baseline)"
-cmd = "./engine/scripts/ubuntu/run-unit.sh"
+cmd = "python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-unit.sh"
 gating = false
 scope = "repo"
 
 # T3 runtime — the addon unit suites (per-addon test_*.py across addons-source).
-# Advisory for the same reason as T3-unit: it runs every addon's suite on the
-# unmodified tree, so it is a baseline signal, not a per-fix gate.
+# Advisory for the same reason as T3-unit; baseline-diffed against
+# engine/baselines/run-addon-unit.json (issue #7).
 [[gates.checks]]
 id = "T3-addon-unit"
 tier = "T3"
 label = "runtime: addon unit suites (whole-suite baseline)"
-cmd = "./engine/scripts/ubuntu/run-addon-unit.sh"
+cmd = "python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-addon-unit.sh"
 gating = false
 scope = "repo"
 
@@ -138,14 +141,14 @@ scope = "repo"
 id = "T3-interface"
 tier = "T3"
 label = "runtime: GUI interface smoke (launch + open tree, headless dogtail)"
-cmd = "./engine/scripts/ubuntu/run-interface.sh test_smoke.py"
+cmd = "python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-interface.sh test_smoke.py"
 gating = false
 scope = "repo"
 
 # T1/T2/T4 conformance — the structure / shape / contribution tiers, mechanised
-# from wiki doc 16 ("Addon Development — Rules"), the foundation of the T1–T4
-# ladder. Each checker cites every rule back to doc16:LINE (see
-# engine/conformance/{t1_structure,t2_shape,t4_contribution}.py). They are
+# from wiki doc 16, the foundation of the T1–T4 ladder. Each checker cites every
+# rule back to its source by SECTION (core vs addon per target; see
+# engine/conformance/{doc16,t1_structure,t2_shape,t4_contribution}.py). They are
 # bundle-scoped — the dispatcher derives the target from the bundle: T1/T2 audit
 # the addon(s) the patch.diff touches (core-only patch = N/A), T4 the bundle's
 # commit-msg.txt / pr-description.md (absent = N/A). ADVISORY (gating = false),
