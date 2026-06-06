@@ -21,6 +21,28 @@ from . import driver, leaves, queue, signoff, state
 from .config import Config
 
 
+def _isolate(d: Path, what: str, fn):
+    """Run one bundle's step; contain any error so it can't kill the whole sweep.
+
+    A leaf with Write/Bash can leave a bundle in any state (a deleted SUMMARY.md, a
+    truncated check-gates.json); the deterministic spine treats every bundle file as
+    possibly-absent. When a per-bundle step still raises, skip + flag *that* bundle
+    and let the others proceed — never lose a batch's progress to one bad bundle
+    (testbed issue #3). KeyboardInterrupt / SystemExit propagate (only ``Exception``
+    is contained), so a human ^C still stops the run.
+    """
+    try:
+        return fn()
+    except Exception as exc:  # noqa: BLE001 — deliberately broad: isolate the bundle
+        try:
+            left = state.state(d)
+        except Exception:  # noqa: BLE001 — even state-read must not raise here
+            left = "unreadable"
+        print(f"flow: {d.name} — {what} failed ({type(exc).__name__}: {exc}); "
+              f"skipping this bundle (left {left})", file=sys.stderr)
+        return None
+
+
 # ----------------------------------------------------------------------------
 # Shared: the interactive sign-off + deterministic record/transition for one bundle.
 # ----------------------------------------------------------------------------
@@ -131,9 +153,13 @@ def _drive_and_act(
     names = {b.name for b in bundles}
     for _ in range(max_passes):
         # Build-all (unattended): advance each bundle to AWAITING_SIGNOFF / COMPLETE.
+        # Each bundle is isolated — one that raises (a leaf left it half-written) is
+        # skipped this pass, never crashing the sweep and losing the others' progress.
         for d in bundles:
-            _plan_if_unplanned(cfg, d, None)  # iterate-plan may have re-opened it
-            driver.run_issue(d, cfg)
+            def _build(d=d):
+                _plan_if_unplanned(cfg, d, None)  # iterate-plan may have re-opened it
+                driver.run_issue(d, cfg)
+            _isolate(d, "build/check", _build)
         # Sign-off, cheap-first, restricted to this batch. Record every decision
         # across the queue FIRST (apply_now=False) — so an iterate-do doesn't rebuild
         # mid-sweep and interrupt review of the rest. The next pass's build-all above
@@ -142,7 +168,8 @@ def _drive_and_act(
         if not pending:
             break
         for d in pending:
-            _signoff_and_apply(cfg, d, by=by, today=today, apply_now=False)
+            _isolate(d, "sign-off", lambda d=d: _signoff_and_apply(
+                cfg, d, by=by, today=today, apply_now=False))
         if all(state.state(d) == state.COMPLETE for d in bundles):
             break
 
