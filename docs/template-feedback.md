@@ -434,6 +434,27 @@ the session emits must carry the issue id and land in that issue's bundle. A bat
 header "cycles considered: x, y, z" is not enough; the *items* must be addressed,
 not just the session.
 
+### Deterministic spine — per-bundle isolation in the batch sweep (testbed #3) — template-bound
+
+The earlier resilience entry (reviewer/sign-off/assemble) point-patched three
+crashes where a deterministic step `read_text()`'d a bundle file a leaf had left
+absent and the unhandled `FileNotFoundError` took down the **whole batch sweep**.
+The *class* remained: a leaf with `Write`/`Bash` can leave a bundle in any state, so
+every spine read must assume the file may be absent. Testbed issue #3 added the
+systemic net — all in harness machinery, so **feed back verbatim**.
+
+| # | Instance path | Upstream target | Kind | What to feed back |
+|---|---|---|---|---|
+| 18 | `src/pdca_harness/{flow,queue,state,signoff}.py` + `tests/test_flow_slice.py` | `template/src/pdca_harness/{flow,queue,state,signoff}.py` + `template/tests/test_flow_slice.py` | verbatim | (a) `flow._isolate(d, what, fn)` wraps each bundle's build/check and sign-off in `_drive_and_act`, so a step that still raises skips + flags **that** bundle and the others proceed — catching `Exception` only, so a human ^C (KeyboardInterrupt/SystemExit) still stops the run. (b) `queue.awaiting_signoff` gets a per-bundle `try/except` — it runs **outside** the sweep's isolation, so a bundle whose `SUMMARY.md` vanished between the state check and the §6 read must be skipped, not crash the queue. (c) `state.state` maps the §9 token with `.get(token, AWAITING_SIGNOFF)` — the one primitive the whole driver depends on degrades instead of `KeyError`-ing. (d) `signoff.outcome_token` treats an absent `SUMMARY.md` as `""` so `state.state` stays total mid-flight. Tests: a batch where one bundle's build always raises still drives the others to COMPLETE; a bundle at AWAITING whose §6 read raises is skipped by the queue. Generic — no project literals. |
+
+*Generic lesson (completes the recurring theme):* point-patching each unguarded read
+chases symptoms; the durable fix is **two layers** — make the state primitive total
+(it's read everywhere), and **isolate per-bundle work in any multi-bundle loop** so
+one bad bundle can never lose the batch's progress. Treat "the leaf left the bundle
+in an arbitrary state" as the normal case, not the exception. Audit every multi-item
+sweep (`_drive_and_act`, `queue.*`) for an isolation boundary, not just each
+`read_text()` for a guard.
+
 ## Instance-only — do NOT feed back
 - The gramps **branch convention** (`fix/bug-<id>-<slug>` / `enhancement/<id>-<slug>`)
   and the `repo_spec → ../<sibling>` resolution baked into `publish.py` are
@@ -458,6 +479,19 @@ not just the session.
   tree has any pre-existing failure — so T3-unit was set `gating = false` (advisory)
   and C4-verify made the gating correctness check. Templates should not ship a
   whole-suite runtime gate as `gating = true` by default.
+  - *Testbed #5 fix (instance code, generic lesson):* the red pass reverted the
+    production change with a blanket `git checkout -- $PROD`, which **aborts under
+    `set -e` on a brand-new file** (`git apply` leaves it untracked → "pathspec did
+    not match"), so any "extract into a new module" fix could never satisfy
+    red-without-fix; it also left patch-added files untracked, false-failing the next
+    run on `git apply`. The instance `run-verify.sh` now classifies each patched file
+    by its diff header (`--- /dev/null` ⇒ added) and `rm`s added files / `git
+    checkout`s modified ones, and cleans patch-added files on exit. **Generic lesson
+    for the template's verify-gate skeleton:** a patch-and-revert gate must revert
+    *added* files by removal (not checkout) and clean them afterward — or run against
+    a throwaway worktree / `git stash -u` boundary — so a new-file fix is verifiable
+    and a re-run starts clean. (Reinforces the "clean *added* paths too" note already
+    logged under the post-batch C4-addon findings.)
 - **T1/T2/T4 conformance checkers** (`engine/conformance/{t1_structure,t2_shape,
   t4_contribution,gate}.py` + `engine/tests/test_conformance.py` + their three
   `[[gates.checks]]` rows): the structure / shape / contribution tiers, mechanized
@@ -475,6 +509,22 @@ not just the session.
   ruleset is (here doc 16) — the matrix is generic, but every instance should be able
   to cite its tiers back to a written source, which is exactly what makes a gate
   auditable. A copier `conformance_ruleset_ref` hint string would make that explicit.
+  - *Testbed #6 fix (instance code, three generic patterns):* the checkers cited the
+    ruleset by **line number** against a single page; the anchors had gone stale and a
+    core fix was being judged against addon-only rules. The instance now (i) cites by
+    **section heading, not line** via a small `doc16.py` indirection — line anchors
+    rot on every page edit, section anchors don't; (ii) **selects the ruleset by
+    contribution target** (core vs addon), so a rule that exists for only one target
+    (here the four-section PR body, core-only) never fails the other; and (iii) ships
+    an **anchor-drift guard test** (`Doc16Anchors`) that asserts every cited section
+    still exists in its vendored source, so a renamed heading fails the suite instead
+    of producing a dangling citation. **Generic patterns for any instance with a
+    written ruleset:** a `<ruleset>.py` citation indirection (the natural home for the
+    `conformance_ruleset_ref` hint above), ruleset-selection-by-target where the
+    project contributes to more than one repo with different rules, and a
+    cited-anchors-exist test. The gramps `doc16.py` / doc-16 sections are instance-only,
+    but a template **conformance skeleton** should bake in "cite by stable anchor,
+    select by target, test the anchors."
 - **Interface (GUI/dogtail) test tier** (`engine/interface/` suite + `engine/scripts/
   ubuntu/run-interface.sh` + the `T3-interface` `[[gates.checks]]` row + the
   `test_root_resolution.py` spec for the new runner): a headless AT-SPI/dogtail suite
@@ -487,6 +537,23 @@ not just the session.
   per-checkout health gate. (This run also surfaced a real GUI-startup bug in the
   gramps fork checkout — tracked as testbed issue #1 — which is exactly what an
   advisory interface gate is for.)
+- **T3 baseline-diff** (`engine/conformance/t3_baseline.py` + `engine/baselines/*.json`
+  + their `pdca.toml` wiring; `engine/tests/test_t3_baseline.py`): the three
+  whole-suite T3 gates run on the unmodified tree, which carries known pre-existing
+  reds, so without a record the reviewer + human re-diagnosed the identical reds every
+  cycle (a §6 "baseline vs regression?" item per cycle). Testbed issue #7 wraps each
+  runner in `t3_baseline.py`, which parses the run's JUnit XML + output and **diffs it
+  against a checked-in baseline manifest** — a matching baseline exits 0 ("known
+  reds"), only a *delta* (a new failing test, or an unexplained non-zero exit) exits
+  1, and a baseline red that *cleared* is reported. The gramps runners, the
+  `test-results/` XML convention, and the seeded signatures are **instance-only**, but
+  the *pattern* is the generic completion of the "advisory whole-suite gate" insight
+  above: **don't ship a whole-suite gate that re-raises its standing reds every run —
+  diff against a recorded baseline so it only flags new failures**, with two manifest
+  kinds (per-test ids from structured output, and run-level output signatures for a
+  red that produces no useful per-test result, e.g. a crash before discovery) and an
+  `--update` capture mode. A template E2E/runtime-gate skeleton should offer this
+  baseline-diff wrapper rather than a bare exit-code gate.
 
 ## Design insights & gotchas (for the template maintainer)
 
