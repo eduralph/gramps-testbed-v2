@@ -1,0 +1,26 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "ennoborg\n\n 2024-03-05 12:45\n\ndeveloper": "borg_2024-03-05.gramps (4,624,346 bytes)",
+    "codefarmer\n\n 2024-03-05 13:33\n\ndeveloper    ~0066388": "Confirmed on 5.2.0, and note that this is a regression from 5.1.6 where the operation completes successfully with 977 citations merged."
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "borg_2024-03-05.gramps (4,624,346 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Confirmed on 5.2.0, and note that this is a regression from 5.1.6 where the operation completes successfully with 977 citations merged."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "13205",
+  "url": "https://gramps-project.org/bugs/view.php?id=13205"
+}

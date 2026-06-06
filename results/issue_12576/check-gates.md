@@ -1,4 +1,4 @@
-# Check gates — issue_13636
+# Check gates — issue_12576
 
 **Overall (gating): pass**
 
@@ -20,9 +20,9 @@ The Check 5/5/1: 5 correctness · 5 conformance · 1 validation.
 |---|---|---|---|---|---|
 | T1 structure: addon layout vs doc 16 §Structure (folder==id, target_version, fname, no __init__.py) | pass | python3 ./engine/conformance/gate.py T1 | T1-structure | T1 – N/A: no addons-source path in patch.diff (core-only change) | no |
 | T2 shape: code shape vs doc 16 §Coding style (GPL header, no diagnostic print) | pass | python3 ./engine/conformance/gate.py T2 | T2-shape | T2 – N/A: no addons-source path in patch.diff (core-only change) | no |
-| T3 runtime: gramps core unit suite (whole-suite baseline) | fail | ./engine/scripts/ubuntu/run-unit.sh | T3-unit | Generated XML report: /workspace/gramps-testbed-v2/test-results/TEST-gramps.gen.merge.test.merge_ref_test.SourceSourceCh | no |
+| T3 runtime: gramps core unit suite (whole-suite baseline) | fail | ./engine/scripts/ubuntu/run-unit.sh | T3-unit | bash: line 39:   254 Trace/breakpoint trap   (core dumped) GRAMPS_RESOURCES=. python3 -m xmlrunner discover -p "*_test.p | no |
 | T3 runtime: addon unit suites (whole-suite baseline) | fail | ./engine/scripts/ubuntu/run-addon-unit.sh | T3-addon-unit | → pip install logs (3 failure(s)): gramps-testbed-v2/test-results/install-logs/ | no |
-| T3 runtime: GUI interface smoke (launch + open tree, headless dogtail) | fail | ./engine/scripts/ubuntu/run-interface.sh test_smoke.py | T3-interface | Generated XML report: test-results/TEST-unittest.suite._ErrorHolder-20260605101725.xml | no |
+| T3 runtime: GUI interface smoke (launch + open tree, headless dogtail) | fail | ./engine/scripts/ubuntu/run-interface.sh test_smoke.py | T3-interface | Generated XML report: test-results/TEST-unittest.suite._ErrorHolder-20260605211554.xml | no |
 | T4 contribution: commit/PR wrapper vs doc 16 §Commit messages + §Contributor workflow | pass | python3 ./engine/conformance/gate.py T4 | T4-contribution | T4 – N/A: no commit-msg.txt or pr-description.md in the bundle | no |
 | T5 Judgment | none | reviewer + human sign-off | — | — | no |
 

@@ -1,0 +1,285 @@
+diff --git a/PluginManager/PluginManager.py b/PluginManager/PluginManager.py
+index ebf043b1a..7e8fad712 100644
+--- a/PluginManager/PluginManager.py
++++ b/PluginManager/PluginManager.py
+@@ -336,11 +336,52 @@ class PluginStatus(tool.Tool, ManagedWindow):
+         ):
+             self.restart_needed = True
+ 
++    def __plugins_sharing_dir(self, pdata):
++        """
++        Return the registered plugins, other than *pdata*, whose files live
++        in the same directory (``fpath``).
++
++        Used to decide whether uninstalling *pdata* may remove its whole
++        directory or must remove only its own files: a multi-plugin pack such
++        as FilterRules ships every rule in one shared directory (bug 11589).
++        """
++        shared = {}
++        for ptype in PTYPE_STR:
++            for other in self._preg.type_plugins(ptype):
++                if other.id != pdata.id and other.fpath == pdata.fpath:
++                    shared[other.id] = other
++        return list(shared.values())
++
++    def __remove_plugin_files(self, pdata, siblings):
++        """
++        Delete only the files belonging to *pdata* -- its implementation
++        ``.py`` (``pdata.fname``) and the matching ``.gpr.py`` registration
++        file -- leaving the shared directory and everything else in it intact.
++
++        Skips removal when a sibling plugin is registered from the same ``.py``
++        file (several rules can be registered from one ``.py`` / ``.gpr.py``
++        pair), so a still-registered sibling never loses its files.
++        """
++        if pdata.fname in {other.fname for other in siblings}:
++            return
++        base = os.path.splitext(pdata.fname)[0]
++        for fname in (base + ".gpr.py", pdata.fname):
++            target = os.path.join(pdata.fpath, fname)
++            if os.path.isfile(target):
++                os.remove(target)
++
+     def __uninstall(self, pid, path):
+         """Uninstall the plugin"""
+         pdata = self._pmgr.get_plugin(pid)
++        siblings = self.__plugins_sharing_dir(pdata)
+         try:
+-            if os.path.islink(pdata.fpath):  # linux link
++            if siblings:
++                # The directory is shared by other registered plugins (e.g. the
++                # multi-rule FilterRules pack). Removing the whole directory
++                # would destroy those siblings and any unrelated user content,
++                # so remove only this plugin's own files (bug 11589).
++                self.__remove_plugin_files(pdata, siblings)
++            elif os.path.islink(pdata.fpath):  # linux link
+                 os.unlink(pdata.fpath)
+             elif os.stat(pdata.fpath).st_ino != os.lstat(pdata.fpath).st_ino:
+                 # it's probably a Windows junction or softlink
+diff --git a/PluginManager/tests/test_uninstall_shared_dir.py b/PluginManager/tests/test_uninstall_shared_dir.py
+new file mode 100644
+index 000000000..847fa6a86
+--- /dev/null
++++ b/PluginManager/tests/test_uninstall_shared_dir.py
+@@ -0,0 +1,221 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  Eduard Ralph
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++#
++
++"""
++Regression test for bug 11589: PluginManager Enhanced uninstalling one
++plugin from a shared pack directory destroyed the entire directory.
++
++The FilterRules pack ships 13 ``*.gpr.py`` / ``*.py`` rule pairs in one
++shared directory.  ``PluginStatus.__uninstall`` called
++``shutil.rmtree(pdata.fpath)`` on that directory, so uninstalling a single
++rule wiped every sibling rule *and* any unrelated user content (sub-folders,
++files) the user had placed there.
++
++The fix removes only the selected plugin's own files when other registered
++plugins still live in the directory, and keeps the rmtree behaviour for a
++plugin that is the sole occupant of its own directory.
++"""
++
++# ------------------------
++# Python modules
++# ------------------------
++import os
++import shutil
++import tempfile
++import unittest
++from unittest.mock import Mock
++
++
++def _has_gtk_display():
++    """
++    Return True only if a real Gtk display is available.
++
++    PluginManager.py imports Gtk at module load. Constructing a real
++    PluginStatus is impossible without a display, and we sidestep that
++    via ``__new__``-bypass below - but the import alone can still trip
++    on hosts where Gtk has no backend (CI with GDK_BACKEND=-).
++    """
++    if not os.environ.get("DISPLAY"):
++        return False
++    if os.environ.get("GDK_BACKEND") == "-":
++        return False
++    try:
++        import gi
++
++        gi.require_version("Gtk", "3.0")
++        from gi.repository import Gtk
++
++        return bool(Gtk.init_check([])[0])
++    except Exception:  # pylint: disable=broad-except
++        return False
++
++
++_HAS_GTK_DISPLAY = _has_gtk_display()
++
++
++def _make_pdata(plugin_id, fpath, fname):
++    """A minimal PluginData stand-in carrying just the fields __uninstall
++    and the shared-directory check read: id, fpath, fname."""
++    pdata = Mock()
++    pdata.id = plugin_id
++    pdata.fpath = fpath
++    pdata.fname = fname
++    return pdata
++
++
++# ------------------------------------------------------------
++#
++# TestPluginManagerUninstallSharedDir
++#
++# ------------------------------------------------------------
++@unittest.skipUnless(
++    _HAS_GTK_DISPLAY,
++    "needs a real Gtk display (run under xvfb-run)",
++)
++class TestPluginManagerUninstallSharedDir(unittest.TestCase):
++    """
++    Regression for bug 11589.
++    """
++
++    def setUp(self):
++        # A temp dir standing in for the installed FilterRules pack: two
++        # rule pairs plus an unrelated user sub-folder and file.
++        self.tmp = tempfile.mkdtemp(prefix="pm11589_")
++        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
++
++        # The selected rule (to be uninstalled).
++        self.sel_py = os.path.join(self.tmp, "activepersonrule.py")
++        self.sel_gpr = os.path.join(self.tmp, "activepersonrule.gpr.py")
++        # A sibling rule that must survive.
++        self.sib_py = os.path.join(self.tmp, "ageatdeath.py")
++        self.sib_gpr = os.path.join(self.tmp, "ageatdeath.gpr.py")
++        for fn in (self.sel_py, self.sel_gpr, self.sib_py, self.sib_gpr):
++            with open(fn, "w", encoding="utf-8") as fh:
++                fh.write("# rule\n")
++
++        # Unrelated user content the user dropped in the pack directory.
++        self.user_dir = os.path.join(self.tmp, "my_notes")
++        os.mkdir(self.user_dir)
++        self.user_file = os.path.join(self.user_dir, "keepme.txt")
++        with open(self.user_file, "w", encoding="utf-8") as fh:
++            fh.write("do not delete\n")
++
++    def _make_status(self, selected, siblings):
++        """
++        Build a PluginStatus via ``__new__``-bypass, stubbing only the
++        attributes ``__uninstall`` touches: ``_pmgr.get_plugin`` (returns
++        the selected pdata), ``_preg.type_plugins`` (reports the registered
++        plugins, exercising the shared-directory check), the GUI rebuild
++        and the window used by the error dialog.
++        """
++        # Import inside the method so the module-level Gtk imports run
++        # only after the display skip has been evaluated.
++        from PluginManager.PluginManager import PluginStatus
++
++        status = PluginStatus.__new__(PluginStatus)
++        status._pmgr = Mock()
++        status._pmgr.get_plugin.return_value = selected
++
++        # _preg.type_plugins(ptype) is called once per plugin type; return
++        # all registered plugins for the first type and nothing afterwards,
++        # so each plugin is enumerated exactly once.
++        # ``__uninstall`` enumerates every plugin type (one ``type_plugins``
++        # call per ``PTYPE_STR`` key), so the stub must answer repeated calls:
++        # report all registered plugins on the first call and nothing after,
++        # so each plugin is enumerated exactly once.
++        all_plugins = [selected] + list(siblings)
++        status._preg = Mock()
++        status._preg.type_plugins.side_effect = (
++            lambda ptype, _first=[True]: (
++                all_plugins if _first and _first.pop() else []
++            )
++        )
++
++        # GUI mutators / dialog target: no-op stubs.
++        status.window = Mock()
++        status._PluginStatus__rebuild_reg_list = Mock()
++        status.restart_needed = False
++        return status
++
++    def test_uninstall_shared_dir_keeps_siblings_and_user_content(self):
++        """
++        Pre-fix ``__uninstall`` ran ``shutil.rmtree(pdata.fpath)`` and wiped
++        the whole shared directory.  Post-fix it removes only the selected
++        rule's own ``.py`` + ``.gpr.py`` and leaves the directory, the
++        sibling rule, and the unrelated user content in place.
++        """
++        selected = _make_pdata("ActivePerson", self.tmp, "activepersonrule.py")
++        sibling = _make_pdata("ageatdeath", self.tmp, "ageatdeath.py")
++        status = self._make_status(selected, [sibling])
++
++        status._PluginStatus__uninstall("ActivePerson", path=None)
++
++        # The shared directory itself must still exist.
++        self.assertTrue(
++            os.path.isdir(self.tmp),
++            "Bug 11589: the shared pack directory was destroyed when "
++            "uninstalling a single rule from it.",
++        )
++        # The sibling rule's files must survive.
++        self.assertTrue(
++            os.path.isfile(self.sib_py) and os.path.isfile(self.sib_gpr),
++            "Sibling rule files were removed; only the selected rule's "
++            "files should be deleted.",
++        )
++        # Unrelated user content must survive.
++        self.assertTrue(
++            os.path.isdir(self.user_dir) and os.path.isfile(self.user_file),
++            "Unrelated user sub-folder/file in the pack directory was "
++            "destroyed.",
++        )
++        # Only the selected rule's own files were removed.
++        self.assertFalse(
++            os.path.isfile(self.sel_py) or os.path.isfile(self.sel_gpr),
++            "The selected rule's own .py / .gpr.py should have been "
++            "removed.",
++        )
++
++    def test_uninstall_sole_occupant_still_removes_directory(self):
++        """
++        The pre-existing behaviour must be preserved: a plugin that is the
++        sole registered occupant of its own directory still has that
++        directory removed entirely.
++        """
++        sole_dir = os.path.join(self.tmp, "SoloAddon")
++        os.mkdir(sole_dir)
++        with open(
++            os.path.join(sole_dir, "solo.py"), "w", encoding="utf-8"
++        ) as fh:
++            fh.write("# solo\n")
++
++        selected = _make_pdata("solo", sole_dir, "solo.py")
++        status = self._make_status(selected, [])
++
++        status._PluginStatus__uninstall("solo", path=None)
++
++        self.assertFalse(
++            os.path.exists(sole_dir),
++            "A sole-occupant plugin directory should still be removed "
++            "entirely (preserving today's behaviour).",
++        )
++
++
++if __name__ == "__main__":
++    unittest.main()

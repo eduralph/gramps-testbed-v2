@@ -1,6 +1,6 @@
 {
-  "issue_dir": "issue_13636",
-  "overall": "pass",
+  "issue_dir": "issue_11786",
+  "overall": "fail",
   "rows": [
     {
       "check": "C1 Spec",
@@ -31,10 +31,10 @@
     },
     {
       "check": "C4 fix verified: test red pre-fix, green post-fix",
-      "result": "pass",
+      "result": "fail",
       "oracle": "./engine/scripts/ubuntu/run-verify.sh",
       "rule_id": "C4-verify",
-      "path_line": "C4-verify: green-with-fix=PASS / red-without-fix=PASS",
+      "path_line": "C4-verify: green-with-fix=FAIL / red-without-fix=PASS",
       "gating": true,
       "element": "C4"
     },
@@ -70,7 +70,7 @@
       "result": "fail",
       "oracle": "./engine/scripts/ubuntu/run-unit.sh",
       "rule_id": "T3-unit",
-      "path_line": "Generated XML report: /workspace/gramps-testbed-v2/test-results/TEST-gramps.gen.merge.test.merge_ref_test.SourceSourceCh",
+      "path_line": "bash: line 39:   254 Trace/breakpoint trap   (core dumped) GRAMPS_RESOURCES=. python3 -m xmlrunner discover -p \"*_test.p",
       "gating": false,
       "element": "T3"
     },
@@ -88,7 +88,7 @@
       "result": "fail",
       "oracle": "./engine/scripts/ubuntu/run-interface.sh test_smoke.py",
       "rule_id": "T3-interface",
-      "path_line": "Generated XML report: test-results/TEST-unittest.suite._ErrorHolder-20260605101725.xml",
+      "path_line": "Generated XML report: test-results/TEST-unittest.suite._ErrorHolder-20260605210630.xml",
       "gating": false,
       "element": "T3"
     },

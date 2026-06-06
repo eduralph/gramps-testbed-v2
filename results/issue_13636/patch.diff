@@ -1,32 +1,13 @@
-diff --git a/gramps/gui/uimanager.py b/gramps/gui/uimanager.py
---- a/gramps/gui/uimanager.py
-+++ b/gramps/gui/uimanager.py
-@@ -257,7 +257,16 @@ class UIManager:
-         # the following updates the toolbar from the new builder
-         toolbar_parent = toolbar.get_parent()
-+        if toolbar_parent is None:
-+            # During shutdown the main window and its toolbar container can be
-+            # torn down before a queued update_menu() runs -- e.g. page_changer()
-+            # firing from GLib.idle_add while the window is closing (bug 13636,
-+            # see viewmanager.py page_changer).  The toolbar is then already
-+            # detached from its parent, so there is nothing to update and calling
-+            # .remove() on the (None) parent would raise AttributeError.
-+            LOG.info("*** Update ui skipped: toolbar has no parent (shutdown)")
-+            return
-         tb_show = toolbar.get_visible()
-         toolbar_parent.remove(toolbar)
-         toolbar = self.builder.get_object("ToolBar")  # new toolbar
-         toolbar_style = config.get("interface.toolbar-style")
-         if toolbar_style == 0:
 diff --git a/gramps/gui/tests/uimanager_test.py b/gramps/gui/tests/uimanager_test.py
 new file mode 100644
+index 0000000000..3ab61b38f9
 --- /dev/null
 +++ b/gramps/gui/tests/uimanager_test.py
-@@ -0,0 +1,96 @@
+@@ -0,0 +1,94 @@
 +#
 +# Gramps - a GTK+/GNOME based genealogy program
 +#
-+# Copyright (C) 2026  The Gramps project
++# Copyright (C) 2026       The Gramps project
 +#
 +# This program is free software; you can redistribute it and/or modify
 +# it under the terms of the GNU General Public License as published by
@@ -42,80 +23,98 @@ new file mode 100644
 +# with this program; if not, see <https://www.gnu.org/licenses/>.
 +#
 +
++"""Unittest for uimanager.py.
++
++Regression test for bug 13636: closing the main window before a queued
++``page_changer`` idle callback fires must not crash ``UIManager.update_menu``.
++During a page change ``ViewManager`` schedules ``page_changer`` via
++``GLib.idle_add`` (``gramps/gui/viewmanager.py:1061-1066``), which calls
++``UIManager.update_menu()``.  If the window is torn down first, the previous
++toolbar is already detached, so ``toolbar.get_parent()`` returns ``None`` and
++the unguarded ``toolbar_parent.remove(toolbar)`` raised
++``AttributeError: 'NoneType' object has no attribute 'remove'``.
++
++The test runs headless: ``gi.repository`` is stubbed in ``sys.modules`` before
++importing the module under test, so no GTK typelib and no display are required.
 +"""
-+Regression test for gramps.gui.uimanager.UIManager.update_menu().
 +
-+Mantis bug 13636: closing the Gramps main window before a queued update_menu()
-+runs (viewmanager.page_changer firing from GLib.idle_add during teardown) leaves
-+the previous toolbar already detached, so toolbar.get_parent() returns None.
-+Before the fix update_menu() blindly called toolbar.get_parent().remove(toolbar),
-+raising "AttributeError: 'NoneType' object has no attribute 'remove'".
-+
-+Unit-layer substitute for the GUI shutdown race (the interface runner is not yet
-+ported in the testbed): Gtk (and config) are mocked so no display is needed and
-+only the None-guard logic is exercised, not real widget plumbing.
-+"""
-+
++import sys
 +import unittest
 +from unittest import mock
 +
-+import gi
++# Stub out gi / gi.repository so importing gramps.gui.uimanager needs neither a
++# GTK typelib nor a display.  Must happen before the module under test is
++# imported.  uimanager.py does ``from gi.repository import GLib, Gio, Gtk``.
++_GI = mock.MagicMock()
++sys.modules.setdefault("gi", _GI)
++sys.modules.setdefault("gi.repository", _GI.repository)
 +
-+gi.require_version("Gtk", "3.0")
-+
-+from gramps.gui.uimanager import UIManager
++from gramps.gui import uimanager
 +
 +
-+class UpdateMenuToolbarParentTest(unittest.TestCase):
-+    """update_menu() must tolerate a toolbar whose parent is already gone."""
++class TestUpdateMenuDetachedToolbar(unittest.TestCase):
++    """update_menu must survive the window-teardown race of bug 13636."""
 +
-+    MINIMAL_UI = "<interface></interface>"
++    def _make_manager(self, parent):
++        """Build a UIManager whose *previous* builder yields a toolbar whose
++        get_parent() returns ``parent``.
 +
-+    def _make_uimanager(self, toolbar):
-+        """Real UIManager whose 'previous' builder is mocked to return the
-+        supplied toolbar from get_object('ToolBar'); the rebuilt builder comes
-+        from the patched Gtk, so no real widgets are created."""
-+        ui = UIManager(mock.MagicMock(), self.MINIMAL_UI)
-+        old_builder = mock.MagicMock()
-+        old_builder.get_object.return_value = toolbar
-+        ui.builder = old_builder
-+        return ui
++        ``parent=None`` reproduces the shutdown race: the previous toolbar has
++        already been detached from its container.
++        """
++        prev_toolbar = mock.MagicMock(name="previous_toolbar")
++        prev_toolbar.get_parent.return_value = parent
 +
-+    @mock.patch("gramps.gui.uimanager.config")
-+    @mock.patch("gramps.gui.uimanager.Gtk")
-+    def test_detached_toolbar_does_not_raise(self, _gtk, _config):
-+        """get_parent() is None (the 13636 shutdown race) -> no AttributeError."""
-+        toolbar = mock.MagicMock()
-+        toolbar.get_parent.return_value = None
-+        ui = self._make_uimanager(toolbar)
++        prev_builder = mock.MagicMock(name="previous_builder")
++        prev_builder.get_object.return_value = prev_toolbar
 +
++        app = mock.MagicMock(name="app")
++        mgr = uimanager.UIManager(app, "<interface></interface>")
++        # Simulate that init has already happened: a previous builder exists.
++        mgr.builder = prev_builder
++        return mgr, prev_toolbar
++
++    def test_update_menu_detached_toolbar_does_not_raise(self):
++        """get_parent() is None (window torn down) -> return cleanly, no crash."""
++        mgr, _prev_toolbar = self._make_manager(parent=None)
 +        try:
-+            ui.update_menu(init=False)
++            result = mgr.update_menu(init=False)
 +        except AttributeError as err:
 +            self.fail(
-+                "update_menu() raised AttributeError on a detached toolbar "
-+                "(Mantis 13636 shutdown race): %s" % err
++                "update_menu(init=False) raised AttributeError when the previous "
++                "toolbar was already detached (bug 13636): %s" % err
 +            )
++        # The toolbar-rebuild path is skipped rather than crashing.
++        self.assertIsNone(result)
 +
-+        # The toolbar-removal path really was reached.
-+        toolbar.get_parent.assert_called_once_with()
-+
-+    @mock.patch("gramps.gui.uimanager.config")
-+    @mock.patch("gramps.gui.uimanager.Gtk")
-+    def test_attached_toolbar_is_still_updated(self, _gtk, config_mock):
-+        """Positive control: a toolbar that still has a parent is removed and
-+        repacked, so the None-guard does not short-circuit the normal path."""
-+        config_mock.get.return_value = 2  # interface.toolbar-style -> ICONS
-+        parent = mock.MagicMock()
-+        toolbar = mock.MagicMock()
-+        toolbar.get_parent.return_value = parent
-+        ui = self._make_uimanager(toolbar)
-+
-+        ui.update_menu(init=False)
-+
-+        parent.remove.assert_called_once_with(toolbar)
-+        self.assertTrue(parent.pack_start.called)
++    def test_update_menu_attached_toolbar_rebuilds(self):
++        """Sanity: with a real parent the rebuild path still runs (no guard hit)."""
++        parent = mock.MagicMock(name="toolbar_parent")
++        mgr, prev_toolbar = self._make_manager(parent=parent)
++        mgr.update_menu(init=False)
++        # The previous toolbar is detached from its parent as before the fix.
++        parent.remove.assert_called_once_with(prev_toolbar)
 +
 +
 +if __name__ == "__main__":
 +    unittest.main()
+diff --git a/gramps/gui/uimanager.py b/gramps/gui/uimanager.py
+index a269798114..f3da322521 100644
+--- a/gramps/gui/uimanager.py
++++ b/gramps/gui/uimanager.py
+@@ -256,6 +256,15 @@ class UIManager:
+ 
+         # the following updates the toolbar from the new builder
+         toolbar_parent = toolbar.get_parent()
++        if toolbar_parent is None:
++            # bug 13636 (sibling of bug 12048): during a page change,
++            # ViewManager queues page_changer via GLib.idle_add; if the main
++            # window is torn down before that idle callback runs, the previous
++            # toolbar has already been detached and get_parent() returns None.
++            # Skip the toolbar rebuild instead of crashing on
++            # toolbar_parent.remove(toolbar).
++            LOG.info("*** Update ui: toolbar already detached, skipping rebuild")
++            return
+         tb_show = toolbar.get_visible()
+         toolbar_parent.remove(toolbar)
+         toolbar = self.builder.get_object("ToolBar")  # new toolbar

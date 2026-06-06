@@ -1,0 +1,172 @@
+diff --git a/gramps/gen/utils/db.py b/gramps/gen/utils/db.py
+index 2dc50aa9e2..e34f153380 100644
+--- a/gramps/gen/utils/db.py
++++ b/gramps/gen/utils/db.py
+@@ -592,6 +592,28 @@ def get_source_referents(source_handle, db):
+     return get_referents(source_handle, db, _primaries)
+ 
+ 
++def citation_handles_of_source(db, source_handle):
++    """
++    Return the handles of the Citation objects that reference a source.
++
++    Collects only the *Citation* backlinks of ``source_handle``.  A source can
++    legitimately be backlinked by objects other than citations (for example a
++    Note that carries a source/citation reference); such non-Citation backlinks
++    are skipped rather than treated as citations.
++
++    This guards callers -- notably the Merge Citations tool -- against assuming
++    that every backlink of a source is a Citation, which otherwise aborts the
++    whole operation with a ``MergeError`` (bug 13205).
++
++    :param db: the database to search.
++    :param source_handle: handle of the source whose citations are wanted.
++    :returns: list of Citation handles referencing the source.
++    :rtype: list
++    """
++    (citation_handles,) = get_source_referents(source_handle, db)
++    return citation_handles
++
++
+ def get_citation_referents(citation_handle, db):
+     """
+     Find objects that refer the citation.
+diff --git a/gramps/plugins/test/mergecitations_test.py b/gramps/plugins/test/mergecitations_test.py
+new file mode 100644
+index 0000000000..50277a77dc
+--- /dev/null
++++ b/gramps/plugins/test/mergecitations_test.py
+@@ -0,0 +1,95 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  Eduard Ralph
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Regression test for bug 13205: Merge Citations must not abort when a source
++is referenced by a non-Citation object (e.g. a Note that carries a
++source/citation reference).
++
++This imports ONLY the GUI-free helper ``citation_handles_of_source`` from
++``gramps.gen.utils.db`` -- it never imports the Gtk-bound
++``gramps.plugins.tool.mergecitations`` tool module, so it runs under the
++headless verify harness without pulling in the GUI stack.
++"""
++
++import unittest
++
++from gramps.gen.utils.db import citation_handles_of_source
++
++
++class _FakeDb:
++    """
++    Minimal stand-in for a Gramps database exposing only the method the helper
++    needs.  ``find_backlink_handles`` returns the raw ``(class_name, handle)``
++    backlinks unfiltered, so the helper itself is responsible for keeping only
++    the Citation backlinks -- exactly the behaviour bug 13205 is about.
++    """
++
++    def __init__(self, backlinks):
++        self._backlinks = backlinks
++
++    def find_backlink_handles(self, handle, include_classes=None):
++        for class_name, ref_handle in self._backlinks:
++            if include_classes is None or class_name in include_classes:
++                yield (class_name, ref_handle)
++
++
++class MergeCitationsBacklinkTest(unittest.TestCase):
++    """Cover the source -> citation-handles collection used by Merge Citations."""
++
++    def test_non_citation_backlink_is_skipped(self):
++        """
++        A source backlinked by a Note (non-Citation) plus two Citations must
++        yield only the Citation handles, without raising.  Before the fix the
++        Merge Citations loop raised ``MergeError`` on the Note backlink.
++        """
++        db = _FakeDb(
++            [
++                ("Citation", "citation_0001"),
++                ("Note", "note_0001"),
++                ("Citation", "citation_0002"),
++            ]
++        )
++
++        # Must not raise -- the non-Citation (Note) backlink is skipped.
++        handles = citation_handles_of_source(db, "source_0001")
++
++        self.assertEqual(
++            sorted(handles), ["citation_0001", "citation_0002"]
++        )
++        self.assertNotIn("note_0001", handles)
++
++    def test_source_with_only_citations(self):
++        """A source backlinked solely by Citations returns all of them."""
++        db = _FakeDb(
++            [("Citation", "citation_0001"), ("Citation", "citation_0002")]
++        )
++        self.assertEqual(
++            sorted(citation_handles_of_source(db, "source_0001")),
++            ["citation_0001", "citation_0002"],
++        )
++
++    def test_source_with_no_citations(self):
++        """A source backlinked only by a non-Citation yields an empty list."""
++        db = _FakeDb([("Note", "note_0001")])
++        self.assertEqual(citation_handles_of_source(db, "source_0001"), [])
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/gramps/plugins/tool/mergecitations.py b/gramps/plugins/tool/mergecitations.py
+index d2f8549c8b..9cf4e97202 100644
+--- a/gramps/plugins/tool/mergecitations.py
++++ b/gramps/plugins/tool/mergecitations.py
+@@ -56,11 +56,10 @@ from gramps.gui.display import display_help
+ from gramps.gen.datehandler import get_date
+ from gramps.gui.managedwindow import ManagedWindow
+ from gramps.gen.merge import MergeCitationQuery
++from gramps.gen.utils.db import citation_handles_of_source
+ 
+ from gramps.gui.glade import Glade
+ from gramps.gen.db import DbTxn
+-from gramps.gen.lib import Person, Family, Event, Place, Media, Citation, Repository
+-from gramps.gen.errors import MergeError
+ 
+ # -------------------------------------------------------------------------
+ #
+@@ -198,14 +197,12 @@ class MergeCitations(tool.BatchTool, ManagedWindow):
+         num_merges = 0
+         for handle in db.iter_source_handles():
+             dict = {}
+-            citation_handle_list = list(db.find_backlink_handles(handle))
+-            for class_name, citation_handle in citation_handle_list:
+-                if class_name != Citation.__name__:
+-                    raise MergeError(
+-                        "Encountered an object of type %s "
+-                        "that has a citation reference." % class_name
+-                    )
+-
++            # Collect only the Citation backlinks of the source.  A source can
++            # also be backlinked by other objects (e.g. a Note that carries a
++            # source/citation reference); those are skipped instead of aborting
++            # the whole merge with a MergeError (bug 13205).
++            citation_handle_list = citation_handles_of_source(db, handle)
++            for citation_handle in citation_handle_list:
+                 citation = db.get_citation_from_handle(citation_handle)
+                 if citation is None:
+                     continue

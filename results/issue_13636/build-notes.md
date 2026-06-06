@@ -1,131 +1,134 @@
-# Build notes — issue 13636 / uimanager-update-menu-none-toolbar-parent
+# Build notes — issue 13636 / uimanager-toolbar-detach-on-close
 
-> Builder rationale. Withheld from the reviewer by the driver; for the human at
-> sign-off. All `path:line` citations are on the target branch
-> `gramps-project/gramps @ maintenance/gramps61` (the checkout at
-> `../gramps`, `.git/HEAD` → `refs/heads/maintenance/gramps61`).
+> Rationale artifact. Withheld from the reviewer by the driver. Cites
+> `path:line` on the target branch `maintenance/gramps61` (clean tree).
+
+## Target branch / provenance
+
+- Branch checked out: `gramps` @ `maintenance/gramps61`, tracking
+  `upstream/maintenance/gramps61` (`git -C gramps status` → "up to date with
+  upstream/maintenance/gramps61"; remotes: `upstream =
+  github.com/gramps-project/gramps`). Branched-from base is upstream, not the
+  fork's tracking copy, per INTEGRATION §2 (`doc16:115`).
+- All line cites below are against that clean checkout.
 
 ## Root cause (two sentences)
 
-`UIManager.update_menu()` reads `toolbar_parent = toolbar.get_parent()`
-(`gramps/gui/uimanager.py:258`) and then unconditionally calls
-`toolbar_parent.remove(toolbar)` (`gramps/gui/uimanager.py:260`). During the
-shutdown race the previous toolbar has already been detached from its container,
-so `get_parent()` returns `None` and `None.remove(...)` raises
+During a page change, `ViewManager` queues `page_changer` via
+`GLib.idle_add(..., priority=GLib.PRIORITY_DEFAULT_IDLE - 10)`
+(`gramps/gui/viewmanager.py:1061-1066`), and that callback calls
+`UIManager.update_menu()`. If the main window is torn down before the idle
+callback fires, the previous toolbar has already been detached, so
+`toolbar.get_parent()` returns `None` at `gramps/gui/uimanager.py:258` and the
+unguarded `toolbar_parent.remove(toolbar)` at `:260` raises
 `AttributeError: 'NoneType' object has no attribute 'remove'`.
 
-## Why it fires on window-close before the addons-update window
+This was verified, not recalled: the local pre-fix test run crashes exactly at
+`gramps/gui/uimanager.py:260`, in `toolbar_parent.remove(toolbar)`, with that
+AttributeError (traceback captured during the red run).
 
-`viewmanager.__change_page` queues the nested `page_changer` on the GLib idle
-loop: `GLib.idle_add(page_changer, self, ...)` (`gramps/gui/viewmanager.py:1066`),
-and `page_changer` calls `self.uimanager.update_menu()`
-(`gramps/gui/viewmanager.py:1062`, defined `1061`). If the main window is closed
-(top-right `X`) before that queued callback runs, the toolbar container is torn
-down first; the still-queued `update_menu()` then iterates a toolbar whose parent
-is already gone. The in-tree comment at `gramps/gui/viewmanager.py:1057-1060`
-(bug 12048) already documents that Gtk can delete the toolbar object "too soon"
-during view changes — the same widget-lifetime hazard, here triggered by
-teardown. This corroborates the Mantis 13636 trace (5.1.6 line numbers
-`viewmanager.py:905` / `uimanager.py:245`; the equivalent sites on
-`maintenance/gramps61` are `viewmanager.py:1062` and `uimanager.py:258-260`).
+## The fix
 
-## The fix (in scope, one call site)
+`gramps/gui/uimanager.py:257-260` (target branch). After
+`toolbar_parent = toolbar.get_parent()` (`:258`), guard for `None` and return
+early before `toolbar_parent.remove(toolbar)` (`:260`):
 
-`patch.diff` inserts a `None`-guard immediately after
-`toolbar_parent = toolbar.get_parent()` (between `gramps/gui/uimanager.py:258`
-and `:259`): when `toolbar_parent is None`, log via the module logger
-(`LOG`, defined `gramps/gui/uimanager.py:34`) and `return` early, skipping the
-toolbar remove/repack block (`:259-273`).
+```python
+toolbar_parent = toolbar.get_parent()
+if toolbar_parent is None:
+    # bug 13636 (sibling of bug 12048): ... window torn down before the
+    # queued page_changer idle ran; previous toolbar already detached.
+    LOG.info("*** Update ui: toolbar already detached, skipping rebuild")
+    return
+tb_show = toolbar.get_visible()
+toolbar_parent.remove(toolbar)
+```
 
-Early `return` (rather than only guarding line 260) is required because the
-*same* `toolbar_parent` is dereferenced again at
-`gramps/gui/uimanager.py:269` (`toolbar_parent.pack_start(...)`); guarding only
-the `.remove()` would merely move the identical `AttributeError` four lines down.
-The menubar has already been rebuilt (`:253-255`) before this point, which is
-harmless on a window that is being destroyed, so skipping just the toolbar work
-is the correct minimal behaviour.
+- Returns cleanly (no toolbar rebuild) precisely on the shutdown race, matching
+  the success criterion: "the toolbar-rebuild path is skipped/handled gracefully
+  instead of crashing".
+- `LOG` is the module logger already defined at `gramps/gui/uimanager.py:34`; the
+  `LOG.info("*** Update ui")` line at the *end* of the normal path
+  (`uimanager.py:274`) is the sibling log call, so the style matches.
+- Minimal: one guard, no change to the rebuild logic, the `GLib.idle_add` /
+  `page_changer` scheduling, or window-teardown ordering — all explicitly out of
+  scope per the brief.
 
-Scope adherence (per brief): no change to `viewmanager.page_changer`, no shutdown
-reordering, no audit of other `get_parent()` callers, nothing touching the
-unrelated "Top Surnames" `_gramplet.py` warning.
+### Why guard on `toolbar_parent is None`, not on `toolbar is None`
 
-## The test — `gramps/gui/tests/uimanager_test.py`
+The brief's success criterion names `toolbar.get_parent()` returning `None` as
+the failure condition. In `update_menu(init=False)`, `toolbar` is the *previous*
+toolbar captured at `gramps/gui/uimanager.py:224-225` from the old builder; in
+the race it is still a live Gtk object (so `toolbar` itself is not `None`) but it
+has already been removed from its container, so `get_parent()` is `None`. Guarding
+the parent is therefore the exact condition and the smallest change that removes
+the crash at `:260`.
 
-Unit-layer substitute for the GUI race (the interface runner
-`engine/scripts/ubuntu/run-interface.sh` is not yet ported — INTEGRATION §3). It
-constructs a real `UIManager` (its `__init__`, `gramps/gui/uimanager.py:99-138`,
-touches no Gtk), installs a mocked "previous" builder whose
-`get_object("ToolBar")` returns a toolbar mock, and patches the module-level
-`Gtk` and `config` so `update_menu()` rebuilds its inner `Gtk.Builder()`
-(`gramps/gui/uimanager.py:242`) against mocks — no display, no real widgets.
+## Test — `gramps/gui/tests/uimanager_test.py` (authored fresh)
 
-- `test_detached_toolbar_does_not_raise`: `toolbar.get_parent()` returns `None`;
-  asserts `update_menu(init=False)` raises no `AttributeError`. This is the
-  regression: **red** on the unpatched branch (the `:260` `.remove()` on `None`),
-  **green** with the guard.
-- `test_attached_toolbar_is_still_updated` (positive control): a toolbar *with* a
-  parent is still `remove()`d and `pack_start()`ed, proving the guard does not
-  short-circuit the normal path. Green both before and after the fix.
+The live trigger is a timing race not deterministically reproducible through the
+interface runner (brief §Repro). Reproduced at the unit layer instead:
 
-Module-level C4 contract (`engine/scripts/ubuntu/run-verify.sh:84-94`,
-`python3 -m unittest gramps.gui.tests.uimanager_test`): the detached test fails
-without the production change → module **red**; both pass with it → module
-**green**.
+- `gi` / `gi.repository` are stubbed in `sys.modules` *before* importing
+  `gramps.gui.uimanager`, so `from gi.repository import GLib, Gio, Gtk`
+  (`gramps/gui/uimanager.py:29`) needs no GTK typelib and no display. `config`
+  (`uimanager.py:32`) and `glocale` (`:31`) are the real modules and import
+  headless. `sys.modules.setdefault` is used so a fresh `-m unittest` process
+  (where `gi` is not yet imported) deterministically gets the stub, in both the
+  local box and the C4 Docker image.
+- `_make_manager(parent)` builds a `UIManager` whose previous builder
+  (`mgr.builder`) yields a toolbar whose `get_parent()` returns `parent`.
+- `test_update_menu_detached_toolbar_does_not_raise` (`parent=None`) is the
+  regression: pre-fix it raises `AttributeError` at `uimanager.py:260` and
+  `self.fail`s; post-fix `update_menu(init=False)` returns `None`.
+- `test_update_menu_attached_toolbar_rebuilds` (`parent=<mock>`) is a sanity
+  guard that the non-race path is untouched: the previous toolbar is still
+  detached via `parent.remove(prev_toolbar)`, proving the guard only fires on
+  `None`.
 
-## Verified against (no execution — see limitation below)
+### Local red→green (run via `unittest` with `gi` stubbed, `GRAMPS_RESOURCES` set)
 
-- `gramps/gui/uimanager.py:258,260,269` — the `get_parent()` / `.remove()` /
-  `pack_start()` call site that the guard protects.
-- `gramps/gui/viewmanager.py:1061,1062,1066` — `page_changer` → `update_menu`
-  via `GLib.idle_add`, the teardown trigger.
-- `gramps/gui/uimanager.py:34` — `LOG` exists for the skip message.
-- `gramps/gui/uimanager.py:99-138` — `__init__` is Gtk-free, so the test can
-  build a real `UIManager` and only mock the builder/app/Gtk/config.
+- Pre-fix: `test_update_menu_detached_toolbar_does_not_raise` FAILS with the
+  AttributeError at `uimanager.py:260`; the sanity test passes. → red.
+- Post-fix: both tests pass (`Ran 2 tests ... OK`). → green.
 
-## Caused by (lead, not a verified SHA)
+This is the `python3 -m unittest gramps.gui.tests.uimanager_test` form the C4
+`run-verify.sh` gate computes from the patch's `*_test.py` path
+(`gramps/gui/tests/uimanager_test.py` → module `gramps.gui.tests.uimanager_test`).
 
-`git blame` could not be run in this session (see limitation). The unguarded
-`toolbar_parent.remove(toolbar)` has been present since the custom-UIManager
-rewrite — file authored 2018 by Paul Culley (`gramps/gui/uimanager.py:4`). I am
-**not** asserting a SHA; per INTEGRATION §8 a "Caused by" line must carry its SHA,
-and I will not fabricate one. If the human/Check wants the blame SHA, run
-`git -C ../gramps blame -L 258,260 maintenance/gramps61 -- gramps/gui/uimanager.py`
-once the environment is fixed.
+### No `__init__.py` added
 
-## Decisions / things ruled out
+`gramps/gui/tests/` is left as an implicit namespace package; verified it
+resolves (`importlib.import_module('gramps.gui.tests')` →
+`_NamespacePath([...'/gramps/gui/tests'])`) and that `loadTestsFromName` imports
+the test. Adding an `__init__.py` would put a second production file in the patch
+that the C4 red check reverts alongside `uimanager.py`, muddying the red signal;
+the existing sibling `gramps/gui/test/` (singular) keeps its `__init__.py`, but
+the brief names the plural `tests/` path and the namespace import works without
+one.
 
-- **No `gramps/gui/tests/__init__.py` shipped.** `run-verify.sh:41-51` classifies
-  every non-`*_test.py` file in `patch.diff` as "production" and reverts it with
-  `git checkout -- $PROD` for the red phase (`run-verify.sh:89`). A brand-new,
-  untracked `__init__.py` would make that `git checkout` fail under `set -e` and
-  break the gate. It is also unnecessary: `python3 -m unittest
-  gramps.gui.tests.uimanager_test` (`run-verify.sh:86`) imports `gramps.gui.tests`
-  as a Python-3 namespace sub-package of the regular `gramps.gui` package
-  (`gramps/gui/__init__.py`) without one. **Flag for the human:** an eventual
-  upstream PR may still want a `tests/__init__.py` for `unittest discover`
-  coverage; it is deliberately excluded here only because the C4 revert mechanism
-  cannot tolerate it in the patch.
-- **Test path `gramps/gui/tests/` (plural).** I used the path the brief's
-  *Test file* field names verbatim. Note Gramps elsewhere uses the singular
-  `test/` (e.g. `gramps/gen/merge/test/`); the prior bundle draft of this test
-  had chosen `gramps/gui/test/`. The brief is authoritative for the path, so I
-  followed it (plural). If Check prefers matching the repo convention, this is a
-  one-word path change.
-- **Guard returns early** rather than wrapping in try/except — the condition is a
-  precise, expected state (detached toolbar), not an exceptional one; an explicit
-  `is None` check is clearer and narrower than swallowing `AttributeError`.
+## Ruled out
 
-## Limitation — environment blocked all Bash this session
+- **Changing the scheduling / teardown** (`viewmanager.py:1061-1066`, window
+  teardown ordering): explicitly out of scope; would be a larger redesign for a
+  race the one-line guard already neutralises at the crash site.
+- **Guarding by wrapping the whole block in try/except**: broader than needed,
+  would swallow unrelated errors in the rebuild path; the precise `None` check
+  matches the documented failure condition.
+- **Bug 12048**: separate, already fixed (referenced in the `page_changer`
+  comment at `viewmanager.py:1057-1060`); out of scope.
 
-The `builder` PreToolUse hook (`.claude/agents/builder.md:10-18`) runs
-`python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/builder_guard.py"`, but in this
-session `$CLAUDE_PROJECT_DIR` resolved to the **bundle** dir
-(`results/issue_13636/`), where the hook file does not exist — exactly the
-relative-path failure mode the agent file's own comment warns about. Every `Bash`
-call therefore exited non-zero and was blocked, so I could **not** run the test,
-`git blame`, `git apply --check`, or the C4 gate locally. All artifacts were
-produced with `Read`/`Write`/`Edit`, and red→green was established by tracing the
-`update_menu` code path (above), not by execution. The deterministic
-`run-verify.sh` C4 gate is the mechanical red→green verification and should be run
-by the driver/human. (Restoring the guard at the bundle-relative path was
-declined as a sensitive-file edit, so I left the environment untouched.)
+## Prior-art
+
+Brief's triage found no existing fix for the None-parent shutdown race on
+`upstream/maintenance/gramps61` or `upstream/master`; the unguarded
+`toolbar_parent.remove(toolbar)` is still present at `uimanager.py:260` on the
+checked-out target branch (confirmed by reading the file). The closed/rejected-PR
+search across `gramps-project/*` by path remains the TODO the brief flagged
+(needs network) — left for Check/human.
+
+## STOP
+
+Builder scope only: produced `patch.diff`, the named test, and these notes; the
+gramps working tree was restored to clean after generating the diff (so the C4
+gate can apply `patch.diff`). No push, no PR, no ready-mark.

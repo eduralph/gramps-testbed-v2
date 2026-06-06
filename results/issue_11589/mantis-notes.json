@@ -1,0 +1,32 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "bamaustin\n\n 2020-02-23 10:00\n\ndeveloper    ~0058869": "I missed a step in the reproduction process...\nAfter 'select 1 \"Source matching parameters\"'\nThe next step SHOULD be \"click the 'uninstall' Button\"\n\nNote: whether add-on Rules were 'manually' installed or not is irrelevant to the primary problem. (However, the existence of manual installed pieces does illustrate something... that the 'un-install' unfortunately affects unexpected things which are not related to the item being un-installed.)\n\nThat primary problem is twofold:\n1) all Rule add-ons are simultaneously installed/uninstalled (regardless of selection)\n2) 'Rule' add-on uninstall process deletes a Folder (regardless of contents)",
+    "prculley\n\n 2020-03-07 14:43\n\nmanager    ~0059013": "This is a consequence of our decision to put all the filter rules in a single addon package, which gets installed in a single directory. It's all or none. At the point where the uninstall code gets a chance to run the only information it has available is the directory name for the filter. So the whole directory gets deleted. To do better we would have to figure out the name of the ??.gpr.py and ??.py files to just delete them. Which might also result in multiple addons getting removed if the the gpr.py file had several plugins listed in it.\n\nOne fix would be to have separate directories for each rule (which would slightly slow down the startup time).\n\nI'm not sure how critical this is; I suspect most people will just install all the rules and leave them alone.",
+    "bamaustin\n\n 2020-07-09 20:24\n\ndeveloper    ~0059950": "A second FilterRules2 pack has been created which currently (9Jul2020) has 8 rules.\nThis isolates the first 9 rules created as FilterRules. Custom Rules can added or removed separately.\n\nhttps://gramps-project.org/wiki/index.php/Rule_expansions#Add-on_Rules\n\nSome criteria (scheduled assessment cycle or request system) is needed to trigger locking down validated rules and opening a new pack for rules under development."
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "I missed a step in the reproduction process...\nAfter 'select 1 \"Source matching parameters\"'\nThe next step SHOULD be \"click the 'uninstall' Button\"\n\nNote: whether add-on Rules were 'manually' installed or not is irrelevant to the primary problem. (However, the existence of manual installed pieces does illustrate something... that the 'un-install' unfortunately affects unexpected things which are not related to the item being un-installed.)\n\nThat primary problem is twofold:\n1) all Rule add-ons are simultaneously installed/uninstalled (regardless of selection)\n2) 'Rule' add-on uninstall process deletes a Folder (regardless of contents)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "This is a consequence of our decision to put all the filter rules in a single addon package, which gets installed in a single directory. It's all or none. At the point where the uninstall code gets a chance to run the only information it has available is the directory name for the filter. So the whole directory gets deleted. To do better we would have to figure out the name of the ??.gpr.py and ??.py files to just delete them. Which might also result in multiple addons getting removed if the the gpr.py file had several plugins listed in it.\n\nOne fix would be to have separate directories for each rule (which would slightly slow down the startup time).\n\nI'm not sure how critical this is; I suspect most people will just install all the rules and leave them alone."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "A second FilterRules2 pack has been created which currently (9Jul2020) has 8 rules.\nThis isolates the first 9 rules created as FilterRules. Custom Rules can added or removed separately.\n\nhttps://gramps-project.org/wiki/index.php/Rule_expansions#Add-on_Rules\n\nSome criteria (scheduled assessment cycle or request system) is needed to trigger locking down validated rules and opening a new pack for rules under development."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "11589",
+  "url": "https://gramps-project.org/bugs/view.php?id=11589"
+}

@@ -1,0 +1,65 @@
+diff --git a/gramps/gen/lib/date.py b/gramps/gen/lib/date.py
+index 0d6cfd090b..4508b3157a 100644
+--- a/gramps/gen/lib/date.py
++++ b/gramps/gen/lib/date.py
+@@ -1851,6 +1851,12 @@ class Date(BaseObject):
+         ):
+             return
+         year, month, day = Date._calendar_change[calendar](self.sortval)
++        # An unknown (zero) day means the source date is approximate; the SDN
++        # round-trip always yields a concrete day, so preserve the zero marker
++        # rather than fabricating a precise day in the target calendar (bug
++        # 12576). The unknown-month mapping is deliberately left untouched.
++        if self.dateval[Date._POS_DAY] == 0:
++            day = 0
+         if self.is_compound():
+             ryear, rmonth, rday = self._zero_adjust_ymd(
+                 self.dateval[Date._POS_RYR],
+@@ -1859,6 +1865,8 @@ class Date(BaseObject):
+             )
+             sdn = Date._calendar_convert[self.calendar](ryear, rmonth, rday)
+             nyear, nmonth, nday = Date._calendar_change[calendar](sdn)
++            if self.dateval[Date._POS_RDAY] == 0:
++                nday = 0
+             self.dateval = (day, month, year, False, nday, nmonth, nyear, False)
+         else:
+             self.dateval = (day, month, year, False)
+diff --git a/gramps/gen/lib/test/date_test.py b/gramps/gen/lib/test/date_test.py
+index 3955c7762b..2298d6a6cf 100644
+--- a/gramps/gen/lib/test/date_test.py
++++ b/gramps/gen/lib/test/date_test.py
+@@ -1795,5 +1795,34 @@ class AnniversaryDateTest(BaseDateTest):
+         self.assertEqual(d.anniversary(1910), (2, 29))
+ 
+ 
++class ConvertCalendarUnknownDayTest(BaseDateTest):
++    """
++    Regression for bug 12576: converting an approximate date (unknown day,
++    day == 0) between calendars must preserve the unknown day rather than
++    fabricating a precise one from the SDN round-trip.
++    """
++
++    def test_unknown_day_preserved_gregorian_to_persian(self):
++        d = Date()
++        d.set_yr_mon_day(2022, 3, 0)
++        d.convert_calendar(Date.CAL_PERSIAN)
++        self.assertEqual(d.get_day(), 0)
++
++    def test_unknown_day_preserved_persian_to_gregorian(self):
++        d = Date()
++        d.set_calendar(Date.CAL_PERSIAN)
++        d.set_yr_mon_day(1400, 12, 0)
++        d.convert_calendar(Date.CAL_GREGORIAN)
++        self.assertEqual(d.get_day(), 0)
++
++    def test_known_day_still_converts(self):
++        # The original (now-fixed) exact case must keep round-tripping: a
++        # precise source day stays precise after conversion.
++        d = Date()
++        d.set_yr_mon_day(2022, 2, 19)
++        d.convert_calendar(Date.CAL_PERSIAN)
++        self.assertEqual(d.get_ymd(), (1400, 11, 30))
++
++
+ if __name__ == "__main__":
+     unittest.main()

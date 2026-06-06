@@ -1,0 +1,194 @@
+diff --git a/gramps/plugins/lib/libpersonview.py b/gramps/plugins/lib/libpersonview.py
+index f647f8d998..9b1a419813 100644
+--- a/gramps/plugins/lib/libpersonview.py
++++ b/gramps/plugins/lib/libpersonview.py
+@@ -534,10 +534,16 @@ class BasePersonView(ListView):
+ 
+     def tag_updated(self, handle_list):
+         """
+-        Update tagged rows when a tag color changes.
++        Update tagged rows when a tag changes (name, colour or priority).
+         """
+         all_links = set([])
+         for tag_handle in handle_list:
++            # The tag's display name is cached in the treemodel keyed by the
++            # *tag* handle (PeopleBaseModel.get_tag_name -> get_cached_value(
++            # tag_handle, "TAG_NAME")); row_update below only clears the cache
++            # for the tagged *person* handles, so without this the renamed tag
++            # would re-render with its stale old name (bug #11786).
++            self.model.clear_cache(tag_handle)
+             links = set(
+                 [
+                     link[1]
+diff --git a/gramps/plugins/lib/test/__init__.py b/gramps/plugins/lib/test/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/gramps/plugins/lib/test/libpersonview_test.py b/gramps/plugins/lib/test/libpersonview_test.py
+new file mode 100644
+index 0000000000..56f58de961
+--- /dev/null
++++ b/gramps/plugins/lib/test/libpersonview_test.py
+@@ -0,0 +1,163 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  The Gramps project
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Headless regression test for bug 11786 ("renaming a tag leaves the old name in
++an open list view").
++
++After Tags -> Organize Tags -> Rename, an open People View kept showing the
++*old* tag name in its Tags column until Gramps was restarted.
++
++Root cause
++----------
++The tag's display name is cached in the treemodel keyed by the **tag** handle:
++``PeopleBaseModel.get_tag_name`` -> ``BaseModel.get_cached_value(tag_handle,
++"TAG_NAME")`` (gramps/gui/views/treemodels/peoplemodel.py:511-520, cache in
++gramps/gui/views/treemodels/basemodel.py:46-57).  On rename the DB emits
++``tag-update`` -> ``BasePersonView.tag_updated``
++(gramps/plugins/lib/libpersonview.py:535-555) resolves the tagged *person*
++backlinks and calls ``row_update`` (gramps/gui/views/listview.py:927), which
++clears the cache for the *person* handles only.  The ``(tag_handle, "TAG_NAME")``
++entry is never dropped, so the re-render reads the stale old name.
++
++The fix has ``tag_updated`` drop the renamed tag's cached entry
++(``self.model.clear_cache(tag_handle)``) before re-rendering the rows.
++
++What this exercises
++-------------------
++The real cache path -- ``BaseModel`` LRU + the real
++``PeopleBaseModel.get_tag_name`` -- is primed with the old name, the tag is
++renamed in a real (sqlite) database, and the *real*
++``BasePersonView.tag_updated`` is invoked (unbound, on a minimal stand-in for
++the view so no Gtk widgets are constructed).  Post-fix ``get_tag_name`` returns
++the new name; pre-fix it returns the stale cached old name and the test fails.
++
++(Importing ``libpersonview`` pulls in Gtk, so this runs under the testbed's
++display/D-Bus/AT-SPI engine runner.)
++"""
++
++import shutil
++import tempfile
++import unittest
++from types import SimpleNamespace
++
++from gramps.gen.db import DbTxn
++from gramps.gen.db.utils import make_database
++from gramps.gen.lib import Person, Tag
++from gramps.gui.views.treemodels.basemodel import BaseModel
++from gramps.gui.views.treemodels.peoplemodel import PeopleBaseModel
++from gramps.plugins.lib.libpersonview import BasePersonView
++
++OLD_TAG_NAME = "ToDo"
++NEW_TAG_NAME = "ZZRenamed11786"
++
++
++class _TagNameModel(BaseModel):
++    """
++    Minimal stand-in for the People treemodel that exercises the *real* tag-name
++    cache: ``BaseModel``'s LRU plus the real ``PeopleBaseModel.get_tag_name``
++    (which caches the name keyed by the tag handle).  Only the collaborators
++    ``get_tag_name`` actually touches are provided.
++    """
++
++    # The exact production accessor whose cache is the bug's subject.
++    get_tag_name = PeopleBaseModel.get_tag_name
++
++    def __init__(self, db):
++        BaseModel.__init__(self)
++        self.db = db
++        # set_cached_value is a no-op while the model is (re)building.
++        self._in_build = False
++
++
++class Bug11786TagNameCacheTest(unittest.TestCase):
++    """
++    Renaming a tag must invalidate the treemodel's tag-name cache so the People
++    View re-renders the new name without a restart.
++    """
++
++    def setUp(self):
++        self.tmpdir = tempfile.mkdtemp()
++        self.db = make_database("sqlite")
++        self.db.load(self.tmpdir)
++
++        # A tag ...
++        tag = Tag()
++        tag.set_name(OLD_TAG_NAME)
++        with DbTxn("add tag", self.db) as trans:
++            self.tag_handle = self.db.add_tag(tag, trans)
++
++        # ... carried by a person (so find_backlink_handles resolves it).
++        person = Person()
++        person.add_tag(self.tag_handle)
++        with DbTxn("add person", self.db) as trans:
++            self.person_handle = self.db.add_person(person, trans)
++
++        self.model = _TagNameModel(self.db)
++
++    def tearDown(self):
++        self.db.close()
++        shutil.rmtree(self.tmpdir, ignore_errors=True)
++
++    def _rename_tag(self, new_name):
++        tag = self.db.get_tag_from_handle(self.tag_handle)
++        tag.set_name(new_name)
++        with DbTxn("rename tag", self.db) as trans:
++            self.db.commit_tag(tag, trans)
++
++    def test_backlink_resolves_tagged_person(self):
++        """Sanity: the tagged person is a Person backlink of the tag."""
++        links = {
++            cls
++            for cls, _h in self.db.find_backlink_handles(
++                self.tag_handle, include_classes="Person"
++            )
++        }
++        self.assertIn("Person", links)
++
++    def test_tag_rename_refreshes_cached_tag_name(self):
++        # Prime the cache the way a painted Tags column would.
++        self.assertEqual(self.model.get_tag_name(self.tag_handle), OLD_TAG_NAME)
++        cached, value = self.model.get_cached_value(self.tag_handle, "TAG_NAME")
++        self.assertTrue(cached, "tag name should be cached after first render")
++        self.assertEqual(value, OLD_TAG_NAME)
++
++        # Rename the tag in the database, then fire the real tag-update handler
++        # on a minimal stand-in for the view (no Gtk widgets constructed).
++        self._rename_tag(NEW_TAG_NAME)
++        view = SimpleNamespace(
++            model=self.model,
++            dbstate=SimpleNamespace(db=self.db),
++            row_update=lambda handle_list: None,
++        )
++        BasePersonView.tag_updated(view, [self.tag_handle])
++
++        # Post-fix: the cache was invalidated, so the new name is rendered.
++        # Pre-fix: the stale (tag_handle, "TAG_NAME") entry survives and the
++        # old name is returned -- bug 11786.
++        self.assertEqual(
++            self.model.get_tag_name(self.tag_handle),
++            NEW_TAG_NAME,
++            "Tags column would still show the stale old tag name after rename "
++            "(bug 11786: tag_updated did not invalidate the tag-name cache)",
++        )
++
++
++if __name__ == "__main__":
++    unittest.main()

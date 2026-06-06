@@ -1,0 +1,99 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "amir\n\n 2022-02-24 15:24\n\nreporter  \n\ndelete": "Screenshot (44).png (12,874 bytes)  \n Screenshot (44).png (12,874 bytes)",
+    "lordemannd\n\n 2022-02-24 16:24\n\ndeveloper    ~0063704\n\n last edited: 2022-02-24 17:30\n\nview 7 revisions\n\nedit\ndelete\nmake private": "Gramps 5.1.5 on an English Windows system:\nExternal Persian calendar converters show that entering a Persian date of 1400/11/30 (1400 Bahman 30) should convert to 2022-02-19.\n\nIf you enter 2022-02-19 as a Gramps Gregorian date, then change to Persian date, the conversion is wrong,\n2022-02-19 converts to 1400/12/00 (1400 Esfand 00),\nGramps preserves the Gregorian date as text string 2022-02-19\n\nIf you enter date 1400 Bahman 30 as a Persian calendar date, Gramps will not allow the date to be saved and reports this message at the bottom of the window:\n\"Correct the date or switch from 'Regular' to 'Text only'\"\nand won't allow date to be saved.\n\nIf you enter Persian calendar date 1400 Bahman 28, save the date, then edit the date, you can add 1 to get day 29 and save it, but add 1 more to become day 30 and Gramps detects it as invalid date.\n\n(for the Persian calendar, the 12th month, Esfand, is the month that gets the leap day added instead of 11th month Bahman)",
+    "snoiraud\n\n 2022-02-24 19:30\n\ndeveloper    ~0063706\n\nedit\ndelete\nmake private": "Could you try to comment out the following line (508) in gramps/gen/lib/gcalendar.py\n\nsdn = math.floor(sdn) + 0.5 #float\nsdn = math.floor(sdn) + 0.5 #float\n\nI don't know why we try to round it.",
+    "lordemannd\n\n 2022-02-24 22:13\n\ndeveloper    ~0063708\n\nedit\ndelete\nmake private": "@SNoiraud 's patch works for me, at least for my simple test case.\n\n@Amir is it possible for you to try this change?\n\n(If you tell us what operating system you are using, we can give you detailed instructions if you need them)",
+    "amir\n\n 2022-02-26 12:21\n\nreporter    ~0063714\n\nedit\ndelete\nmake private": "Thanks, everyone.\n@SNoiraud 's patch works for me too.",
+    "snoiraud\n\n 2022-02-26 18:00\n\ndeveloper    ~0063715\n\nedit\ndelete\nmake private": "PR: https://github.com/gramps-project/gramps/pull/1351\n\nApplied on master as I don't know if gramps 5.1.6 will be available",
+    "lordemannd\n\n 2022-02-27 06:26\n\ndeveloper    ~0063720\n\n last edited: 2026-05-17 15:44\n\nview 3 revisions\n\nedit\ndelete\nmake private": "Works for me with 5.1.5 on Windows.\nEven if it isn't included in a future maintenance release, it can be applied as a patch to 5.1.5.\n\nI did a little more testing with the Persian calendar, some strange things that might be general, not just specific to the Persian calendar:\n\nIf you set a Gregorian date 2022-03-00, which I think means: about Mar 2022, or an unspecified day within Mar of 2022.\nThen using the date editor, change to the Persian calendar: \"2022-03-00\" is converted to \"1399-12-11 (Persian)\".\nThis seems wrong, the approximate date now seems to be a precise date, I'm not sure what is right.\n\nin the date editor, if you try to change 1399-12-11 (1399 Esfand 11) to 1399-12-00, by entering 0 into the day field, it is not allowed,\nbut you can use the \"-\" minus button to decrement to 0.\n\nEsfand (12th month) is the month that gets the leap day, it has 29 or 30 days; in the date editor, if you try to change 1399-12-11 (1399 Esfand 11) to 1399-12-29, you can enter the 29 or use the plus button, if you enter day 33 (which is invalid) the date editor changes it to 31 (which is also invalid) instead of 29 or 30 (in a Persian leap year).\n\nlater addition:\n\nif you use the word \"about\" in the date the same thing happens, the approximate date gets converted to a precise date\nIn Persian calendar enter \"about 1399\", then change to Gregorian calendar, you get 2020-03-20 a precise date.",
+    "snoiraud\n\n 2022-02-28 07:48\n\ndeveloper    ~0063724\n\nedit\ndelete\nmake private": "If you set a Gregorian date 2022-03-00, which I think means: about Mar 2022, or an unspecified day within Mar of 2022.\nThen using the date editor, change to the Persian calendar: \"2022-03-00\" is converted to \"1399-12-11 (Persian)\".\nThis seems wrong, the approximate date now seems to be a precise date, I'm not sure what is right.\n\nIt is converted to \"Esfand 10, 1400 (Persan)\" for me or \"1400-12-10 (Persan)\" with the patch.\nIf I convert this date in gregorian, I get \"2022-03-01\" ?\n\nin the date editor, if you try to change 1399-12-11 (1399 Esfand 11) to 1399-12-00, by entering 0 into the day field, it is not allowed,\nbut you can use the \"-\" minus button to decrement to 0.\n\nI can enter a zero in the day field. Ig get \"1399-12-00 (Persan)\" without using the minus button.\n\nEsfand (12th month) is the month that gets the leap day, it has 29 or 30 days; in the date editor, if you try to change 1399-12-11 (1399 > Esfand 11) to 1399-12-29, you can enter the 29 or use the plus button, if you enter day 33 (which is invalid) the date editor changes it\nto 31 (which is also invalid) instead of 29 or 30 (in a Persian leap year).\n\nA problem here.\n\nI guess the author of this bug request knows the Persian calendar better than us.\nCan he test and let us know?",
+    "snoiraud\n\n 2022-03-18 22:41\n\ndeveloper    ~0063828\n\nedit\ndelete\nmake private": "Fix committed to gramps master d627d564",
+    "callmedave\n\n 2024-05-16 08:40\n\ndeveloper    ~0066791\n\n last edited: 2024-05-16 08:41\n\nview 2 revisions\n\nedit\ndelete\nmake private": "Reporter states issue still occurs in Gramps 5.2.2 ( mentioned by @Amir on closed duplicate 0013291 )\n\nHi, I had raised this issue before (in issue 12576). It was decided to fix this problem in version 5.2.0, but now this problem exists in version 5.2.2 as well.\nThanks",
+    "snoiraud\n\n 2024-05-18 19:28\n\ndeveloper    ~0066796\n\nedit\ndelete\nmake private": "It works for me on linux. My knowledge in Persian date is insufficient to solve this problem if there is.",
+    "amir\n\n 2024-05-19 07:42\n\nreporter    ~0066800\n\nedit\ndelete\nmake private": "Hi, I don't know python programming. But I think the attached file can help.\n\n\n\n Date_Converter_Source_Codes.zip (77,232 bytes)",
+    "daleathan\n\n 2026-02-03 20:06\n\ndeveloper    ~0070272\n\nedit\ndelete\nmake private": "Does it happen in the latest version of Gramps 6.0.6?",
+    "patsyblefebre\n\n 2026-05-17 06:40\n\ndeveloper    ~0070611\n\n last edited: 2026-05-17 06:41\n\nview 2 revisions\n\nedit\ndelete\nmake private": "0012576:0066800 Details from the \"Date_Converter_Source_Codes.zip\" file :\n\nGregorian & Jalali ( HijriShamsi , Solar ) Date Converter Functions\nAuthor: JDF.SCR.IR =>> Download Full Version : http://jdf.scr.ir/jdf\nLicense: GNU/LGPL Open Source & Free :: Version: 2.80 : [2020=1399]\n\nOriginal License\n\nMentioned file from http://jdf.scr.ir/ , the original code is free and open source, and you are not allowed to sell it. You can read more in http://jdf.scr.ir/\n\nwebsite not responding so link to old copy on archive.org\n\nhttps://web.archive.org/web/20250615051344/http://jdf.scr.ir/",
+    "gramps: master d627d564\n\n 2022-02-26 17:36:39\n\n snoiraud\n\n\ncommitter: nick_h details diff": "Fix invalid Persian calendar dates\n\nFixes 0012576"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Screenshot (44).png (12,874 bytes)  \n Screenshot (44).png (12,874 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Gramps 5.1.5 on an English Windows system:\nExternal Persian calendar converters show that entering a Persian date of 1400/11/30 (1400 Bahman 30) should convert to 2022-02-19.\n\nIf you enter 2022-02-19 as a Gramps Gregorian date, then change to Persian date, the conversion is wrong,\n2022-02-19 converts to 1400/12/00 (1400 Esfand 00),\nGramps preserves the Gregorian date as text string 2022-02-19\n\nIf you enter date 1400 Bahman 30 as a Persian calendar date, Gramps will not allow the date to be saved and reports this message at the bottom of the window:\n\"Correct the date or switch from 'Regular' to 'Text only'\"\nand won't allow date to be saved.\n\nIf you enter Persian calendar date 1400 Bahman 28, save the date, then edit the date, you can add 1 to get day 29 and save it, but add 1 more to become day 30 and Gramps detects it as invalid date.\n\n(for the Persian calendar, the 12th month, Esfand, is the month that gets the leap day added instead of 11th month Bahman)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Could you try to comment out the following line (508) in gramps/gen/lib/gcalendar.py\n\nsdn = math.floor(sdn) + 0.5 #float\nsdn = math.floor(sdn) + 0.5 #float\n\nI don't know why we try to round it."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "@SNoiraud 's patch works for me, at least for my simple test case.\n\n@Amir is it possible for you to try this change?\n\n(If you tell us what operating system you are using, we can give you detailed instructions if you need them)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Thanks, everyone.\n@SNoiraud 's patch works for me too."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "PR: https://github.com/gramps-project/gramps/pull/1351\n\nApplied on master as I don't know if gramps 5.1.6 will be available"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Works for me with 5.1.5 on Windows.\nEven if it isn't included in a future maintenance release, it can be applied as a patch to 5.1.5.\n\nI did a little more testing with the Persian calendar, some strange things that might be general, not just specific to the Persian calendar:\n\nIf you set a Gregorian date 2022-03-00, which I think means: about Mar 2022, or an unspecified day within Mar of 2022.\nThen using the date editor, change to the Persian calendar: \"2022-03-00\" is converted to \"1399-12-11 (Persian)\".\nThis seems wrong, the approximate date now seems to be a precise date, I'm not sure what is right.\n\nin the date editor, if you try to change 1399-12-11 (1399 Esfand 11) to 1399-12-00, by entering 0 into the day field, it is not allowed,\nbut you can use the \"-\" minus button to decrement to 0.\n\nEsfand (12th month) is the month that gets the leap day, it has 29 or 30 days; in the date editor, if you try to change 1399-12-11 (1399 Esfand 11) to 1399-12-29, you can enter the 29 or use the plus button, if you enter day 33 (which is invalid) the date editor changes it to 31 (which is also invalid) instead of 29 or 30 (in a Persian leap year).\n\nlater addition:\n\nif you use the word \"about\" in the date the same thing happens, the approximate date gets converted to a precise date\nIn Persian calendar enter \"about 1399\", then change to Gregorian calendar, you get 2020-03-20 a precise date."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "If you set a Gregorian date 2022-03-00, which I think means: about Mar 2022, or an unspecified day within Mar of 2022.\nThen using the date editor, change to the Persian calendar: \"2022-03-00\" is converted to \"1399-12-11 (Persian)\".\nThis seems wrong, the approximate date now seems to be a precise date, I'm not sure what is right.\n\nIt is converted to \"Esfand 10, 1400 (Persan)\" for me or \"1400-12-10 (Persan)\" with the patch.\nIf I convert this date in gregorian, I get \"2022-03-01\" ?\n\nin the date editor, if you try to change 1399-12-11 (1399 Esfand 11) to 1399-12-00, by entering 0 into the day field, it is not allowed,\nbut you can use the \"-\" minus button to decrement to 0.\n\nI can enter a zero in the day field. Ig get \"1399-12-00 (Persan)\" without using the minus button.\n\nEsfand (12th month) is the month that gets the leap day, it has 29 or 30 days; in the date editor, if you try to change 1399-12-11 (1399 > Esfand 11) to 1399-12-29, you can enter the 29 or use the plus button, if you enter day 33 (which is invalid) the date editor changes it\nto 31 (which is also invalid) instead of 29 or 30 (in a Persian leap year).\n\nA problem here.\n\nI guess the author of this bug request knows the Persian calendar better than us.\nCan he test and let us know?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Fix committed to gramps master d627d564"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Reporter states issue still occurs in Gramps 5.2.2 ( mentioned by @Amir on closed duplicate 0013291 )\n\nHi, I had raised this issue before (in issue 12576). It was decided to fix this problem in version 5.2.0, but now this problem exists in version 5.2.2 as well.\nThanks"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "It works for me on linux. My knowledge in Persian date is insufficient to solve this problem if there is."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Hi, I don't know python programming. But I think the attached file can help.\n\n\n\n Date_Converter_Source_Codes.zip (77,232 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Does it happen in the latest version of Gramps 6.0.6?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "0012576:0066800 Details from the \"Date_Converter_Source_Codes.zip\" file :\n\nGregorian & Jalali ( HijriShamsi , Solar ) Date Converter Functions\nAuthor: JDF.SCR.IR =>> Download Full Version : http://jdf.scr.ir/jdf\nLicense: GNU/LGPL Open Source & Free :: Version: 2.80 : [2020=1399]\n\nOriginal License\n\nMentioned file from http://jdf.scr.ir/ , the original code is free and open source, and you are not allowed to sell it. You can read more in http://jdf.scr.ir/\n\nwebsite not responding so link to old copy on archive.org\n\nhttps://web.archive.org/web/20250615051344/http://jdf.scr.ir/"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "12576",
+  "url": "https://gramps-project.org/bugs/view.php?id=12576"
+}
