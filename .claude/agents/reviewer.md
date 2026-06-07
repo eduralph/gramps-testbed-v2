@@ -39,7 +39,8 @@ physically cannot patch what you judge.
 ## Always emit the complete 5/5/1 verdict table
 
 `check-review.md` **must** contain one verdict row for **every** element of the
-matrix — never a partial list — as a Markdown table `| Item | Verdict | Basis |`:
+5/5/1 matrix — never a partial list — as a Markdown table `| Item | Verdict |
+Basis |`. This is the canonical order the gates assemble; mirror it exactly:
 
 | Item | Verdict | Basis |
 |------|---------|-------|
@@ -55,9 +56,11 @@ matrix — never a partial list — as a Markdown table `| Item | Verdict | Basi
 | T5 Judgment | … | … |
 | Validation — fitness-to-purpose | NEEDS-HUMAN | … |
 
-Verdict is `PASS / FAIL / NEEDS-HUMAN / N/A`; Basis is the one line you re-derived
-(cite `path:line` where you can). Use `N/A` with a reason when an element does not
-apply — do not drop the row. The harness lifts every NEEDS-HUMAN row into §6.
+Verdict is `PASS / FAIL / NEEDS-HUMAN / N/A`; Basis is the one line you
+re-derived (cite `path:line` where you can). Use `N/A` with a reason when an
+element does not apply — **do not drop the row.** The harness lifts every
+NEEDS-HUMAN row into `SUMMARY.md` §6, so a row you omit is a verdict the human
+never sees.
 
 ## Emit NEEDS-HUMAN by design on
 
@@ -65,3 +68,19 @@ Validation fitness-to-purpose; contested symptom-vs-root-cause; semantic
 upstream-isn't-ahead; scope-creep / Plan re-entry; visual / manual-repro
 outcomes; and the project's enumerated human-only items (INTEGRATION.md §4).
 Each becomes a `- [ ]` row in `SUMMARY.md` §6 the human must clear.
+
+### C5 symptom-guard smell-test
+
+The "contested symptom-vs-root-cause" trigger above has a concrete detection rule —
+apply it to `patch.diff` every cycle: if the fix adds a **capability probe**
+(`has_display()`, `hasattr`, `try: import …`) or a **runtime guard** *inside code that
+is meant to run with that capability present* — the guard protects a path that, by
+design, only executes when the capability exists — flag C5 **NEEDS-HUMAN** and ask in
+the basis: can the eager / import-time cause be removed instead (e.g. compute lazily on
+first real use) so the probe is unnecessary? A probe papering over an import-time side
+effect is the canonical case (gramps PR #2357: a `has_display()` guard shipped where
+removing the class-body widget construction was the correct, comparably small fix).
+This is the downstream backstop for the planner's Plan-exit gate
+(`process/principles.md` §3) — it catches a guard Do introduces even when the brief
+was clean. It does **not** fire on a fix that *removes/transforms* the cause rather
+than guarding a present capability.

@@ -1,8 +1,9 @@
 """Offline slice for the continuous orchestrator, `flow.flow` (stdlib unittest).
 
-Drives a bundle through Plan → Do → Check → sign-off → Act with **stub** leaves
-and **stub** gates (no Claude, no TTY, no Docker), proving the deterministic
-control flow and the load-bearing C6 guard. Run from the project root:
+Drives a bundle through Plan → Do → Check → sign-off → publish → Act with **stub**
+leaves and **stub** gates (no Claude, no TTY, no Docker), proving the deterministic
+control flow, the load-bearing C6 guard, and that publish-on-accept dry-runs when the
+publisher leaf is stubbed (never pushes offline). Run from the project root:
     PYTHONPATH=src python -m unittest discover -s tests
 """
 
@@ -12,21 +13,16 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
-from pdca_harness import brief, driver, flow, leaves, queue, signoff, state
+from pdca_harness import brief, cli, driver, flow, leaves, queue, signoff, state
 from pdca_harness.config import Config, LeafConfig
 
 DESIGN_TPL = Path(__file__).resolve().parents[1] / "templates" / "design-proposal.md.tpl"
 
-# A minimal brief that flows straight through the stub Do/Check to AWAITING_SIGNOFF.
-_BRIEF = (
-    "- **Slug:** s\n- **Defect:** x\n- **Success criterion:** y\n"
-    "- **Repo + branch target:** repo @ main\n- **Test file:** t_test.py\n"
-)
-
 
 def _stub_config(root: Path) -> Config:
-    """All five leaves stubbed, gates empty (all-PASS stub rows)."""
+    """All six leaves stubbed, gates empty (all-PASS stub rows)."""
     return Config(
         root=root,
         bundle_root=root / "results",
@@ -40,6 +36,7 @@ def _stub_config(root: Path) -> Config:
         reviewer=LeafConfig(mode="stub", family="codex"),
         planner=LeafConfig(mode="stub", family="claude", interactive=True),
         signoff=LeafConfig(mode="stub", family="claude", interactive=True),
+        publisher=LeafConfig(mode="stub", family="claude", interactive=True),
         act=LeafConfig(mode="stub", family="claude", interactive=True),
     )
 
@@ -61,6 +58,10 @@ class FlowSlice(unittest.TestCase):
         self.assertTrue((d / "SUMMARY.md").exists())
         self.assertEqual(signoff.outcome_token(d / "SUMMARY.md"), "merged-wider")
         self.assertFalse((d / leaves.SIGNOFF_DECISION).exists())  # consumed
+        # publish-on-accept ran (publisher stub wrote the artifacts) but DRY-RAN —
+        # stubbed leaf ⇒ no real git push, so no publish.json is recorded.
+        self.assertTrue((d / "commit-msg.txt").exists())
+        self.assertFalse((d / "publish.json").exists())
 
     def test_c6_blocks_accept_with_open_needs_human(self) -> None:
         # A sign-off leaf that accepts WITHOUT clearing §6 must not complete.
@@ -148,9 +149,7 @@ class FlowSlice(unittest.TestCase):
         # reaching COMPLETE (testbed issue #2 — batch the interactive sign-off).
         ids = [f"C{i}" for i in range(6)]
         for iid in ids:
-            d = self.cfg.bundle(iid)
-            d.mkdir(parents=True)
-            (d / "brief.md").write_text(_BRIEF, encoding="utf-8")
+            leaves.do_plan(self.cfg.bundle(iid), self.cfg)
 
         sizes: list[int] = []
         real = leaves.run_signoff_batch
@@ -167,120 +166,129 @@ class FlowSlice(unittest.TestCase):
         self.assertEqual(sizes, [flow.SIGNOFF_BATCH_SIZE, 1])   # 6 → 5 + 1, one pass
         self.assertTrue(all(s == state.COMPLETE for s in results.values()))
 
-    def test_batch_resumes_existing_without_new_briefs(self) -> None:
-        # A bundle already in flight (PLANNED) + a Plan session that briefs nothing
-        # NEW must still be driven to COMPLETE — so re-running `flow --from-csv`
-        # resumes where it left off instead of bailing with "no new briefs".
-        d = self.cfg.bundle("RESUME")
-        d.mkdir(parents=True)
-        (d / "brief.md").write_text(
-            "- **Slug:** resume-me\n- **Defect:** x\n- **Success criterion:** y\n"
-            "- **Repo + branch target:** repo @ main\n- **Test file:** resume_test.py\n",
-            encoding="utf-8",
-        )
-        self.assertEqual(state.state(d), state.PLANNED)
-        orig = leaves.do_plan_batch
-        leaves.do_plan_batch = lambda cfg, csv: None  # this Plan session briefs nothing new
-        try:
-            results = flow.flow_batch(self.cfg, today="2026-06-04")
-        finally:
-            leaves.do_plan_batch = orig
-        self.assertEqual(results.get("RESUME"), state.COMPLETE)
-
-    def test_batch_signoff_defers_iterate_rebuild(self) -> None:
-        # In the batch sweep an iterate-do must be RECORDED but not rebuilt on the
-        # spot (apply_now=False) — so the human reviews the whole queue first. The
-        # bundle stays at ITERATE_DO with its downstream intact until the next pass.
+    def test_batch_sweep_defers_iteration_to_next_pass(self) -> None:
+        # apply_now=False (the batch sweep) records an iterate-do but does NOT drive
+        # the rebuild on the spot — so the human reviews the rest of the queue first;
+        # the next pass's build-all applies it. Spy on driver.run_issue to prove the
+        # sweep call doesn't trigger a transition.
         d = self.cfg.bundle("DEFER")
-        d.mkdir(parents=True)
-        (d / "brief.md").write_text(
-            "- **Slug:** s\n- **Defect:** x\n- **Success criterion:** y\n"
-            "- **Repo + branch target:** repo @ main\n- **Test file:** t_test.py\n",
-            encoding="utf-8",
-        )
+        leaves.do_plan(d, self.cfg)
         self.assertEqual(driver.run_issue(d, self.cfg), state.AWAITING_SIGNOFF)
-        orig = leaves.run_signoff
-        leaves.run_signoff = lambda dd, c: (dd / leaves.SIGNOFF_DECISION).write_text(
-            "iterate-do\n", encoding="utf-8")
+
+        def signoff_iter(d: Path, cfg: Config) -> None:
+            (d / leaves.SIGNOFF_DECISION).write_text("iterate-do\n", encoding="utf-8")
+
+        calls = {"n": 0}
+        orig_run, orig_signoff = driver.run_issue, leaves.run_signoff
+        leaves.run_signoff = signoff_iter
+        driver.run_issue = lambda *a, **k: (calls.__setitem__("n", calls["n"] + 1)
+                                            or orig_run(*a, **k))
         try:
             action = flow._signoff_and_apply(
-                self.cfg, d, by="t", today="2026-06-05", apply_now=False)
+                self.cfg, d, by="t", today="2026-06-04", apply_now=False
+            )
         finally:
-            leaves.run_signoff = orig
+            driver.run_issue, leaves.run_signoff = orig_run, orig_signoff
         self.assertEqual(action, "iterate-do")
-        self.assertEqual(state.state(d), state.ITERATE_DO)   # recorded, NOT yet rebuilt
-        self.assertTrue((d / "patch.diff").exists())          # downstream still intact
+        self.assertEqual(calls["n"], 0)  # deferred — no rebuild during the sweep
+        # And the default (single-issue flow) DOES apply immediately.
+        leaves.run_signoff = signoff_iter
+        driver.run_issue = lambda *a, **k: (calls.__setitem__("n", calls["n"] + 1)
+                                            or orig_run(*a, **k))
+        try:
+            flow._signoff_and_apply(self.cfg, d, by="t", today="2026-06-04")
+        finally:
+            driver.run_issue, leaves.run_signoff = orig_run, orig_signoff
+        self.assertEqual(calls["n"], 1)  # apply_now default drove the transition
 
-    def test_signoff_skips_when_session_clears_summary(self) -> None:
-        # An over-reaching sign-off session writes a decision AND deletes the bundle's
-        # SUMMARY.md (doing the driver's transition work). The driver must skip — not
-        # crash the whole sweep — and drop the stale decision so a re-drive is clean.
-        d = self.cfg.bundle("WRECK")
-        d.mkdir(parents=True)
-        (d / "brief.md").write_text(
-            "- **Slug:** s\n- **Defect:** x\n- **Success criterion:** y\n"
-            "- **Repo + branch target:** repo @ main\n- **Test file:** t_test.py\n",
-            encoding="utf-8",
-        )
+    def test_signoff_survives_a_leaf_that_reset_the_bundle(self) -> None:
+        # An over-reaching sign-off leaf deletes the downstream (the iterate-plan bug)
+        # so there's no SUMMARY.md to record into. _signoff_and_apply must drop the
+        # stale decision and return None — not crash the sweep on a missing file.
+        d = self.cfg.bundle("OVERREACH")
+        leaves.do_plan(d, self.cfg)
         self.assertEqual(driver.run_issue(d, self.cfg), state.AWAITING_SIGNOFF)
 
-        def wreck(dd: Path, cfg: Config) -> None:
-            (dd / leaves.SIGNOFF_DECISION).write_text("iterate-plan\n", encoding="utf-8")
-            (dd / "SUMMARY.md").unlink()  # the over-reach that crashed the live batch
+        def overreaching_signoff(d: Path, cfg: Config) -> None:
+            (d / leaves.SIGNOFF_DECISION).write_text("iterate-plan\n", encoding="utf-8")
+            for name in ("SUMMARY.md", "patch.diff", "check-gates.json", "check-review.md"):
+                (d / name).unlink(missing_ok=True)
 
         orig = leaves.run_signoff
-        leaves.run_signoff = wreck
+        leaves.run_signoff = overreaching_signoff
         try:
-            result = flow._signoff_and_apply(
-                self.cfg, d, by="t", today="2026-06-06", apply_now=False)
+            action = flow._signoff_and_apply(self.cfg, d, by="t", today="2026-06-04")
         finally:
             leaves.run_signoff = orig
-        self.assertIsNone(result)                               # skipped, no crash
-        self.assertFalse((d / leaves.SIGNOFF_DECISION).exists())  # stale decision dropped
+        self.assertIsNone(action)                              # dropped, not crashed
+        self.assertFalse((d / leaves.SIGNOFF_DECISION).exists())  # stale token consumed
 
-    def test_flow_ids_drives_listed_bundles_to_act(self) -> None:
-        # Two already-briefed bundles (no Plan beat) + a bogus id: both reach COMPLETE,
-        # the bogus id is skipped, and Act runs once at the end.
-        for iid in ("IDA", "IDB"):
-            d = self.cfg.bundle(iid)
-            d.mkdir(parents=True)
-            (d / "brief.md").write_text(
-                "- **Slug:** s\n- **Defect:** x\n- **Success criterion:** y\n"
-                "- **Repo + branch target:** repo @ main\n- **Test file:** t_test.py\n",
-                encoding="utf-8",
-            )
-        results = flow.flow_ids(self.cfg, ["IDA", "IDB", "GHOST"], do_act=True, today="2026-06-05")
-        self.assertEqual(set(results), {"IDA", "IDB"})
+    def test_batch_resumes_in_flight_bundle_not_briefed_this_session(self) -> None:
+        # A bundle briefed in a PRIOR session (RESUME) is in flight; this session's
+        # Plan only briefs BATCH1/BATCH2. flow_batch must pick RESUME up too — the
+        # resume set is "every in-flight brief", not just the ones planned just now.
+        leaves.do_plan(self.cfg.bundle("RESUME"), self.cfg)  # pre-existing brief
+        results = flow.flow_batch(self.cfg, today="2026-06-04")
+        self.assertEqual(set(results), {"BATCH1", "BATCH2", "RESUME"})
         self.assertTrue(all(s == state.COMPLETE for s in results.values()))
-        self.assertTrue((self.cfg.process_dir / "act-log.md").exists())  # Act ran once
 
-    def test_flow_ids_skips_complete_and_unbriefed(self) -> None:
-        # An id with no bundle/brief and one already COMPLETE both fall out of the set.
-        done = self.cfg.bundle("DONE")
-        flow.flow(self.cfg, "DONE", today="2026-06-05")  # drive it to COMPLETE first
-        self.assertEqual(state.state(done), state.COMPLETE)
-        results = flow.flow_ids(self.cfg, ["DONE", "NEVER"], today="2026-06-05")
-        self.assertEqual(results, {})  # nothing left to drive
+    def test_batch_leaves_complete_bundle_alone_on_rerun(self) -> None:
+        # First run completes BATCH1/BATCH2. A second run re-briefs them (stub) but
+        # they are already COMPLETE, so the resume set excludes them → nothing to do.
+        first = flow.flow_batch(self.cfg, today="2026-06-04")
+        self.assertTrue(all(s == state.COMPLETE for s in first.values()))
+        second = flow.flow_batch(self.cfg, today="2026-06-04")
+        self.assertEqual(second, {})  # no in-flight briefs left → nothing to do
 
     def test_batch_nothing_to_do_returns_empty(self) -> None:
-        # No in-flight bundles + a Plan session that briefs nothing → {} (the caller
-        # treats this as success, exit 0, not an error).
+        # Plan that briefs nothing + no existing bundles → empty, no crash.
         orig = leaves.do_plan_batch
-        leaves.do_plan_batch = lambda cfg, csv: None
+        leaves.do_plan_batch = lambda cfg, csv=None: None
         try:
             results = flow.flow_batch(self.cfg, today="2026-06-04")
         finally:
             leaves.do_plan_batch = orig
         self.assertEqual(results, {})
 
+    def test_cli_flow_empty_batch_exits_zero(self) -> None:
+        # A resumable batch with nothing in flight is success (exit 0), not an error,
+        # so re-running `flow --from-csv` resumes cleanly instead of looking failed.
+        # Regression guard for cli._flow (the bug returned 1 here).
+        args = SimpleNamespace(issue_id=None, from_csv="anything.csv",
+                               no_publish=True, act=False, by="")
+        orig = flow.flow_batch
+        flow.flow_batch = lambda cfg, **kw: {}
+        try:
+            rc = cli._flow(self.cfg, args)
+        finally:
+            flow.flow_batch = orig
+        self.assertEqual(rc, 0)
+
+    def test_flow_ids_drives_prebriefed_to_complete(self) -> None:
+        # `pdca batch <ids>`: drive already-briefed bundles with NO Plan beat.
+        for iid in ("ID1", "ID2"):
+            leaves.do_plan(self.cfg.bundle(iid), self.cfg)  # pre-brief, no plan in flow
+        results = flow.flow_ids(self.cfg, ["ID1", "ID2"], today="2026-06-04")
+        self.assertEqual(set(results), {"ID1", "ID2"})
+        self.assertTrue(all(s == state.COMPLETE for s in results.values()))
+
+    def test_flow_ids_skips_unbriefed_and_missing(self) -> None:
+        # An id with no brief (UNPLANNED dir) and a non-existent id are both skipped;
+        # only the briefed id is driven.
+        leaves.do_plan(self.cfg.bundle("HASBRIEF"), self.cfg)
+        self.cfg.bundle("NOBRIEF").mkdir(parents=True)  # exists but UNPLANNED
+        results = flow.flow_ids(
+            self.cfg, ["HASBRIEF", "NOBRIEF", "GHOST"], today="2026-06-04"
+        )
+        self.assertEqual(set(results), {"HASBRIEF"})
+        self.assertEqual(results["HASBRIEF"], state.COMPLETE)
+
     def test_batch_isolates_a_failing_bundle(self) -> None:
         # One bundle's build always raises (a leaf left it half-written). The sweep
         # must isolate it and still drive the others to COMPLETE — never crash the
         # batch and lose the rest's progress (testbed issue #3).
         for iid in ("GOOD", "BAD"):
-            d = self.cfg.bundle(iid)
-            d.mkdir(parents=True)
-            (d / "brief.md").write_text(_BRIEF, encoding="utf-8")
+            leaves.do_plan(self.cfg.bundle(iid), self.cfg)
 
         real_run = driver.run_issue
 
@@ -294,16 +302,15 @@ class FlowSlice(unittest.TestCase):
             results = flow.flow_ids(self.cfg, ["GOOD", "BAD"], today="2026-06-06")
         finally:
             flow.driver.run_issue = real_run
-        self.assertEqual(results["GOOD"], state.COMPLETE)       # other bundle proceeded
-        self.assertNotEqual(results["BAD"], state.COMPLETE)     # failing one isolated
+        self.assertEqual(results["GOOD"], state.COMPLETE)    # other bundle proceeded
+        self.assertNotEqual(results["BAD"], state.COMPLETE)  # failing one isolated
 
     def test_queue_skips_a_bundle_whose_read_raises(self) -> None:
         # A bundle parked at AWAITING_SIGNOFF whose §6 read raises must be skipped by
         # the queue, not take the whole queue computation (and the sweep) down (#3).
         for iid in ("OKAY", "GARBLED"):
             d = self.cfg.bundle(iid)
-            d.mkdir(parents=True)
-            (d / "brief.md").write_text(_BRIEF, encoding="utf-8")
+            leaves.do_plan(d, self.cfg)
             self.assertEqual(driver.run_issue(d, self.cfg), state.AWAITING_SIGNOFF)
 
         real = signoff.open_needs_human

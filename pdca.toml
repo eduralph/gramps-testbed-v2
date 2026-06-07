@@ -21,11 +21,27 @@ issue_id_example = "13418"
 # without --from-csv. The planner reads ONLY the row for the issue id (it does not
 # scan the testbed repo for issue info). Re-export from Mantis to refresh.
 export_csv = "engine/20260529 - Mantis Export.csv"
+# Trailer linking a commit/PR to the issue ({id} = the bug id). The publish step's
+# commit-msg ends with this; the T4 gate checks it.
+issue_trailer = "Fixes #{id}"
 
-# The five model leaves (docs 03 §Implementation substrate). mode = "stub" runs
-# the offline placeholders (no Claude/TTY); mode = "command" runs `argv` as a
-# subprocess in the bundle dir with the leaf's prompt appended. `interactive =
-# true` hands the terminal to the human (a seeded `claude "<prompt>"` REPL, no
+# Publish mechanics — `pdca publish` and the flow's publish-on-accept (docs 03 §Check
+# closing step). Branch patterns are `{id}` / `{slug}` format strings; the
+# repo→checkout map falls back to the sibling convention (`<project>/../<repo-last-
+# segment>`) when a repo_spec is unmapped, so most setups need no entries. Gramps
+# fixes use the `fix/bug-…` branch convention (INTEGRATION §2).
+[publisher]
+fix_branch_pattern = "fix/bug-{id}-{slug}"
+feature_branch_pattern = "enhancement/{id}-{slug}"
+
+[publisher.checkouts]
+# "<org/repo>" = "../<checkout-dir>"   # only the exceptions to the sibling default
+# (the sibling default already resolves gramps-project/gramps → ../gramps, etc.)
+
+# The six model leaves (docs 03 §Implementation substrate). mode = "stub" runs
+# the offline placeholders (no model/TTY) so the driver works without a model;
+# mode = "command" runs `argv` as a subprocess with the leaf's prompt. `interactive
+# = true` hands the terminal to the human (a seeded `claude "<prompt>"` REPL, no
 # -p); a headless leaf runs autonomously (`claude -p …`) and writes its artifact.
 # Set PDCA_LEAVES_MODE=stub to force stubs everywhere (CI / `make` determinism).
 #
@@ -46,7 +62,9 @@ family = "claude"
 interactive = false
 argv = ["claude", "-p", "--agent", "reviewer", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Edit"]
 
-# Interactive leaves — the human-in-the-loop touch points (Plan, Sign-off, Act):
+# Interactive leaves — the human-in-the-loop touch points (Plan, Sign-off, Publish,
+# Act) hand the terminal to a seeded Claude REPL. Claude by design (a model+human
+# session), independent of the builder/reviewer family above.
 [leaves.planner]
 mode = "command"
 family = "claude"

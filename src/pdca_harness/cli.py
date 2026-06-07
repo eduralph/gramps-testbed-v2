@@ -40,17 +40,17 @@ def main(argv: list[str] | None = None) -> int:
     p_run = sub.add_parser("run", help="advance an issue to a parked state")
     p_run.add_argument("issue_id")
 
-    p_flow = sub.add_parser("flow", help="continuous Claude-driven cycle (Plan→Do→Check→sign-off→Act)")
+    p_flow = sub.add_parser("flow", help="continuous Claude-driven cycle (Plan→Do→Check[→publish]→Act)")
     p_flow.add_argument("issue_id", nargs="?", help="one issue; omit + pass --from-csv for a batch Plan session")
     p_flow.add_argument("--from-csv", help="input documents for interactive Plan (e.g. a tracker CSV)")
+    p_flow.add_argument("--no-publish", action="store_true", help="don't open the draft PR after an accept")
     p_flow.add_argument("--act", action="store_true", help="run the Act leaf after a COMPLETE sign-off")
     p_flow.add_argument("--by", default="", help="who signed off (recorded in §9)")
 
     p_status = sub.add_parser("status", help="list bundle states (cheap-first queue)")
     p_status.add_argument("issue_id", nargs="?")
 
-    p_batch = sub.add_parser(
-        "batch", help="drive already-briefed issues through the full cycle (Do→Check→sign-off→Act)")
+    p_batch = sub.add_parser("batch", help="drive already-briefed issues through the full cycle (Do→Check→sign-off→Act)")
     p_batch.add_argument("issue_ids", nargs="+")
     p_batch.add_argument("--from-briefs", type=Path, help="init missing bundles from DIR/<id>.md")
     p_batch.add_argument("--no-act", action="store_true", help="stop after sign-off; skip the end-of-batch Act")
@@ -79,13 +79,10 @@ def main(argv: list[str] | None = None) -> int:
     p_signoff.add_argument("--by", default="", help="who signed off")
     p_signoff.add_argument("--delta", default="", help="iteration delta note")
 
-    p_publish = sub.add_parser(
-        "publish", help="Check's closing work: contribute an accepted fix as a draft PR")
+    p_publish = sub.add_parser("publish", help="Check's closing work: contribute an accepted fix as a draft PR")
     p_publish.add_argument("issue_id")
-    p_publish.add_argument("--dry-run", action="store_true",
-                           help="print the git/gh commands without running them")
-    p_publish.add_argument("--no-pr", action="store_true",
-                           help="push the branch but don't open the draft PR")
+    p_publish.add_argument("--dry-run", action="store_true", help="print the git/gh commands without running them")
+    p_publish.add_argument("--no-pr", action="store_true", help="push the branch but don't open the draft PR")
     p_publish.add_argument("--by", default="", help="who published (recorded in publish.json)")
 
     args = parser.parse_args(argv)
@@ -164,7 +161,8 @@ def _flow(cfg: Config, args: argparse.Namespace) -> int:
             return 0
         if not d.exists():
             d.mkdir(parents=True)
-        final = flow.flow(cfg, args.issue_id, csv=args.from_csv, do_act=args.act, by=args.by)
+        final = flow.flow(cfg, args.issue_id, csv=args.from_csv,
+                          do_publish=not args.no_publish, do_act=args.act, by=args.by)
         print(f"{final}\t{d}")
         if final == state.AWAITING_SIGNOFF:
             for it in signoff.open_needs_human(d / "SUMMARY.md"):
@@ -174,7 +172,8 @@ def _flow(cfg: Config, args: argparse.Namespace) -> int:
     if not args.from_csv:
         print("flow needs an issue id, or --from-csv for a batch Plan session", file=sys.stderr)
         return 2
-    results = flow.flow_batch(cfg, csv=args.from_csv, do_act=args.act, by=args.by)
+    results = flow.flow_batch(cfg, csv=args.from_csv,
+                              do_publish=not args.no_publish, do_act=args.act, by=args.by)
     if not results:
         return 0  # nothing in flight to drive (flow_batch printed why) — not an error
     for iid, st in sorted(results.items()):

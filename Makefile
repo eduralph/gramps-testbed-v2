@@ -5,14 +5,23 @@
 #   make flow CSV="engine/….csv"           batch: one Plan session may brief
 #                                          SEVERAL issues, all built unattended
 #                                          then signed off cheap-first via the queue
-#                   Runs Plan → Do → Check → sign-off (Plan/sign-off open Claude in
-#                   your terminal; the Do gate runs the live gramps suite in Docker —
-#                   use a real terminal). Optional: ACT=1 also runs the cross-cycle
-#                   Act review; BY=<name> overrides the §9 attribution (defaults to
-#                   the project author). You normally need neither.
+#                   Runs Plan → Do → Check → sign-off → publish (on an accept it
+#                   opens a DRAFT PR; NO_PUBLISH=1 skips that). Plan/sign-off/publish
+#                   open Claude in your terminal — use a real terminal (the Do gate
+#                   runs the live gramps suite in Docker). Optional: ACT=1 also runs
+#                   the cross-cycle Act review; BY=<name> overrides the §9 attribution
+#                   (defaults to the project author).
+#   make batch IDS="123 456"
+#                   drive issues that are ALREADY briefed through the full cycle
+#                   (Do → Check → sign-off → publish → Act) — no Plan beat. Skips
+#                   ids with no brief or already complete. NOACT=1 stops after
+#                   sign-off; BY=<name> sets the §9 attribution.
 #   make rehearse ID=13418 [CSV=…]
 #                   dry-run the SAME control flow with stub leaves + stub gates —
-#                   no Claude, no Docker, instant. Watch PLANNED→…→COMPLETE first.
+#                   no Claude, no Docker (publish dry-runs too), instant.
+#   make publish ID=123 [DRY=1]
+#                   re-publish an already-accepted bundle as a draft PR (the flow
+#                   does this on accept). DRY=1 prints the git/gh plan without pushing.
 #   make status     list every bundle and its state.
 #   make cli ARGS="signoff 13418 --accept"
 #                   run any `pdca` subcommand without the source-path boilerplate.
@@ -36,21 +45,18 @@ PDCA := $(PYTHON) -m pdca_harness.cli
 # --- the cycle -------------------------------------------------------------
 # Live, continuous, Claude-driven. Give ID for one issue, or just CSV for a batch
 # Plan session that may brief several issues (built all, then signed off cheap-first).
+# On an accept the flow publishes a draft PR; NO_PUBLISH=1 stops at COMPLETE.
 flow:
-	@test -n "$(ID)$(CSV)" || { echo 'usage: make flow ID=<issue-id> [CSV="<path>"] [ACT=1] [BY=<name>]'; echo '   or: make flow CSV="<path>" [ACT=1] [BY=<name>]   (batch: Plan briefs several)'; exit 2; }
-	$(PDCA) flow $(ID) $(if $(CSV),--from-csv "$(CSV)") $(if $(ACT),--act) $(if $(BY),--by "$(BY)")
+	@test -n "$(ID)$(CSV)" || { echo 'usage: make flow ID=<issue-id> [CSV="<path>"] [ACT=1] [NO_PUBLISH=1] [BY=<name>]'; echo '   or: make flow CSV="<path>" [...]   (batch: Plan briefs several)'; exit 2; }
+	$(PDCA) flow $(ID) $(if $(CSV),--from-csv "$(CSV)") $(if $(NO_PUBLISH),--no-publish) $(if $(ACT),--act) $(if $(BY),--by "$(BY)")
 
-# Drive specific already-briefed bundles by id through the FULL cycle (no Plan):
-# Do → Check → interactive sign-off (cheap-first across the set) → Act once at the
-# end. Like `make flow` but seeded by ids — run it in a real terminal. NOACT=1 stops
-# after sign-off; BY=<name> sets §9 attribution. `make batch IDS="11589 11786 12576"`.
+# Drive already-briefed issues through the full cycle, no Plan beat (Do → Check →
+# sign-off → publish → Act). NOACT=1 stops after sign-off; BY=<name> sets §9.
 batch:
 	@test -n "$(IDS)" || { echo 'usage: make batch IDS="<id> <id> ..." [NOACT=1] [BY=<name>]'; exit 2; }
 	$(PDCA) batch $(IDS) $(if $(NOACT),--no-act) $(if $(BY),--by "$(BY)")
 
-# Closing work of Check: contribute an ACCEPTED fix as a draft upstream PR (drafts
-# commit-msg.txt + pr-description.md, runs the T4 gate, then branch/apply/commit/push
-# + `gh pr create --draft`). DRY=1 previews the commands. Ready/merge stay yours.
+# Re-publish an accepted bundle as a draft PR (the flow does this on accept).
 publish:
 	@test -n "$(ID)" || { echo 'usage: make publish ID=<issue-id> [DRY=1] [BY=<name>]'; exit 2; }
 	$(PDCA) publish $(ID) $(if $(DRY),--dry-run) $(if $(BY),--by "$(BY)")

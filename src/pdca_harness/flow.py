@@ -1,9 +1,15 @@
-"""The continuous orchestrator — Plan → Do → Check → sign-off → Act as one flow.
+"""The continuous orchestrator — Plan → Do → Check(gates → review → sign-off →
+publish) → Act as one flow.
 
 ``flow`` drives a single issue; ``flow_batch`` handles the case where one Plan
 session briefs several issues from the same documents: it plans them all, builds +
 gates + reviews them all unattended, then walks the **cheap-first sign-off queue**
 (:func:`queue.awaiting_signoff`) interactively, and runs Act once across the batch.
+
+On an **accept** (the bundle reaches ``state.COMPLETE``) the flow runs **publish** —
+the closing step of Check — which contributes the fix as a draft PR (``--no-publish``
+to skip). When the leaves are stubbed (offline ``rehearse`` / CI) publish dry-runs, so
+the continuous flow never pushes without a live model. Act is opt-in and runs last.
 
 Control flow stays deterministic code: :mod:`driver` advances the state machine,
 the gates gate, and the C6 accept-guard (in :func:`_signoff_and_apply`) governs
@@ -17,7 +23,7 @@ import datetime
 import sys
 from pathlib import Path
 
-from . import driver, leaves, queue, signoff, state
+from . import driver, leaves, publish, queue, signoff, state
 from .config import Config
 
 
@@ -129,6 +135,7 @@ def flow(
     issue_id: str,
     *,
     csv: str | None = None,
+    do_publish: bool = True,
     do_act: bool = False,
     by: str = "",
     today: str | None = None,
@@ -149,18 +156,24 @@ def flow(
             break
 
     final = state.state(d)
+    if do_publish and final == state.COMPLETE:
+        # Closing step of Check. Dry-run when the publisher leaf is stubbed (offline
+        # rehearse / CI) so the flow never pushes without a live model.
+        publish.publish(cfg, issue_id, dry_run=cfg.publisher.mode == "stub",
+                        by=by, today=today, skip_if_no_target=True)
     if do_act and final == state.COMPLETE:
         leaves.run_act(cfg, today)
     return final
 
 
 # ----------------------------------------------------------------------------
-# Shared multi-bundle driver: build all → cheap-first sign-off → Act once.
+# Shared multi-bundle driver: build all → cheap-first sign-off → publish → Act once.
 # ----------------------------------------------------------------------------
 def _drive_and_act(
     cfg: Config,
     bundles: list[Path],
     *,
+    do_publish: bool,
     do_act: bool,
     by: str,
     today: str,
@@ -171,8 +184,9 @@ def _drive_and_act(
     The shared body of both batch entry points: each pass builds / gates / reviews
     every bundle unattended, then walks the cheap-first sign-off queue
     (:func:`queue.awaiting_signoff`) interactively, restricted to this set; iteration
-    re-loops. When all are COMPLETE, Act runs **once** across the batch. The endpoint
-    is Act — like any single cycle, just fanned over several bundles.
+    re-loops. When all are COMPLETE, publish runs per accepted bundle (Check's closing
+    step; dry-run when the publisher leaf is stubbed) and Act runs **once** across the
+    batch — the endpoint is Act, like any single cycle, just fanned over several bundles.
     """
     names = {b.name for b in bundles}
     for _ in range(max_passes):
@@ -209,6 +223,15 @@ def _drive_and_act(
             break
 
     results = {d.name.replace("issue_", ""): state.state(d) for d in bundles}
+    if do_publish:
+        # Isolated like the other per-bundle loops — one bundle whose publish raises
+        # must not abort the batch return / Act for the rest (testbed issue #3).
+        for d in bundles:
+            if state.state(d) == state.COMPLETE:
+                _isolate(d, "publish", lambda d=d: publish.publish(
+                    cfg, d.name.removeprefix("issue_"),
+                    dry_run=cfg.publisher.mode == "stub", by=by, today=today,
+                    skip_if_no_target=True))
     if do_act and any(s == state.COMPLETE for s in results.values()):
         leaves.run_act(cfg, today)
     return results
@@ -221,12 +244,13 @@ def flow_batch(
     cfg: Config,
     *,
     csv: str | None = None,
+    do_publish: bool = True,
     do_act: bool = False,
     by: str = "",
     today: str | None = None,
     max_passes: int = 10,
 ) -> dict[str, str]:
-    """Plan many → drive every in-flight bundle to sign-off → Act once. **Resumable.**
+    """Plan many → drive every in-flight bundle to sign-off → publish → Act once. **Resumable.**
 
     Runs the batch Plan session, then builds / checks / signs off EVERY bundle that
     has work left — the ones this session briefed AND any already in flight — so
@@ -248,7 +272,8 @@ def flow_batch(
         print("flow: nothing to do — no in-flight briefs (all COMPLETE or none authored; "
               "brief new issues to add work).", file=sys.stderr)
         return {}
-    return _drive_and_act(cfg, bundles, do_act=do_act, by=by, today=today, max_passes=max_passes)
+    return _drive_and_act(cfg, bundles, do_publish=do_publish, do_act=do_act, by=by,
+                          today=today, max_passes=max_passes)
 
 
 # ----------------------------------------------------------------------------
@@ -258,6 +283,7 @@ def flow_ids(
     cfg: Config,
     ids: list[str],
     *,
+    do_publish: bool = True,
     do_act: bool = False,
     by: str = "",
     today: str | None = None,
@@ -285,7 +311,8 @@ def flow_ids(
     if not bundles:
         return {}
     bundles.sort(key=lambda p: p.name)
-    return _drive_and_act(cfg, bundles, do_act=do_act, by=by, today=today, max_passes=max_passes)
+    return _drive_and_act(cfg, bundles, do_publish=do_publish, do_act=do_act, by=by,
+                          today=today, max_passes=max_passes)
 
 
 def _bundle_dirs(cfg: Config) -> set[str]:

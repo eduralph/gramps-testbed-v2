@@ -22,12 +22,72 @@
 ## Follow-ups routed (not process deltas — work handed to an owner)
 - Another bug (project/addon): filed <tracker> #NNNN        (link)
 - Design issue: <name> → dedicated design phase, owner <who>
-- Testbed/driver issue: testbed GH issue #N | template-feedback.md entry  (link)
+- Testbed/driver issue: testbed GH issue #N | pdca-harness GH issue (enhancement)  (link)
 - Other open Act item: <item> → owner <who>, next step <…>
 
 ## How effectiveness will be judged
 - The next Do phases should not recreate <specific issue>. Watch the next K cycles.
 -->
+
+# Act review — 2026-06-07 — cycles considered: headless-ut-segfault (+ decision-point cross-ref 8653, 12576)
+
+## What the cycles' records exposed
+- **A symptom-guard shipped where cause-removal was correct — a *planning-phase*
+  miss (issue_headless-ut-segfault).** The fix (gramps PR #2357) guarded a class-body
+  Gtk widget construction with `has_display()` instead of removing the import-time
+  cause (compute `linkcolor` lazily in `__init__`). Maintainer Nick-Hall rejected it
+  on review — *"using `has_display` in GUI code designed to run with a display just
+  looks wrong"* — costing a rework round-trip. Root cause is **upstream of Do**: the
+  brief's Scope seated a *mechanism* ("reuse the existing `has_display()`"), so no
+  downstream gate could recover the right fix shape. Then Do mis-priced the better
+  alternative: `results/issue_headless-ut-segfault/build-notes.md:50-56` rejected
+  cause-removal as *"heavier … touches every `self.linkcolor` reader"* — **false**;
+  the accepted rework is one class attr reassigned in `__init__`, touching no readers.
+  An *unquantified* "heavier" discarded the cheaper, better fix. Recorded as testbed
+  **issue #15**.
+- **Evidence basis (honest, per "don't force a delta").** n=1 *failure* but n=3
+  *decision-point*: issue_8653 and issue_12576 hit the same symptom-vs-cause fork and
+  chose **correctly**, with quantified reasoning (their `build-notes.md` "alternatives
+  ruled out"). So the fork recurs (a heuristic generalises) while only one cycle
+  shipped the wrong side. Only **import-safety** earns a hard gate today; everything
+  else stays reference-layer until a cycle shows it missed.
+
+## Process deltas
+- **Reference (applied):** new sourced invariant catalogue + solution-design
+  principles so Plan states the *invariant to restore*, not a mechanism, with a
+  citation Do/Check can lean on.                          (`process/principles.md`, new)
+- **Spec template (applied):** brief gains an **`Invariant to restore`** field (stated
+  over the defect category, self-test "guardable by one module?") and the **Scope**
+  field must not name a probe/guard/helper.    (`templates/brief.md.tpl:11,16-19`)
+- **Agent skill — planner (applied):** minimalism-is-scoped qualifier (principle 1.2)
+  + a category-gated **Plan-exit gate** (Scope names no mechanism; invariant not
+  satisfiable by guarding one module).         (`.claude/agents/planner.md` §Solution-design discipline)
+- **Agent skill — reviewer (applied, backstop):** C5 gains a concrete **symptom-guard
+  smell-test** — a capability probe/guard inside code meant to run *with* that
+  capability → C5 NEEDS-HUMAN asking if the cause is removable. The downstream twin of
+  the Plan-exit gate.                          (`.claude/agents/reviewer.md` §C5 symptom-guard smell-test)
+- **Agent skill — builder (applied):** rejecting an alternative on cost MUST show a
+  diff sketch / line count, never an adjective; a named invariant outranks
+  cost-vs-minimalism (principle 2).            (`.claude/agents/builder.md` §Output)
+- **Scope discipline:** only **import-safety** is hard-gated (real shipped failure);
+  the rest of the catalogue is reference-layer, promoted on evidence (`process/principles.md` §8).
+
+## Follow-ups routed (not process deltas — work handed to an owner)
+- **Project under test (core) — already reworked:** gramps PR #2357 was updated to
+  lazy-compute `linkcolor` and drop the `has_display` import (the human's rework after
+  the maintainer objection). No open code work; recorded for trace.   (gramps PR #2357)
+- **Testbed/driver issue:** five framework assets changed here are **generic** → fed
+  back to the `pdca-harness` template per the template-vs-instance boundary.
+  (`docs/template-feedback.md` rows #25–#29). Owner: human (template work).
+
+## How effectiveness will be judged
+- Over the next ~3 **guard-shaped** cycles (import-safety / lifecycle / structural):
+  the **Plan-exit gate** should stop a mechanism-in-Scope brief; build-notes should
+  **quantify** any rejected cause-removal; and the reviewer's **C5 smell-test** should
+  catch any guard that still reaches Check — before upstream review, not at it.
+- If the Plan-exit gate fires cleanly with no false positives across those cycles,
+  consider making it unconditional (drop the category gate). Track whether any new
+  symptom-guard reaches a maintainer.
 
 # Act review — 2026-06-06 — cycles considered: 11589, 11786, 12576, 13205, 13636
 
