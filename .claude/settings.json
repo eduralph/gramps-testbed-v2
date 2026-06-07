@@ -47,7 +47,11 @@
       "Bash(env -u DISPLAY -u WAYLAND_DISPLAY GRAMPS_RESOURCES=. python3 -m unittest gramps.gui.test.headless_import_test -v)",
       "Bash(copier --version)",
       "Bash(PYTHONPATH=src PDCA_LEAVES_MODE=stub PDCA_GATES_MODE=stub python3 -m unittest discover -s tests -p \"test_*.py\")",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(PYTHONPATH=src python3 -m pdca_harness status)",
+      "Bash(gh repo *)",
+      "Bash(gh label *)",
+      "Bash(PDCA_BUNDLE=* ./engine/scripts/ubuntu/run-verify.sh)"
     ],
     "deny": [
       "Bash(sudo:*)",

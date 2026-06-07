@@ -1,0 +1,14 @@
+# Essential fixes — the harness-enabling PRODUCTION fixes that the validation
+# "essential" line carries on top of clean upstream/maintenance/gramps<ver>.
+#
+# Default validation runs against UPSTREAM. A bundle that FAILS on clean upstream
+# but PASSES on the essential line depends on one (or more) of these landing first;
+# run-verify.sh detects that, retries on the essential worktree, and stamps the
+# dependency into the bundle (essential-dependency.json).
+#
+# Keep this MINIMAL and EVIDENCE-BASED: add a row ONLY once a bundle demonstrably
+# fails on upstream because the fix is missing (process/principles.md §8). Each row
+# is cherry-picked onto upstream by `make essential-worktrees`.
+#
+# Columns (TAB-separated): target_version <TAB> source_commit <TAB> slug <TAB> description
+6.1	f4f94f34db	headless-ut-segfault	lazy LinkTag colour — no Gtk widget built at import (headless import-safety)
