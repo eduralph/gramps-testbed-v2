@@ -1,0 +1,9 @@
+{
+  "target_version": "6.1",
+  "upstream_result": "fail",
+  "essential_result": "pass",
+  "essential_worktree": "gramps-6.1-essential",
+  "depends_on": ["headless-ut-segfault"],
+  "date": "2026-06-07T16:01:42Z",
+  "note": "C4-verify FAILS on clean upstream/maintenance/gramps6.1 and PASSES on the essential line. Merge-order dependency: the listed essential fix(es) must land on the target branch first (or this fix's test must adopt equivalent import-safety). See engine/essential-fixes.tsv and process/validate-numbered-bundles.md."
+}
