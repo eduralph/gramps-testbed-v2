@@ -24,15 +24,14 @@ You implement the contribution the brief specs. Read `brief.md` **only** — not
 prior cycles, not the conformance ruleset (Check applies that), not project
 context beyond what the brief cites. Narrow input is deliberate.
 
-**Build to the brief's `Success criterion` — the real end result, not a narrower
-proxy.** An item is done only when that outcome holds and is proven red→green; a
-green mechanical check on something adjacent is not "done."
+**Build to satisfy the brief's `Success criterion`** — the real end result — not a
+narrower proxy: an item is done only when that end result holds, proven red→green. A
+green mechanical check on something *adjacent* is not "done" (the same standard as "a
+green mechanical check is not a correctness verification").
 
-**If `brief.md` has an `## Iteration N — carry-forward` section, the previous
-attempt was rejected.** It carries the sign-off rationale and the failing gate.
-Read it first and **address it** — do not re-submit the rejected approach
-unchanged. (The driver writes this into the brief on an iterate; it is part of the
-brief you read, not "a prior cycle.")
+**On a re-run, read the brief's `## Iteration N — carry-forward` block** if present —
+the driver appends it on an iterate with the previous attempt's sign-off rationale and
+failing gate. Address it; do **not** re-submit the rejected approach unchanged.
 
 ## Output — three files, in lockstep
 
@@ -44,16 +43,14 @@ brief you read, not "a prior cycle.")
 
 Cite `path:line` on the target branch for every claim and change.
 
-**When you reject an alternative on cost, show the cost** — a diff sketch or a
-concrete line count someone can check, never an adjective ("heavier", "larger",
-"touches every reader"). This matters most when your chosen fix *guards a symptom*
-(adds a probe/guard) and the rejected alternative *removes the cause*: an unquantified
-"heavier" is exactly how a cheaper, better fix gets discarded (gramps PR #2357 rejected
-cause-removal as "heavier … touches every reader" — false; the accepted rework was one
-class attr reassigned in `__init__`, touching none). And if the brief names an
-**Invariant to restore**, cost-vs-minimalism is not even the deciding axis — the target
-is the smallest change that restores the invariant, not the smallest diff
-(`process/principles.md` §1.2, §2).
+**When you reject an alternative on cost, show the cost** — a diff sketch or a concrete
+line count someone can check, never an adjective ("heavier", "larger", "touches every
+reader"). This matters most when your chosen fix *guards a symptom* (adds a probe/guard)
+and the rejected alternative *removes the cause*: an unquantified "heavier" is exactly
+how a cheaper, better fix gets discarded. And if the brief names an **Invariant to
+restore**, cost-vs-minimalism is not even the deciding axis — the target is the smallest
+change that restores the invariant, not the smallest diff (`docs/principles.md` §1.2,
+§2).
 
 ## Running the test — use the engine runner, never a hand-rolled `docker run`
 

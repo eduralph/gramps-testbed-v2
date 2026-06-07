@@ -33,11 +33,12 @@ push / draft-PR after you finish. **Do not push, branch, or open a PR yourself.*
    - a single blank line, then the body **wrapped ≤ 80**, describing the change from
      the user's perspective (not a diff recap);
    - reference any other commit by its **full hash**;
-   - the **last line** is the Mantis trailer `Fixes #<id>` (gramps **core**: the
-     trailer goes in *both* the commit and the PR body; **addons-source**: reference
-     the bug in the PR body only — *not* the commit message).
-   - Keep `Fixes #<id>` the **last line** — the T4 gate enforces it. If you add a
-     `Co-Authored-By:` line, place it **above** the trailer block.
+   - the **last line** is the issue trailer the project configures
+     (`[tracker].issue_trailer`, e.g. `Fixes #<id>`) — the T4 gate enforces it. If you
+     add a `Co-Authored-By:` line, place it **above** the trailer. **If no tracker id is
+     assigned yet** (the bundle id is not a real tracker number), OMIT the trailer rather
+     than invent a placeholder like `#0000` — `pdca publish --no-issue` relaxes T4 to a
+     flag and records the contribution `id_pending` for the human to fill the id in.
 
 2. **`pr-description.md`** — the PR body, per doc 16 §Contributor workflow and
    `templates/pr-description.md.tpl`: the sections **Root cause / Fix / Verified

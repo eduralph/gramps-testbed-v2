@@ -24,8 +24,8 @@ ACTION_TO_OUTCOME = {
 }
 
 _OUTCOME_RE = re.compile(r"^- Outcome:\s*(.*?)\s*$", re.MULTILINE)
-# [ \t] (not \s) so an EMPTY field doesn't let the match run past the newline into
-# the next §9 line (e.g. "- By / date:").
+# Anchored with [ \t] (NOT \s) so an empty field stops at the line end instead of
+# running past the newline into the next line.
 _DELTA_RE = re.compile(r"^- Iteration delta \(if iterating\):[ \t]*(.*?)[ \t]*$", re.MULTILINE)
 
 

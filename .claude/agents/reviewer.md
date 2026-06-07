@@ -76,11 +76,9 @@ apply it to `patch.diff` every cycle: if the fix adds a **capability probe**
 (`has_display()`, `hasattr`, `try: import …`) or a **runtime guard** *inside code that
 is meant to run with that capability present* — the guard protects a path that, by
 design, only executes when the capability exists — flag C5 **NEEDS-HUMAN** and ask in
-the basis: can the eager / import-time cause be removed instead (e.g. compute lazily on
-first real use) so the probe is unnecessary? A probe papering over an import-time side
-effect is the canonical case (gramps PR #2357: a `has_display()` guard shipped where
-removing the class-body widget construction was the correct, comparably small fix).
-This is the downstream backstop for the planner's Plan-exit gate
-(`process/principles.md` §3) — it catches a guard Do introduces even when the brief
-was clean. It does **not** fire on a fix that *removes/transforms* the cause rather
-than guarding a present capability.
+the basis: can the eager / load-time cause be removed instead (e.g. compute lazily on
+first real use) so the probe is unnecessary? A probe papering over a load-time side
+effect is the canonical case. This is the downstream backstop for the planner's
+Plan-exit gate (`docs/principles.md` §3) — it catches a guard Do introduces even
+when the brief was clean. It does **not** fire on a fix that *removes / transforms* the
+cause rather than guarding a present capability.

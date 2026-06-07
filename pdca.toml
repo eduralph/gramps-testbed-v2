@@ -21,8 +21,11 @@ issue_id_example = "13418"
 # without --from-csv. The planner reads ONLY the row for the issue id (it does not
 # scan the testbed repo for issue info). Re-export from Mantis to refresh.
 export_csv = "engine/20260529 - Mantis Export.csv"
-# Trailer linking a commit/PR to the issue ({id} = the bug id). The publish step's
-# commit-msg ends with this; the T4 gate checks it.
+# Trailer linking a commit/PR to the issue ({id} = the bug id). Trackers differ
+# (GitHub/Mantis "Fixes #{id}", Jira "Fixes PROJ-{id}"); "" enforces none. The
+# publish step's commit-msg ends with this; the T4 gate (if any) checks it.
+# No tracker id yet? Use `pdca publish --no-issue`: it omits the trailer, relaxes
+# T4 to a flag, and records the bundle `id_pending` (no magic "#0000" placeholder).
 issue_trailer = "Fixes #{id}"
 
 # Publish mechanics — `pdca publish` and the flow's publish-on-accept (docs 03 §Check

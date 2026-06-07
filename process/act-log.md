@@ -55,7 +55,7 @@
 ## Process deltas
 - **Reference (applied):** new sourced invariant catalogue + solution-design
   principles so Plan states the *invariant to restore*, not a mechanism, with a
-  citation Do/Check can lean on.                          (`process/principles.md`, new)
+  citation Do/Check can lean on.                          (`docs/principles.md`, new)
 - **Spec template (applied):** brief gains an **`Invariant to restore`** field (stated
   over the defect category, self-test "guardable by one module?") and the **Scope**
   field must not name a probe/guard/helper.    (`templates/brief.md.tpl:11,16-19`)
@@ -70,7 +70,7 @@
   diff sketch / line count, never an adjective; a named invariant outranks
   cost-vs-minimalism (principle 2).            (`.claude/agents/builder.md` §Output)
 - **Scope discipline:** only **import-safety** is hard-gated (real shipped failure);
-  the rest of the catalogue is reference-layer, promoted on evidence (`process/principles.md` §8).
+  the rest of the catalogue is reference-layer, promoted on evidence (`docs/principles.md` §8).
 
 ## Follow-ups routed (not process deltas — work handed to an owner)
 - **Project under test (core) — already reworked:** gramps PR #2357 was updated to
