@@ -149,8 +149,18 @@ vendored ruleset; each target carries its auditable origin per doc 16
   its underlying defect is fixed and that suite is green-baseline.
 
 ## 4. Conformance ruleset (answers the validation-tooling matrix for this repo)
-For each tier: the written ruleset it consumes, its **home**, and the
-**single-sourced command** the driver and CI both run.
+For each tier: the **written ruleset** it consumes, its **home**, and the
+**single-sourced command** the driver and CI both run. The "Written ruleset"
+column is load-bearing — name the project's *normative source* for each tier (a
+contributor guide, an addon-dev doc, a PEP/RFC) and, ideally, cite individual
+rules back to it (`<doc>:<line>`). A gate you can trace to a written source is
+auditable; one you can't is folklore.
+
+Gating policy (see `engine/README.md`): ship every tier **advisory**
+(`gating = false`) except the per-fix C4 (red→green). Runtime / conformance /
+interface tiers audit code the current fix didn't introduce, so promote a tier to
+gating only once its targeted artifacts are clean; gate interface/E2E on a smoke
+test, not the full suite.
 
 **The T1–T4 ladder is founded on wiki doc 16**, written in RFC-2119
 MUST/SHOULD/MAY, and the checkers are **target-aware**: a **core** fix is judged
@@ -262,7 +272,7 @@ List every project-specific script the cycle invokes (role → path + invocation
 | Act tooling (L4) | `src/pdca_harness/act.py` | `pdca act-index`, `pdca act-log --date <d>` | [built] |
 | Gates (single-sourced) | `pdca.toml` `[[gates.checks]]` | `pdca gates [<id>] [--working-tree]` | [built — C4-verify + `T3-unit`/`T3-addon-unit`/`T3-interface` (GUI smoke) + `T1-structure`/`T2-shape`/`T4-contribution` (doc-16-founded, advisory, `engine/conformance/`) live; per-fix interface-level C4 staged] |
 | Conformance checkers (doc 16) | `engine/conformance/{t1_structure,t2_shape,t4_contribution}.py` + `gate.py` + `doc16.py` | `python3 ./engine/conformance/gate.py {T1\|T2\|T4}` (bundle-scoped, target-aware) | [built — §4 ladder; each MUST cites its source **by section** (core vs addon per target), anchors guarded by `Doc16Anchors`; tested in `engine/tests/test_conformance.py`] |
-| Reviewer config | `AGENTS.md` + `.claude/agents/reviewer.md` | (model leaf) | [built — contract + `[leaves.reviewer] mode = "command"` wired; this instance runs the same-vendor `family = "claude"` fallback (decorrelated codex is the template default — see §4 and template-feedback #R)] |
+| Reviewer config | `AGENTS.md` + `.claude/agents/reviewer.md` | (model leaf) | [built — contract + `[leaves.reviewer] mode = "command"` wired; this instance runs the same-vendor `family = "claude"` fallback (decorrelated codex is the template default — see §4)] |
 | Builder subagent | `.claude/agents/builder.md` + `.claude/hooks/builder_guard.py` | (model leaf) | [built — ready-mark blocked] |
 
 ## 10. Maintainer and governance

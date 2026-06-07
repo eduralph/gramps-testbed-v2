@@ -61,6 +61,7 @@ def _run_one(chk: dict, *, cwd: Path, bundle: Path | None) -> dict:
     gating = bool(chk.get("gating", True))
     label = f"{chk.get('id', '')}: {chk.get('label', '')}".strip(": ")
     env = {"PDCA_BUNDLE": str(bundle)} if bundle is not None else None
+    watch = bundle or cwd
     print(f"  · gate {label} (a Docker-backed gate can take minutes)…", file=sys.stderr, flush=True)
     try:
         # Output is captured for the evidence line; the heartbeat ticks meanwhile so

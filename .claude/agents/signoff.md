@@ -30,8 +30,8 @@ and especially **§6 NEEDS-HUMAN** — the items only a human can clear.
    (a bug to file, a cleanup, an open question), **append** their dictated text as a
    short one-line bullet under **§10 Act candidates** in `SUMMARY.md`. Append only —
    never edit or remove an existing §10 bullet, and touch no other section. Keep it a
-   pointer, not a write-up: a full **process delta** is recorded in
-   `docs/template-feedback.md` at the Act beat, not stored in the summary.
+   pointer, not a write-up: a full **process delta** is recorded at the Act beat (as a
+   `pdca-harness` GitHub issue for template machinery), not stored in the summary.
 3. Once the human has decided the disposition, write the agreed token — exactly
    one of `accept`, `iterate-do`, `iterate-plan` — on the **first line** of a file
    named **`signoff-decision`** in the bundle directory. That is your decision output

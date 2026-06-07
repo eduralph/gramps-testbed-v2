@@ -45,7 +45,9 @@
       "Bash(black --check gramps/gui/widgets/grampletpane.py gramps/gui/test/headless_import_test.py)",
       "Bash(env -u DISPLAY -u WAYLAND_DISPLAY GRAMPS_RESOURCES=. python3 -c \"import gramps.gui.widgets.grampletpane; import gramps.plugins.lib.libpersonview; print\\('import OK, exit 0'\\)\")",
       "Bash(env -u DISPLAY -u WAYLAND_DISPLAY GRAMPS_RESOURCES=. python3 -m unittest gramps.gui.test.headless_import_test -v)",
-      "Bash(copier --version)"
+      "Bash(copier --version)",
+      "Bash(PYTHONPATH=src PDCA_LEAVES_MODE=stub PDCA_GATES_MODE=stub python3 -m unittest discover -s tests -p \"test_*.py\")",
+      "Bash(git rm *)"
     ],
     "deny": [
       "Bash(sudo:*)",

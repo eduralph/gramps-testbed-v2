@@ -57,18 +57,33 @@ is the smallest change that restores the invariant, not the smallest diff
 
 ## Running the test — use the engine runner, never a hand-rolled `docker run`
 
-To check the test is red→green, run it through the **engine runner**:
+To check the test is red→green, run it through the **engine runner**, never a
+hand-rolled `docker run … python3 -m unittest …` / `xvfb-run`:
 - `./engine/scripts/ubuntu/run-verify.sh` — applies this bundle's `patch.diff` and
   asserts the test is **red without the fix, green with it** (set `$PDCA_BUNDLE` to
   the bundle dir). This is exactly what Check's C4-verify gate runs.
 - `./engine/scripts/ubuntu/run-addon-unit.sh <Addon>` or `run-unit.sh` for a suite.
 
-Do **NOT** assemble your own `docker run … python3 -m unittest …` / `xvfb-run`. The
-runners provide the display + **D-Bus session + AT-SPI bus** a GUI-importing test
-needs, *and* a **timeout** that kills a hung run. A bare `docker run` gets none of
-that, so any test that imports a Gtk/GUI module (e.g. an addon's plugin-manager
-module) will **hang forever** with nothing to stop it. The authoritative red→green
-check is Check's gate — a quick `run-verify.sh` is enough; you needn't run full suites.
+A bare `docker run` has **no timeout**, so a hung test blocks the whole Do beat
+forever — the runner provides one. **The C4 runner is HEADLESS:** a core fix runs
+under plain `python3 -m unittest` (no display, no D-Bus, no AT-SPI); an addon fix
+adds only `xvfb` (a bare display). The full display + D-Bus + AT-SPI belongs to the
+*interface* runner, not C4. So a test that imports a Gtk/GUI module at load time
+(`gi.repository` / `gramps.gui.*`, e.g. a ManagedWindow tool) **crashes the headless
+runner** (core dump) — and it recurs on every iterate-do until the test stops
+importing it. Keep the unit under test import-light: extract the logic into a module
+free of `gi`/`gramps.gui` imports and test *that*. This pre-fix/post-fix check is a
+fast sanity pass (Check's gates re-run the real suite), so a single quick
+`run-verify.sh` is enough.
+
+## Commit-ready for the target repo
+
+The patch must be **committable to the target repo**, not just gate-green. When the
+fix is published, the commit runs the *target's own* pre-commit hooks — gramps runs
+`black` — which no PDCA gate models, so "all gates green" does **not** mean
+"committable". Run the target repo's configured formatter / commit hooks over every
+file you touch before declaring done. A patch the target's commit hook would reject
+is not done — it would otherwise fail mid-publish, after the branch is already pushed.
 
 ## STOP discipline — enforced, not asked
 

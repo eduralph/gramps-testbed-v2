@@ -52,5 +52,5 @@ def state(d: Path) -> str:
     # is_set() guarantees the token is one of VALID_OUTCOMES, but stay defensive: a
     # token without a mapping (a future outcome added to signoff but not here) means
     # "not validly complete" → AWAITING_SIGNOFF, never a KeyError out of the one
-    # primitive the whole driver depends on.
+    # primitive the whole driver depends on (testbed issue #3).
     return _OUTCOME_TO_STATE.get(signoff.outcome_token(d / "SUMMARY.md"), AWAITING_SIGNOFF)

@@ -22,7 +22,7 @@
 ## Follow-ups routed (not process deltas — work handed to an owner)
 - Another bug (project/addon): filed <tracker> #NNNN        (link)
 - Design issue: <name> → dedicated design phase, owner <who>
-- Testbed/driver issue: testbed GH issue #N | template-feedback.md entry  (link)
+- Testbed/driver issue: testbed GH issue #N | pdca-harness GH issue (enhancement)  (link)
 - Other open Act item: <item> → owner <who>, next step <…>
 
 ## How effectiveness will be judged

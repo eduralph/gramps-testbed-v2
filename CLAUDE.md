@@ -9,9 +9,9 @@ read it for tracker, branch targets, fixtures, and the conformance ruleset.
 ## The driver
 
 `pdca` advances a result bundle through the cycle (`pdca status`, `pdca run <id>`,
-`pdca signoff <id> --accept`), or runs it as one continuous Claude-driven flow
-(`pdca flow <id> [--from-csv …] [--act]`). State is the files in
-`results/issue_<id>/`; nothing is hidden in a database.
+`pdca signoff <id> --accept`, `pdca publish <id>`), or runs it as one continuous
+Claude-driven flow (`pdca flow <id> [--from-csv …] [--no-publish] [--act]`). State is
+the files in `results/issue_<id>/`; nothing is hidden in a database.
 
 The driver is deterministic — **no model decides control flow**. The cycle has the
 four PDCA beats (Plan · Do · Check · Act); models are invoked only at the **six
@@ -30,9 +30,10 @@ leaves** across them — and the **Check beat holds three of those steps**:
 The leaves fill *artifacts*; the state transitions, the gates, the C6 accept-guard,
 and the publish mechanics stay deterministic code. Each leaf is configurable in `pdca.toml` (`[leaves.*]`,
 `mode = stub|command`, `interactive`); `PDCA_LEAVES_MODE=stub` forces the offline
-placeholders for CI / `make`.
+placeholders for CI / `make`. In `pdca flow`, an accept continues to publish then
+optional Act; `--no-publish` stops at COMPLETE.
 
-## Do beat (builder) — your scope when implementing
+## Do (the builder leaf) — your scope when implementing
 
 - Read **`brief.md` only**. Produce `patch.diff`, the test the brief names, and
   `build-notes.md` (your rationale — withheld from the reviewer by the driver).
@@ -48,7 +49,10 @@ placeholders for CI / `make`.
 
 The driver assembles `SUMMARY.md` and stops at AWAITING_SIGNOFF. The human clears
 §6 NEEDS-HUMAN, weighs the advisory review, and records §9. `pdca signoff
---accept` refuses while §6 has open items (C6).
+--accept` refuses while §6 has open items (C6). On an accept, **publish** (Check's
+closing step) drafts the commit-msg + PR description and the driver opens a **draft
+PR** — it never marks ready or merges; that stays the human's. `pdca publish <id>`
+runs it standalone; `pdca flow` does it automatically on accept (`--no-publish` to skip).
 
 ## Act (human) — separate, cross-cycle
 

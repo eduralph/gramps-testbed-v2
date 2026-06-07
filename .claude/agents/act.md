@@ -45,12 +45,12 @@ such item into exactly one of:
 - **A design issue** — the resolution needs architecture/UX decisions, not just
   code. It needs a dedicated planning/design phase **outside** the PDCA cycle: name
   it, say why, and hand it to the human to schedule. Do not author a brief for it.
-- **A testbed or PDCA-driver issue.** File it in the **owning repo** and link it,
-  per the template-vs-instance boundary (`docs/template-feedback.md`): an
-  instance/engine problem (`engine/**`, project gate values) → a GitHub issue on
-  this testbed repo; a harness-machinery problem (`src/pdca_harness/**`, the agents,
-  `pdca.toml` leaf/gate *schema*, `CLAUDE.md`) → a `template-feedback.md` entry
-  raised against the `pdca-harness` template.
+- **A testbed or PDCA-driver issue.** File it as a **GitHub issue** in the **owning
+  repo** and link it, per the template-vs-instance boundary: an instance/engine
+  problem (`engine/**`, project gate values) → an issue on **this testbed repo**; a
+  harness-machinery problem (`src/pdca_harness/**`, the agents, `pdca.toml` leaf/gate
+  *schema*, `CLAUDE.md`) → an issue (label `enhancement`) on the **`pdca-harness`
+  template repo**.
 - **Anything else** → keep it as an **open Act item**: record it with a determined
   owner / next step and revisit it at the next review.
 

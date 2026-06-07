@@ -39,7 +39,8 @@ physically cannot patch what you judge.
 ## Always emit the complete 5/5/1 verdict table
 
 `check-review.md` **must** contain one verdict row for **every** element of the
-matrix — never a partial list — as a Markdown table `| Item | Verdict | Basis |`:
+5/5/1 matrix — never a partial list — as a Markdown table `| Item | Verdict |
+Basis |`. This is the canonical order the gates assemble; mirror it exactly:
 
 | Item | Verdict | Basis |
 |------|---------|-------|
@@ -55,9 +56,11 @@ matrix — never a partial list — as a Markdown table `| Item | Verdict | Basi
 | T5 Judgment | … | … |
 | Validation — fitness-to-purpose | NEEDS-HUMAN | … |
 
-Verdict is `PASS / FAIL / NEEDS-HUMAN / N/A`; Basis is the one line you re-derived
-(cite `path:line` where you can). Use `N/A` with a reason when an element does not
-apply — do not drop the row. The harness lifts every NEEDS-HUMAN row into §6.
+Verdict is `PASS / FAIL / NEEDS-HUMAN / N/A`; Basis is the one line you
+re-derived (cite `path:line` where you can). Use `N/A` with a reason when an
+element does not apply — **do not drop the row.** The harness lifts every
+NEEDS-HUMAN row into `SUMMARY.md` §6, so a row you omit is a verdict the human
+never sees.
 
 ## Emit NEEDS-HUMAN by design on
 
