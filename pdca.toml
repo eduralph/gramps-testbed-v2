@@ -190,7 +190,10 @@ label = "runtime: GUI interface smoke (launch + open tree, headless dogtail)"
 cmd = "python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-interface.sh test_smoke.py"
 gating = false
 scope = "repo"
-target = "core"   # gramps core GUI smoke — skip on an addon-only bundle
+# Intentionally UNTAGGED: this core GUI smoke must NOT be skipped for a frontend-
+# interacting addon (it needs an E2E that includes core). A precise `target = "frontend"`
+# tag arrives once the brief carries a `Surfaces` signal (template v0.13.0); until then,
+# leaving it untagged runs it for every bundle rather than over-skipping addons.
 
 # T1/T2/T4 conformance — the structure / shape / contribution tiers, mechanised
 # from wiki doc 16, the foundation of the T1–T4 ladder. Each checker cites every
