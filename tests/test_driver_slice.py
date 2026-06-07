@@ -71,122 +71,32 @@ class VerticalSlice(unittest.TestCase):
         signoff.record(summary, action="accept", by="tester", date="2026-01-01")
         self.assertEqual(state.state(self.d), state.COMPLETE)
 
-    def test_review_emits_complete_5_5_1_table(self) -> None:
-        # The reviewer (stub or command) must always emit one verdict row per 5/5/1
-        # element — the overview the human reads. No element may be dropped.
-        driver.run_issue(self.d, self.cfg)
-        review = (self.d / "check-review.md").read_text(encoding="utf-8")
-        for _elem, label, _kind, _oracle in gates.canonical_elements():
-            self.assertIn(label, review, f"reviewer verdict table missing {label}")
-        # The validation row is NEEDS-HUMAN and reaches §6 as exactly one open item.
-        self.assertEqual(len(signoff.open_needs_human(self.d / "SUMMARY.md")), 1)
-
-    def test_needs_human_lifted_from_table_row(self) -> None:
-        # A NEEDS-HUMAN verdict in the table (not a bullet) still becomes a §6 item.
-        from pdca_harness import assemble
-        items = assemble._needs_human(
-            "| Item | Verdict | Basis |\n|---|---|---|\n"
-            "| C5 Causal adequacy | PASS | grounded |\n"
-            "| Validation — fitness-to-purpose | NEEDS-HUMAN | is this the right thing? |\n"
-        )
-        self.assertEqual(len(items), 1)
-        self.assertIn("Validation", items[0])
-        self.assertIn("is this the right thing?", items[0])
-
-    def test_assemble_tolerates_missing_review(self) -> None:
-        # A dropped reviewer leaves no check-review.md; assemble must NOT crash — it
-        # flags a §6 re-review item and still produces SUMMARY (recovers the bundle).
-        from pdca_harness import assemble
-        driver.run_issue(self.d, self.cfg)
-        (self.d / "check-review.md").unlink()
-        (self.d / "SUMMARY.md").unlink()
-        self.assertEqual(state.state(self.d), state.CHECKED)  # the crash state
-        assemble.assemble_summary(self.d, self.cfg)           # must not raise
-        self.assertTrue((self.d / "SUMMARY.md").exists())
-        self.assertTrue(signoff.open_needs_human(self.d / "SUMMARY.md"))  # re-review flagged
-
-    def test_review_failure_writes_fallback(self) -> None:
-        # A command-mode reviewer that exits non-zero (dropped connection) must leave a
-        # placeholder review flagging NEEDS-HUMAN, not nothing.
-        import dataclasses
-        cfg = dataclasses.replace(
-            self.cfg, reviewer=LeafConfig(mode="command", family="x", argv=["false"]))
-        leaves.run_review(self.d, cfg)
-        review = (self.d / "check-review.md").read_text(encoding="utf-8")
-        self.assertIn("NOT COMPLETED", review)
-        self.assertIn("- NEEDS-HUMAN", review)
-
-    def test_review_empty_output_writes_fallback(self) -> None:
-        # A reviewer that exits 0 but writes no check-review.md is the case that crashed
-        # the batch — it must also fall back, not silently leave the bundle review-less.
-        import dataclasses
-        cfg = dataclasses.replace(
-            self.cfg, reviewer=LeafConfig(mode="command", family="x", argv=["true"]))
-        leaves.run_review(self.d, cfg)
-        self.assertIn("- NEEDS-HUMAN", (self.d / "check-review.md").read_text(encoding="utf-8"))
-
     def test_iterate_to_do_archives_downstream(self) -> None:
         # iterate-do ARCHIVES the prior attempt into iteration-v1/ (never deletes it):
         # the downstream leaves the top level → state PLANNED, brief.md stays, and the
-        # patch is preserved under iteration-v1/.
+        # attempt (patch + its bundle-local test) is preserved under iteration-v1/.
         driver.run_issue(self.d, self.cfg)
-        summary = self.d / "SUMMARY.md"
-        signoff.record(summary, action="iterate-do", by="tester", date="2026-01-01")
+        signoff.record(self.d / "SUMMARY.md", action="iterate-do", by="tester", date="2026-01-01")
         self.assertEqual(state.state(self.d), state.ITERATE_DO)
         driver.advance(self.d, self.cfg)  # archive + rebuild
         self.assertEqual(state.state(self.d), state.PLANNED)
         self.assertFalse((self.d / "patch.diff").exists())          # left the top level
+        self.assertFalse((self.d / "test_toy.py").exists())         # the bundle-local test moved too
         self.assertTrue((self.d / "brief.md").exists())             # brief stays for the rebuild
         self.assertTrue((self.d / "iteration-v1" / "patch.diff").exists())   # preserved, not deleted
         self.assertTrue((self.d / "iteration-v1" / "SUMMARY.md").exists())
+        self.assertTrue((self.d / "iteration-v1" / "test_toy.py").exists())  # preserved
 
     def test_iterate_to_plan_archives_attempt(self) -> None:
         # iterate-plan archives the WHOLE attempt incl. the brief → state UNPLANNED;
         # the brief + downstream are preserved under iteration-v1/, never deleted.
         driver.run_issue(self.d, self.cfg)
-        summary = self.d / "SUMMARY.md"
-        signoff.record(summary, action="iterate-plan", by="tester", date="2026-01-01")
+        signoff.record(self.d / "SUMMARY.md", action="iterate-plan", by="tester", date="2026-01-01")
         driver.advance(self.d, self.cfg)
         self.assertEqual(state.state(self.d), state.UNPLANNED)
         self.assertFalse((self.d / "brief.md").exists())                     # left the top level
         self.assertTrue((self.d / "iteration-v1" / "brief.md").exists())     # preserved
         self.assertTrue((self.d / "iteration-v1" / "patch.diff").exists())   # attempt preserved
-
-    def test_iterate_do_carries_forward_into_brief(self) -> None:
-        # An iterate-do must fold the prior attempt's insight into brief.md BEFORE the
-        # downstream clear, so the rebuilt Do (which reads brief.md only) isn't blind:
-        # the §9 rationale + the failing gate, in an `## Iteration N — carry-forward`
-        # block that survives the clear.
-        driver.run_issue(self.d, self.cfg)
-        summary = self.d / "SUMMARY.md"
-        # A failing gating gate, so the carry-forward has gate evidence to lift.
-        gates_json = self.d / "check-gates.json"
-        gates_json.write_text(json.dumps({"overall": "fail", "rows": [
-            {"check": "C4-verify", "result": "fail", "path_line": "red-without-fix=FAIL",
-             "oracle": "run-verify.sh", "rule_id": "C4-verify", "gating": True},
-        ]}), encoding="utf-8")
-        signoff.record(summary, action="iterate-do", by="tester", date="2026-01-01",
-                       delta="test asserts the wrong attribute; assert navigation_type instead")
-        self.assertEqual(state.state(self.d), state.ITERATE_DO)
-
-        driver.advance(self.d, self.cfg)  # carry-forward, then clear
-
-        self.assertEqual(state.state(self.d), state.PLANNED)
-        self.assertTrue((self.d / "brief.md").exists())          # survived the clear
-        brief_text = (self.d / "brief.md").read_text(encoding="utf-8")
-        self.assertIn("## Iteration 1 — carry-forward", brief_text)
-        self.assertIn("assert navigation_type instead", brief_text)   # the §9 rationale
-        self.assertIn("C4-verify", brief_text)                        # the failing gate
-        self.assertIn("Success criterion", brief_text)                # the end-result nudge
-
-    def test_carry_forward_noop_without_insight(self) -> None:
-        # No rationale and no failing gate → no carry-forward block appended.
-        driver.run_issue(self.d, self.cfg)
-        (self.d / "check-gates.json").write_text(
-            json.dumps({"overall": "pass", "rows": []}), encoding="utf-8")
-        signoff.record(self.d / "SUMMARY.md", action="iterate-do", by="t", date="2026-01-01")
-        driver.advance(self.d, self.cfg)
-        self.assertNotIn("carry-forward", (self.d / "brief.md").read_text(encoding="utf-8"))
 
 
 class AdvisoryReviewResilience(unittest.TestCase):

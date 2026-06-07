@@ -49,11 +49,14 @@ push / draft-PR after you finish. **Do not push, branch, or open a PR yourself.*
 
 - Read `brief.md` (the spec + the **Repo + branch target**), `build-notes.md` (the
   builder's rationale — root cause, what the diff does), and `patch.diff` (the actual
-  change). Cite the target source with `git -C ../gramps …` / Read — never
-  `cd ../gramps && …`.
-- Resolve **core vs addon** from the brief's target (gramps → core trailer rules;
-  addons-source → bug-in-PR-body). Resolve the branch target per INTEGRATION §2.
-- One logical fix per PR; do not invent scope the brief didn't accept.
+  change). Cite the target source with `git -C <checkout> …` / Read — never
+  `cd <checkout> && …` (`git -C` is the safe idiom).
+- Resolve the branch target per INTEGRATION §2. One logical fix per PR; do not invent
+  scope the brief didn't accept.
+- Follow `docs/fork-discipline.md` §1–§2: the contribution branches from
+  `upstream/<base>` (not the fork's drifted branch), the PR is **draft-only** and the
+  human marks it ready, and the deterministic `pdca publish` performs the push. Write
+  the commit-msg/PR prose to match the target; do not push or open the PR yourself.
 
 ## Boundaries
 
