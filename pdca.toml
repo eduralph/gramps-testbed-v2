@@ -113,6 +113,18 @@ argv = ["claude", "--agent", "act", "--permission-mode", "acceptEdits"]
 # STAGED (commented): T1/T2 static analysis and addon-unit. The same cmd runs both
 # places (single-sourced via `pdca gates` / `pdca gates --working-tree`, no drift).
 
+# Target-aware gate selection (template v0.12.0). The repo-scoped runtime gates below
+# carry `target` so an addon-only bundle skips the gramps CORE suites (T3-unit,
+# T3-interface) and a core-only bundle skips the ADDON matrix (T3-addon-unit-6{0,1}).
+# The bundle is classified from its brief's "Repo + branch target": anything mentioning
+# `addons-source` → "addon", else the default "core". `pdca gates --working-tree` (no
+# bundle) is never filtered, so the CI re-gate is unaffected.
+[gates]
+target_default = "core"
+
+[gates.target_match]
+addon = "addons-source"
+
 # C4 — the per-fix CORRECTNESS gate (bundle-scoped, GATING). Applies the bundle's
 # patch.diff and runs ONLY its test, asserting red-without-fix / green-with-fix.
 # This is what makes a bugfix cycle mean something — it actually validates THIS
@@ -139,6 +151,7 @@ label = "runtime: gramps core unit suite (whole-suite baseline)"
 cmd = "python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-unit.sh"
 gating = false
 scope = "repo"
+target = "core"   # gramps core suite — skip on an addon-only bundle
 
 # T3 runtime — the addon unit suites, as a VERSION MATRIX. Addons live on
 # addons-source maintenance/gramps6{0,1}; a gramps60 fix is cherry-picked forward to
@@ -152,6 +165,7 @@ label = "runtime: addon suites — addons-source gramps60 × core 6.0 (matrix)"
 cmd = "CORE_VERSION=6.0 PDCA_T3_BASELINE=engine/baselines/run-addon-unit-60.json python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-addon-unit.sh"
 gating = false
 scope = "repo"
+target = "addon"   # addon matrix — skip on a core-only bundle
 
 [[gates.checks]]
 id = "T3-addon-unit-61"
@@ -160,6 +174,7 @@ label = "runtime: addon suites — addons-source gramps61 × core 6.1 (matrix)"
 cmd = "CORE_VERSION=6.1 PDCA_T3_BASELINE=engine/baselines/run-addon-unit-61.json python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-addon-unit.sh"
 gating = false
 scope = "repo"
+target = "addon"   # addon matrix — skip on a core-only bundle
 
 # T3 runtime — interface SMOKE baseline (GUI comes up + opens a tree, driven
 # headless via Xvfb + AT-SPI + dogtail; engine/interface/test_smoke.py). Advisory
@@ -175,6 +190,7 @@ label = "runtime: GUI interface smoke (launch + open tree, headless dogtail)"
 cmd = "python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-interface.sh test_smoke.py"
 gating = false
 scope = "repo"
+target = "core"   # gramps core GUI smoke — skip on an addon-only bundle
 
 # T1/T2/T4 conformance — the structure / shape / contribution tiers, mechanised
 # from wiki doc 16, the foundation of the T1–T4 ladder. Each checker cites every
