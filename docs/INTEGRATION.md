@@ -37,6 +37,11 @@
   Mantis-specific scraper is required at this role; a different tracker needs its own.
 
 ## 2. Branch-target rules
+> Generic doctrine in [`docs/fork-discipline.md`](fork-discipline.md) §1–§3
+> (branch-from-`upstream`, draft-only/STOP, contribution targeting + cross-version
+> cherry-pick correctness). This section is the **gramps instantiation** — the concrete
+> branch map, doc-16 anchors, and maintainer overrides — not a restatement.
+
 Normative source: wiki **doc 16 §Contributor workflow** (`doc16:111-115`), the
 vendored ruleset; each target carries its auditable origin per doc 16
 §Conventions. Verified against the sibling checkouts: gramps is on
@@ -220,6 +225,10 @@ line number**, so an edit to a vendored page doesn't invalidate the anchor; the
   zero-FP gate in pre-commit — they are not addon conformance.
 
 ## 5. Upstream-isn't-ahead routine
+> Generic doctrine in [`docs/fork-discipline.md`](fork-discipline.md) §5 (prior-art
+> search by file path across merged history *and* closed/rejected PRs). This section is
+> the **gramps instantiation** — the concrete remotes, search commands, and reviewers.
+
 - **What "upstream" is:** `gramps-project/gramps` (core), `gramps-project/addons-source`
   (addons), `gramps-project/addons` (read-only publish target). Forks are owned by
   `FORK_OWNER` (default `eduralph`), distinct from the testbed owner (`Ralphovi`);
@@ -251,7 +260,8 @@ line number**, so an edit to a vendored page doesn't invalidate the anchor; the
 - **Bundle root + ID format:** `results/issue_<mantis-id>/` (reference repo groups
   these under `triage/batches/<batch>/results/issue_<id>/`).
 - **Act log path:** `process/act-log.md`
-- **Versioned briefs on iterate-to-Plan:** `brief.vN.md` in the bundle (default)
+- **Iterate archive:** a rejected attempt is preserved in `iteration-v<N>/` in the
+  bundle (the brief is archived with it on iterate-to-Plan) — fixed by the harness
 
 ## 8. Committing and PR conventions
 - **Commit-message format:** past-tense one-line subject; body explains the *why*,
