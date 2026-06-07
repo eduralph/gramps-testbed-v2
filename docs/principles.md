@@ -1,82 +1,75 @@
 # Planning Principles — solution-design discipline for briefs
 
-> **Status:** living document. **Owner:** Eduard.
-> **Origin:** testbed issue #15 / gramps PR #2357 (a symptom-guard shipped where
-> cause-removal was correct; the maintainer caught it by eye, one rework round-trip
-> too late). The root cause was a *planning-phase* failure — the brief seated a
-> solution mechanism, so no downstream gate could recover the right fix shape.
-> This document fixes that at the source: it gives Plan the rules and the sourced
-> invariants it needs to state the right success property before Do ever runs.
+> **Status:** living document. **Owner:** Eduard Ralph.
+> **Why this exists.** A brief that names a *solution mechanism* (a probe, a guard, a
+> helper) instead of the *property the fix must restore* seats the fix shape before Do
+> reasons about it — and no downstream gate can recover the right shape from a wrong
+> success criterion. This document gives Plan the rules and a sourced invariant
+> catalogue so it states the right success property before Do ever runs. It was born
+> from a real cycle where a symptom-guard shipped where cause-removal was the correct,
+> comparably small fix — caught only at human review, one rework round-trip too late.
 >
-> **This is the reference layer.** Plan *consults* it. The matching brief-template
-> fields, the planner agent's minimalism qualifier, and the Plan-exit gate are the
-> *active layer* — the small set the brief actually asks about on the matching defect
-> category (see §6). The reference layer is the library; the active layer is the few
-> questions worth interrupting planning to ask every relevant time. Document a
-> principle here freely (near-zero cost); graduate it to the active layer only on
-> evidence it is being missed (§9).
+> **Two layers.** This reference layer is the *library*: document a principle here
+> freely (near-zero cost). The *active layer* — the brief-template `Invariant to
+> restore` field, the planner's minimalism qualifier, and the Plan-exit gate — is the
+> small set the brief actually asks about, on the matching defect category (§6). The
+> reference layer holds knowledge; the active layer is the few questions worth
+> interrupting planning to ask every relevant time. Graduate a principle from reference
+> to active only on evidence it is being missed (§8).
 
 ---
 
 ## 1. Process principle — minimalism is scoped to behavioural bug fixes
 
-- **1.1** In bug-fixing, the target is the smallest reviewable, low-risk delta
-  against code you do not own.
-- **1.2** The maxim does **not** apply when a fix touches *structure* — what runs
-  at import, object lifetime, where work happens. There the target is the smallest
-  change that **restores the invariant** (§5), not the smallest diff. A named
-  invariant takes precedence over diff size.
+- **1.1** In bug-fixing, the target is the smallest reviewable, low-risk delta against
+  code you do not own.
+- **1.2** The maxim does **not** apply when a fix touches *structure* — what runs at
+  load/import, object lifetime, where work happens. There the target is the smallest
+  change that **restores the invariant** (§5), not the smallest diff. A named invariant
+  takes precedence over diff size.
 - **1.3** New-feature work is not governed by minimalism at all.
 
-> Why: in #2357 "minimal" was the only *named* currency in the room, so it won by
-> default. It was being applied to a structural fix (where work runs at import) —
-> outside its scope per 1.2.
+> Why: when "minimal" is the only *named* currency in the room, it wins by default —
+> even on a structural fix where it is out of scope per 1.2. Name the invariant so it
+> has something to lose to.
 
 ## 2. Process principle — a cost used to reject an alternative must be checkable
 
 - **2.1** Rejecting an alternative on cost requires a **verifiable basis** — a diff
-  sketch or a concrete line count someone can check — never an adjective
-  ("heavier", "larger", "touches every reader").
+  sketch or a concrete line count someone can check — never an adjective ("heavier",
+  "larger", "touches every reader").
 - **2.2** A precise estimate of the *wrong* comparison is still wrong. If a named
   invariant is in play, cost-vs-minimalism is not the deciding axis (1.2 governs).
   Estimation is the **backstop**, not the decision.
 
-> Why: #2357's build-notes rejected cause-removal as "heavier than warranted." The
-> claim was specific-sounding but *false* — the accepted rework was a one-line class
-> attr reassigned in `__init__`, touching no readers. An unquantified "heavier" is
-> exactly how a cheaper, better fix gets discarded.
+> Why: an unquantified "heavier" is exactly how a cheaper, better fix gets discarded.
+> Make the cost claim checkable and the false ones fall away.
 
 ## 3. Process principle — a brief states the invariant, not a solution
 
-- **3.1** Scope names the **defect to remove**. It must **not** name a probe, guard,
-  or helper (`has_display`, `hasattr`, `try/except import`). Naming a mechanism seats
-  the fix shape before Do reasons about it.
-- **3.2** The invariant is **quantified over the defect category**, not the repro
-  file. **Self-test:** *could Do satisfy this by guarding a single module?* If yes,
-  it is the narrow symptom-sentence — widen it until a one-module patch visibly fails
-  it.
+- **3.1** Scope names the **defect to remove**. It must **not** name a probe, guard, or
+  helper (a capability check, a `hasattr`, a `try/except import`). Naming a mechanism
+  seats the fix shape before Do reasons about it.
+- **3.2** The invariant is **quantified over the defect category**, not the repro file.
+  **Self-test:** *could Do satisfy this by guarding a single module?* If yes, it is the
+  narrow symptom-sentence — widen it until a one-module patch visibly fails it.
 - **3.3** Mechanism is left to Do; Do prefers removing the cause over guarding the
   symptom.
 
-> **"Invariant vs. single module" worked example (#2357):**
-> Narrow symptom-sentence — *"importing `grampletpane` headless exits 0."* A guard on
-> that one module satisfies it. But Check found `T3-unit` *still* core-dumped on a
-> different frame: the narrow sentence passed while the real requirement failed.
-> Invariant — *"no `gramps.gui.*` module does display-dependent work at import;
-> importing **any** of them headless exits 0."* The guard visibly fails this ("any"),
-> cause-removal satisfies it. Same fix, same crash — only the success criterion's
-> width changed whether the wrong fix could pass.
+> The self-test is the load-bearing rule: a success criterion narrow enough to be met
+> by guarding one module is narrow enough to let the wrong fix pass. Widen it until only
+> the real requirement satisfies it.
 
 ## 4. Sourcing principle — invariants come from named, citable sources
 
 - **4.1** Domain invariants live in the catalogue (§5), each with a source and a
   provenance tier.
-- **4.2** When Plan classifies a brief into a defect category (§6 mapping), it pulls
-  the matching invariant **and its citation** into the brief's Invariant field.
+- **4.2** When Plan classifies a brief into a defect category (§6 mapping), it pulls the
+  matching invariant **and its citation** into the brief's `Invariant to restore` field.
 - **4.3** A sourced invariant can override "minimal" in a Do/Check argument; an
-  unsourced intuition cannot. This is the content that Principles 1–3 operate on —
-  without it, "state the invariant" (3) just produces a plausible-sounding guess,
-  which lands back on the narrow sentence.
+  unsourced intuition cannot. This is the content Principles 1–3 operate on — without
+  it, "state the invariant" (3) just produces a plausible-sounding guess, which lands
+  back on the narrow sentence.
 
 ---
 
@@ -86,7 +79,7 @@ Provenance tiers, kept separate on purpose — a planner must see *which family*
 given invariant draws its authority from. `[ACTIVE]` = also in the §6 brief mapping.
 
 > **Provenance status (verified 2026-06-07).** Citations below were checked against
-> the live sources; see §8 for the honesty rules that keep the catalogue citable.
+> the live sources; see §7 for the honesty rules that keep the catalogue citable.
 
 ### Tier A — Python (PEP)
 
@@ -178,12 +171,10 @@ given invariant draws its authority from. `[ACTIVE]` = also in the §6 brief map
   author as a Gramps invariant with its own documented rationale. Maps to **Class B**
   (dangling-handle / reference integrity). *(Reference layer.)*
 
----
-
 ## 6. Category → invariant mapping (the active layer)
 
 When Plan classifies a brief into one of these, it MUST pull the invariant **and its
-citation** into the brief's Invariant field (Principle 4.2).
+citation** into the brief's `Invariant to restore` field (Principle 4.2).
 
 | Defect category | Invariant Plan must state | Cite |
 |---|---|---|
@@ -196,32 +187,30 @@ Threading and reference-integrity (Class B) stay reference-layer; promote on evi
 
 ---
 
-## 7. Provenance honesty rules (keep the doc citable)
+## 7. Provenance honesty rules (keep the catalogue citable)
 
-- **Cite for what the source says, not an inflated ruling.** PEP 810 documents
-  import-time side effects as a hazard while adding a feature; it does not *forbid*
-  them. The standing rule is PEP 8 + import-system docs; 810 corroborates.
-- **Check PEP status + target version.** Draft/Rejected < Final/Accepted. Note status
-  and version beside each citation (PEP 810 is Accepted for 3.15 — not yet shippable
-  in Gramps' supported Pythons, so it stays corroborating).
-- **Authoritative vs illustrative.** Official docs (PEP, GTK, PyGObject) are
-  authoritative; blog war-stories (Morgan) are illustrative — tag them so.
-- **Pin GTK3 URLs for Gramps; note "GTK4 differs."** Cite the rule from the page that
-  actually states it (`func.init*`), not a tutorial that only demonstrates it.
+- **Cite for what the source says, not an inflated ruling.** If a source documents a
+  hazard while adding a feature, it does not necessarily *forbid* the thing — cite the
+  standing rule for the prohibition and the newer source as corroboration.
+- **Check a standard's status and target version.** Draft/Rejected ranks below
+  Final/Accepted; a rule accepted for a runtime version you do not yet ship is
+  corroborating, not yet enforceable. Note status and version beside each citation.
+- **Authoritative vs illustrative.** Official specs and vendor docs are authoritative;
+  blog posts and war-stories are illustrative — tag them so, and cite the rule from the
+  page that actually *states* it, not a tutorial that only demonstrates it.
+- **Pin the version you target; note where a newer major differs.**
 - **Internal invariants don't borrow external authority** — state the rationale.
-
----
 
 ## 8. Evidence basis & promotion rule
 
-Promote a principle from reference to active (or to a hard gate) only on evidence,
+Promote a principle from reference to active (or to a hard gate) only on evidence — the
 same bar the act-log applies to process deltas:
 
-- **Active / template-asked:** the symptom-vs-cause fork recurs in the category
-  (import-safety has #2357 behind it; n=1 *failure*, n=3 *decision-point* across
-  issue_headless-ut-segfault + the correctly-handled issue_8653 / issue_12576).
-- **Hard gate:** reserve for invariants with a real shipped failure. Today that is
-  import-safety only. Everything else is reference until a cycle shows it missed.
+- **Active / template-asked:** the symptom-vs-cause fork **recurs** in a category (a
+  real failure plus repeated decision-points across cycles). One war-story is enough to
+  document a principle in §5; a recurring miss is what graduates it to §6.
+- **Hard gate:** reserve for a category with a **real shipped failure**. Everything else
+  stays reference until a cycle shows it was missed.
 
 Resist a growing checklist. The discipline that keeps minimalism valuable is the same
 one that keeps this set small: knowledge is documented freely (§5); enforcement is

@@ -33,13 +33,13 @@ and especially **§6 NEEDS-HUMAN** — the items only a human can clear.
    pointer, not a write-up: a full **process delta** is recorded at the Act beat (as a
    `pdca-harness` GitHub issue for template machinery), not stored in the summary.
 3. Once the human has decided the disposition, write the agreed token — exactly
-   one of `accept`, `iterate-do`, `iterate-plan` — on the **first line** of a file
+   one of `accept`, `iterate-do`, `iterate-plan` — as the **first line** of a file
    named **`signoff-decision`** in the bundle directory. That is your decision output
-   of record. On `iterate-do` / `iterate-plan`, add the human's **rationale** on the
-   lines below the token — *why* this attempt was rejected and *what to change next*.
-   This is the iteration delta (not the decision record): the driver records it in §9
-   and folds it into the brief's carry-forward so the next iteration isn't blind. Keep
-   it a few actionable lines; write nothing else.
+   of record. **On an `iterate-do` / `iterate-plan`, add the human's rationale on the
+   lines *below* the token** — the *why rejected / what to change next*. The driver
+   folds it into the brief's carry-forward so the next attempt isn't blind; without
+   it, the rebuild reads an unchanged brief and repeats the rejected approach. Keep it
+   to the actionable insight; do not restate the whole review.
 
 ## Boundaries — the guard is the driver's, not yours
 
@@ -47,7 +47,7 @@ and especially **§6 NEEDS-HUMAN** — the items only a human can clear.
 `SUMMARY.md`, only with the human's explicit OK; (b) **append-only** bullets under
 **§10 Act candidates** of `SUMMARY.md`, dictated by the human (append a new line —
 never edit or delete an existing §10 line); and (c) the `signoff-decision` file (the
-token on line 1, plus an iterate rationale below it on an `iterate-*`). That is the
+token on line 1, plus the iterate rationale on the lines below it). That is the
 complete list. §10 is the one append channel you have because it
 is non-binding "hints for the next Act review" and has no effect on disposition;
 everything that *is* the decision record stays off-limits. **Never delete or modify

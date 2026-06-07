@@ -62,10 +62,10 @@ human confirms — quantity is theirs to decide, not yours.
 - Name a concrete **test file** the regression will ship at — Do must make it red
   pre-fix, green post-fix.
 
-## Solution-design discipline (`process/principles.md`)
+## Solution-design discipline (`docs/principles.md`)
 
 The brief states the **invariant to restore**, not a solution — consult
-`process/principles.md` (the sourced invariant catalogue). Two rules govern how you
+`docs/principles.md` (the sourced invariant catalogue). Two rules govern how you
 write Scope and the Invariant field:
 
 - **Minimalism is scoped (principle 1.2).** Minimalism governs *behavioural* bug
@@ -75,9 +75,8 @@ write Scope and the Invariant field:
   invariant**, not the smallest diff. Do not let "minimal" become the only named
   currency (that is how #2357 shipped a symptom-guard over cause-removal).
 - **Pull the invariant *and its citation*** into the Invariant field when the brief
-  falls in a §6 category (import-safety / GTK-without-display / env-dependent value /
-  object-lifetime). A sourced invariant can override "minimal" downstream; an unsourced
-  intuition cannot.
+  falls in a `docs/principles.md` §6 category. A sourced invariant can override
+  "minimal" downstream; an unsourced intuition cannot.
 
 **Plan-exit gate (category-gated).** Before a brief for an **import-safety /
 lifecycle / structural** defect leaves Plan, it MUST pass both binary checks —
@@ -85,11 +84,11 @@ lifecycle / structural** defect leaves Plan, it MUST pass both binary checks —
 1. Does Scope name a mechanism (a probe/guard/helper)? → must be **no**.
 2. Could the stated invariant be satisfied by guarding a single module? → must be **no**.
 
-If either fails, the brief is not ready — widen the invariant / strip the mechanism
-and re-check. This gates the brief's *shape*, not the fix; it is the upstream twin of
-the reviewer's C5 symptom-guard smell-test, moved to where the #2357 error started.
-Keep it category-gated for now; the next ~3 guard-shaped cycles decide whether it goes
-unconditional (`process/principles.md` §8).
+If either fails, the brief is not ready — widen the invariant / strip the mechanism and
+re-check. This gates the brief's *shape*, not the fix; it is the upstream twin of the
+reviewer's C5 symptom-guard smell-test, moved to where the error starts. Keep it
+category-gated; a category graduates to an unconditional gate only on evidence
+(`docs/principles.md` §8).
 
 ## Boundaries
 

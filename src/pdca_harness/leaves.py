@@ -226,13 +226,13 @@ def do_build(d: Path, cfg: Config) -> None:
 
 def _build_prompt(d: Path) -> str:
     return (
-        f"You are the Do builder. Read {d}/brief.md in full. If it has an "
-        "`## Iteration N — carry-forward` section, the PREVIOUS attempt was rejected: "
-        "read it first and ADDRESS it — do NOT re-submit the rejected approach unchanged. "
-        "Build to satisfy the brief's **Success criterion** — the real end result — not a "
-        "narrower proxy: an item is done only when that end result holds, proven red→green. "
-        f"Produce, in the bundle directory {d}: (1) patch.diff — a unified diff against the "
-        "brief's target branch; "
+        f"You are the Do builder. Read {d}/brief.md. Build to satisfy its **Success "
+        "criterion** (the real end result), not a narrower proxy — an item is done only "
+        "when that end result holds, proven red→green; a green mechanical check on "
+        "something adjacent is not done. If brief.md carries an '## Iteration N — "
+        "carry-forward' block, address it (the previous attempt's rationale + failing "
+        "gate) and do NOT repeat the rejected approach. Produce, in the bundle directory "
+        f"{d}: (1) patch.diff — a unified diff against the brief's target branch; "
         "(2) the test file the brief names, red before the fix and green after; "
         "(3) build-notes.md — your rationale (withheld from the reviewer). Cite "
         "path:line on the target branch for every change. To check the test red→green "
@@ -465,7 +465,7 @@ def signoff_decision(d: Path) -> str:
 
     The file is ``<token>`` optionally followed by a free-text **rationale** on the
     remaining lines (read by :func:`signoff_rationale`) — the human's "why iterate /
-    what to change" that the driver carries forward into the brief on an iterate."""
+    what to change" the driver carries forward into the brief on an iterate."""
     p = d / SIGNOFF_DECISION
     if not p.exists():
         return ""
@@ -532,6 +532,15 @@ def _publish_prompt(d: Path, cfg: Config) -> str:
     issue_id = d.name.removeprefix("issue_")
     target = brief.field(d / "brief.md", "repo + branch target", "target")
     pr_tpl = cfg.templates_dir / "pr-description.md.tpl"
+    trailer = cfg.issue_trailer.format(id=issue_id) if cfg.issue_trailer else ""
+    trailer_line = (
+        f"The LAST line of commit-msg.txt is the issue trailer `{trailer}` (the T4 gate "
+        "enforces it); a Co-Authored-By line, if any, goes ABOVE it. If no tracker id is "
+        "assigned yet (the bundle id is not a real tracker number), OMIT the trailer "
+        "entirely rather than invent a placeholder — `pdca publish --no-issue` records "
+        "the contribution as id_pending for the human to fill the id in later. "
+        if trailer else ""
+    )
     return (
         f"You are the Publish leaf — the closing work of Check. The fix for issue "
         f"{issue_id} is ACCEPTED; with the human, write TWO contribution artifacts in "
