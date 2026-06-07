@@ -762,6 +762,31 @@ Non-obvious things learned building this — port the *reasoning*, not just the 
    blocking `gh pr ready/merge`. Do not pass `--bare` to the builder leaf or the
    STOP discipline silently disappears.
 
+### Plan-side solution-design discipline — symptom-guard vs cause-removal — template-bound
+
+A cycle (issue_headless-ut-segfault → gramps PR #2357) shipped a `has_display()`
+symptom-guard where removing the import-time cause was the correct, comparably small
+fix; the maintainer caught it on review. Root cause was a *planning-phase* failure —
+the brief seated a mechanism, so no downstream gate could recover the fix shape (Act
+review 2026-06-07; testbed issue #15). The countermeasure is a new sourced
+principles reference + brief-template fields + planner/reviewer/builder skill deltas.
+All five assets are generic and feed back to the template.
+
+| # | Instance path | Upstream target | Kind | What to feed back |
+|---|---|---|---|---|
+| 25 | `process/principles.md` (new) | `template/process/principles.md.jinja` | copy | New reference doc — the sourced invariant catalogue + solution-design principles (minimalism is scoped to behavioural bugs; cost-to-reject must be checkable; a brief states the invariant, not a mechanism). Carries no project literals **except** the Gramps/GTK-specific Tier-B/Tier-C catalogue entries — port the §1–4 principles + §7–8 rules verbatim; mark the GTK/PyGObject/Semgrep invariants as the project-under-test's domain catalogue (the template ships the *structure*, the rendered project fills the catalogue). Keep the verified citations (PEP 8/20/810, GTK3 `func.init`/`func.init_check`, MR 7836) with their provenance tags. |
+| 26 | `templates/brief.md.tpl` | `template/templates/brief.md.tpl.jinja` | copy | New **`Invariant to restore`** field (stated over defect category, not repro file; not a mechanism; cite source; self-test "guardable by one module?") + **Scope** contract amended to forbid naming a probe/guard/helper. Generic; references `process/principles.md` by path (stable across render). |
+| 27 | `.claude/agents/planner.md` | `template/.claude/agents/planner.md.jinja` | **jinja** | New "**Solution-design discipline**" section: minimalism-is-scoped qualifier (principle 1.2) + the category-gated **Plan-exit gate** (Scope names no mechanism; invariant not satisfiable by guarding one module). Generic prose; the `#2357` example is illustrative — keep or genericise to "a real cycle". Sits in agent already carrying `{{ project_name }}`-style refs, so port by hand. |
+| 28 | `.claude/agents/reviewer.md` | `template/.claude/agents/reviewer.md.jinja` | **jinja** | New "**C5 symptom-guard smell-test**" subsection under the NEEDS-HUMAN block: capability probe/guard inside code meant to run *with* that capability → C5 NEEDS-HUMAN asking if the cause is removable. Generic; `#2357` illustrative. The downstream twin of #27's gate. |
+| 29 | `.claude/agents/builder.md` | `template/.claude/agents/builder.md.jinja` | **jinja** | Build-notes rule: rejecting an alternative on cost MUST show a diff sketch / line count, never an adjective; a named invariant outranks cost-vs-minimalism (principle 2). Generic; `#2357` illustrative. |
+
+*Generic lesson:* the symptom-guard-vs-cause-removal judgment belongs at **Plan**
+(state the invariant, not the mechanism), backed by a **sourced** catalogue so the
+invariant can outrank "minimal" downstream — with a reviewer smell-test as the
+backstop. The template ships the *machinery* (fields, gate, skill deltas, the
+principles-doc structure); the rendered project supplies its own domain invariant
+catalogue. Hard-gate only categories with a real shipped failure (here: import-safety).
+
 ## How to apply (suggested)
 For verbatim files (#1–5, #12): copy the instance file over its
 `template/…` counterpart and re-run the template's tests. For jinja files

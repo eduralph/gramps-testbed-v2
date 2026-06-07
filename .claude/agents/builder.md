@@ -44,6 +44,17 @@ brief you read, not "a prior cycle.")
 
 Cite `path:line` on the target branch for every claim and change.
 
+**When you reject an alternative on cost, show the cost** — a diff sketch or a
+concrete line count someone can check, never an adjective ("heavier", "larger",
+"touches every reader"). This matters most when your chosen fix *guards a symptom*
+(adds a probe/guard) and the rejected alternative *removes the cause*: an unquantified
+"heavier" is exactly how a cheaper, better fix gets discarded (gramps PR #2357 rejected
+cause-removal as "heavier … touches every reader" — false; the accepted rework was one
+class attr reassigned in `__init__`, touching none). And if the brief names an
+**Invariant to restore**, cost-vs-minimalism is not even the deciding axis — the target
+is the smallest change that restores the invariant, not the smallest diff
+(`process/principles.md` §1.2, §2).
+
 ## Running the test — use the engine runner, never a hand-rolled `docker run`
 
 To check the test is red→green, run it through the **engine runner**:
