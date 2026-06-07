@@ -67,6 +67,14 @@ if grep -iqE 'repo \+ branch( target)?:.*addons-source' "$BUNDLE/brief.md" 2>/de
   MODE=addon
 fi
 
+# Core target version → which UPSTREAM worktree to verify against (gramps-6.0 / gramps-6.1).
+# Default validation is against clean upstream/maintenance/gramps<ver> (the contribution
+# target), NOT the developer's working clone. Addon mode runs both versions as a matrix.
+TARGET_VER=6.1
+if grep -iqE 'repo \+ branch( target)?:.*(gramps60|maintenance/gramps60)' "$BUNDLE/brief.md" 2>/dev/null; then
+  TARGET_VER=6.0
+fi
+
 # Classify the patched files; the rest is the production change reverted for the red
 # check. Core tests use the *_test.py SUFFIX (gramps/**/test/); addon tests use the
 # test_*.py PREFIX (addons-source/<Addon>/tests/) — see INTEGRATION.md §3.
@@ -97,12 +105,13 @@ for f in "${PROD[@]}"; do
   if _in_list "$f" "${ADDED[@]}"; then PROD_NEW+=("$f"); else PROD_MOD+=("$f"); fi
 done
 
-# What to verify against. A core fix runs ONCE against the primary gramps checkout.
-# An addon fix runs the version MATRIX — each addons-source maintenance branch against
-# its MATCHING core, in the pinned worktrees (`make worktrees`): a gramps60 fix is
-# cherry-picked to gramps61, so the fix must hold red→green on BOTH cores. (Addon mode
-# needs a display via xvfb so a @skipUnless(_HAS_GTK_DISPLAY) RUNS; core mode is plain.)
-if [ "$MODE" = addon ]; then LEGS=(6.0 6.1); else LEGS=(core); fi
+# What to verify against. A core fix runs ONCE against its target-version UPSTREAM
+# worktree (gramps-6.0 / gramps-6.1 from `make worktrees`). An addon fix runs the
+# version MATRIX — each addons-source maintenance branch against its MATCHING core,
+# in the pinned worktrees: a gramps60 fix is cherry-picked to gramps61, so the fix must
+# hold red→green on BOTH cores. (Addon mode needs a display via xvfb so a
+# @skipUnless(_HAS_GTK_DISPLAY) RUNS; core mode is plain.)
+if [ "$MODE" = addon ]; then LEGS=(6.0 6.1); else LEGS=("$TARGET_VER"); fi
 TIMEOUT="${GRAMPS_TEST_TIMEOUT:-900}"
 
 # The container body — install core, apply the patch, assert green-with-fix then
@@ -134,6 +143,10 @@ _TOUCHED=()
 _restore_one() {  # $1 = repo dir
   git -C "$1" checkout -- . 2>/dev/null || true
   [ "${#ADDED[@]}" -gt 0 ] && (cd "$1" && rm -f -- "${ADDED[@]}") 2>/dev/null || true
+  # Scrub run-created untracked residue (e.g. test-dir __init__.py the runner leaves)
+  # so the next leg/run starts pristine — these are throwaway upstream worktrees, and
+  # leftover residue can otherwise flip a result. (-fd, not -x: keep ignored caches.)
+  git -C "$1" clean -fdq 2>/dev/null || true
 }
 _restore_all() {
   local r; for r in "${_TOUCHED[@]:-}"; do [ -n "$r" ] && _restore_one "$r"; done
@@ -141,14 +154,22 @@ _restore_all() {
 }
 trap _restore_all EXIT
 
-# Verify one leg; return 0 iff the red→green contract held. $1 = core | 6.0 | 6.1.
+# Verify one leg; return 0 iff the red→green contract held. $1 = version (6.0|6.1).
+# $2 (optional, core only) = an explicit gramps checkout to verify against — used to
+# retry on the *essential* worktree after the upstream leg fails.
 _verify_leg() {
-  local leg="$1" gramps_dir repo cwd runenv xvfb image gv cname d gd label rc=0
+  local leg="$1" gramps_override="${2:-}" gramps_dir repo cwd runenv xvfb image gv cname d gd label rc=0
   local mounts=()
-  if [ "$leg" = core ]; then
-    gramps_dir="$WORKSPACE/gramps"; repo="$WORKSPACE/gramps"; cwd=/workspace/gramps
+  if [ "$MODE" = core ]; then
+    # Default: the target-version UPSTREAM worktree (the contribution target), NOT the
+    # developer's working clone. Overridable to the essential worktree for the retry.
+    gramps_dir="${gramps_override:-$WORKSPACE/gramps-$leg}"; repo="$gramps_dir"; cwd=/workspace/gramps
     runenv="GRAMPS_RESOURCES=."; xvfb=""
-    mounts=( -v "$WORKSPACE":/workspace )         # core mode unchanged: whole-workspace mount
+    [ -d "$gramps_dir" ] || { echo "run-verify.sh: core worktree $gramps_dir missing — run 'make worktrees'." >&2; return 1; }
+    mounts=( -v "$gramps_dir":/workspace/gramps -v "$REPO_ROOT":/workspace/"$TESTBED_NAME" )
+    # A worktree's .git is a file pointing at the primary gitdir — bind-mount it so
+    # in-container `git apply`/`checkout` resolve.
+    if [ -f "$gramps_dir/.git" ]; then gd="$(git -C "$gramps_dir" rev-parse --path-format=absolute --git-common-dir)"; mounts+=( -v "$gd":"$gd" ); fi
   else
     gramps_dir="$WORKSPACE/gramps-$leg"; repo="$WORKSPACE/addons-source-$leg"
     cwd=/workspace/addons-source
@@ -175,8 +196,8 @@ _verify_leg() {
   if ! docker image inspect "$image" >/dev/null 2>&1; then
     echo "→ building $image"; docker build -f "$ENGINE/docker/Dockerfile.ubuntu" -t "$image" "$ENGINE"
   fi
-  cname="grampstest-$$-$leg"
-  label="$MODE"; [ "$leg" != core ] && label="$MODE, core $gv"
+  cname="grampstest-$$-$leg-$(basename "$gramps_dir")"
+  label="$MODE, core $gv"; [ -n "$gramps_override" ] && label="$label, ESSENTIAL line"
   echo "→ C4-verify ($label): $MODULE  (test: $TEST_REL ; reverting: ${PROD_MOD[*]:-—} ; removing: ${PROD_NEW[*]:-—})"
   timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$cname" \
     "${mounts[@]}" -w "$cwd" \
@@ -192,8 +213,50 @@ _verify_leg() {
   return "$rc"
 }
 
+# Write the dependency stamp when a bundle passes ONLY on the essential line.
+_stamp_essential_dependency() {  # $1 = version leg
+  local leg="$1" manifest="$ENGINE/essential-fixes.tsv" slugs date
+  date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  # Candidate dependencies = the essential fixes this version's line carries (by slug).
+  slugs="$(awk -F'\t' -v v="$leg" '!/^#/ && $1==v {printf "%s\"%s\"", (n++?", ":""), $3}' "$manifest" 2>/dev/null)"
+  cat > "$BUNDLE/essential-dependency.json" <<JSON
+{
+  "target_version": "$leg",
+  "upstream_result": "fail",
+  "essential_result": "pass",
+  "essential_worktree": "gramps-$leg-essential",
+  "depends_on": [$slugs],
+  "date": "$date",
+  "note": "C4-verify FAILS on clean upstream/maintenance/gramps$leg and PASSES on the essential line. Merge-order dependency: the listed essential fix(es) must land on the target branch first (or this fix's test must adopt equivalent import-safety). See engine/essential-fixes.tsv and process/validate-numbered-bundles.md."
+}
+JSON
+  echo "  · wrote $BUNDLE/essential-dependency.json (depends_on: [$slugs])"
+}
+
 overall=0
+stamped=0
 for leg in "${LEGS[@]}"; do
-  _verify_leg "$leg" || overall=1
+  if _verify_leg "$leg"; then continue; fi
+  # Upstream leg failed. For a CORE fix, retry on the essential line (upstream +
+  # harness-enabling fixes). If it passes there, the fix is correct but carries a
+  # dependency — stamp it and do NOT fail the gate on a known-essential prerequisite.
+  ess="$WORKSPACE/gramps-$leg-essential"
+  if [ "$MODE" = core ] && [ -d "$ess" ]; then
+    echo "→ upstream leg $leg FAILED — retrying on the essential line ($ess)…"
+    if _verify_leg "$leg" "$ess"; then
+      _stamp_essential_dependency "$leg"; stamped=1
+      echo "C4-verify[$leg]: PASS-ON-ESSENTIAL — fix is correct but depends on an essential fix (see essential-dependency.json)"
+      continue
+    fi
+    echo "→ essential-line retry for $leg also FAILED — a real failure, not a missing prerequisite."
+  fi
+  overall=1
 done
+
+# Clear a stale dependency stamp if this run passed cleanly on upstream (no fallback) —
+# e.g. once the essential fix has been merged upstream, the bundle no longer depends on it.
+if [ "$overall" -eq 0 ] && [ "$stamped" -eq 0 ] && [ -f "$BUNDLE/essential-dependency.json" ]; then
+  rm -f "$BUNDLE/essential-dependency.json"
+  echo "  · cleared stale essential-dependency.json (now passes on clean upstream)"
+fi
 exit "$overall"

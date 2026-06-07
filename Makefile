@@ -40,7 +40,7 @@ export PYTHONPATH := src
 PDCA := $(PYTHON) -m pdca_harness.cli
 
 .DEFAULT_GOAL := test
-.PHONY: test check flow rehearse status cli install setup worktrees batch publish
+.PHONY: test check flow rehearse status cli install setup worktrees essential-worktrees batch publish
 
 # --- the cycle -------------------------------------------------------------
 # Live, continuous, Claude-driven. Give ID for one issue, or just CSV for a batch
@@ -90,25 +90,51 @@ open('.claude/settings.local.json', 'w'), indent=2)"
 	@echo "      first interactive session asks once 'trust this folder?'; accept it and"
 	@echo "      it persists for every later run."
 
-# --- addon test matrix: per-version worktrees ------------------------------
-# The addon gates (T3-addon-unit-6{0,1}, C4-verify addon mode) test each
-# addons-source maintenance branch against its MATCHING core — a gramps60 fix is
-# cherry-picked to gramps61, so both must stay green. This creates the pinned,
-# clean git worktrees those runs use: gramps + addons-source on maintenance/
-# gramps6{0,1}, detached so they don't contend for the primary checkout's branch.
-# Idempotent — skips any worktree that already exists.
+# --- validation worktrees: per-version, based on UPSTREAM -------------------
+# DEFAULT validation runs against clean upstream/maintenance/gramps6{0,1} — the real
+# contribution target, NOT the fork's maintenance branches (which carry local CI/tooling
+# commits) or the developer's working clone. Core C4-verify uses gramps-6.{0,1}; the
+# addon matrix uses gramps-6.{0,1} + addons-source-6.{0,1}. Detached so they don't
+# contend for the primary checkout's branch. Fetches upstream first, then creates
+# missing worktrees AND realigns clean existing ones to the current upstream tip.
 worktrees:
 	@ws=$$(cd .. && pwd); \
-	for spec in "gramps gramps-6.0 maintenance/gramps60" \
-	            "gramps gramps-6.1 maintenance/gramps61" \
-	            "addons-source addons-source-6.0 maintenance/gramps60" \
-	            "addons-source addons-source-6.1 maintenance/gramps61"; do \
-	  set -- $$spec; repo="$$ws/$$1"; wt="$$ws/$$2"; br="$$3"; \
-	  if [ -d "$$wt" ]; then echo "✔ $$wt (exists)"; \
-	  else echo "→ git -C $$1 worktree add --detach $$2 $$br"; \
-	    git -C "$$repo" worktree add --detach "$$wt" "$$br" || exit 1; fi; \
+	for r in gramps addons-source; do git -C "$$ws/$$r" fetch upstream --prune --quiet || echo "warn: fetch upstream failed for $$r"; done; \
+	for spec in "gramps gramps-6.0 upstream/maintenance/gramps60" \
+	            "gramps gramps-6.1 upstream/maintenance/gramps61" \
+	            "addons-source addons-source-6.0 upstream/maintenance/gramps60" \
+	            "addons-source addons-source-6.1 upstream/maintenance/gramps61"; do \
+	  set -- $$spec; repo="$$ws/$$1"; wt="$$ws/$$2"; ref="$$3"; \
+	  if [ -d "$$wt" ]; then \
+	    if [ -n "$$(git -C "$$wt" status --porcelain 2>/dev/null)" ]; then echo "✔ $$wt (exists, dirty — left as-is)"; \
+	    else git -C "$$wt" checkout --detach --quiet "$$ref" && echo "↻ $$wt → $$ref ($$(git -C "$$repo" rev-parse --short "$$ref"))"; fi; \
+	  else echo "→ git -C $$1 worktree add --detach $$2 $$ref"; \
+	    git -C "$$repo" worktree add --detach "$$wt" "$$ref" || exit 1; fi; \
 	done; \
-	echo "worktrees ready — the addon matrix uses gramps-6.{0,1} + addons-source-6.{0,1}."
+	echo "worktrees ready (upstream base) — core uses gramps-6.{0,1}; addon matrix adds addons-source-6.{0,1}."
+
+# --- essential fallback line: upstream + harness-enabling fixes -------------
+# Builds gramps-<ver>-essential = upstream/maintenance/gramps<ver> + the fixes listed in
+# engine/essential-fixes.tsv (cherry-picked), on branch testbed/essential-gramps<ver>.
+# run-verify.sh retries a CORE bundle here when it FAILS on upstream, and stamps the
+# dependency. Idempotent — skips existing worktrees; pass REBUILD=1 to refresh from the
+# manifest (e.g. after upstream moves or the manifest changes).
+essential-worktrees:
+	@ws=$$(cd .. && pwd); manifest=engine/essential-fixes.tsv; \
+	[ -f "$$manifest" ] || { echo "no $$manifest"; exit 1; }; \
+	git -C "$$ws/gramps" fetch upstream --prune --quiet || echo "warn: fetch upstream failed"; \
+	for v in $$(awk -F'\t' '!/^#/ && NF>=3 {print $$1}' "$$manifest" | sort -u); do \
+	  tag=$$(echo "$$v" | tr -d .); wt="$$ws/gramps-$$v-essential"; br="testbed/essential-gramps$$tag"; up="upstream/maintenance/gramps$$tag"; \
+	  if [ -d "$$wt" ] && [ -z "$(REBUILD)" ]; then echo "✔ $$wt (exists; REBUILD=1 to refresh)"; continue; fi; \
+	  [ -d "$$wt" ] && { git -C "$$ws/gramps" worktree remove --force "$$wt"; git -C "$$ws/gramps" branch -D "$$br" 2>/dev/null || true; }; \
+	  git -C "$$ws/gramps" branch -f "$$br" "$$up"; \
+	  git -C "$$ws/gramps" worktree add --quiet "$$wt" "$$br" || exit 1; \
+	  awk -F'\t' -v v="$$v" '!/^#/ && $$1==v {print $$2}' "$$manifest" | while read -r c; do \
+	    git -C "$$wt" cherry-pick "$$c" >/dev/null 2>&1 || { echo "cherry-pick $$c FAILED in $$wt"; git -C "$$wt" cherry-pick --abort 2>/dev/null; exit 1; }; \
+	  done; \
+	  echo "→ $$wt = $$up + $$(awk -F'\t' -v v="$$v" '!/^#/ && $$1==v {print $$3}' "$$manifest" | paste -sd, -)"; \
+	done; \
+	echo "essential worktrees ready — run-verify falls back here on an upstream failure."
 
 # --- optional real install (venv console script) ---------------------------
 install: .venv/bin/pdca

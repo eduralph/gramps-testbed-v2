@@ -62,6 +62,21 @@ vendored ruleset; each target carries its auditable origin per doc 16
 - **Master-vs-maintenance rule:** `master` is feature-only; fixes ride the current
   maintenance branch and forward-merge from there so they reach users sooner.
   (`doc16:113`.)
+- **Validation target — UPSTREAM by default, an ESSENTIAL line on demand.** Bundles are
+  validated against clean `upstream/maintenance/gramps6{0,1}` (the real contribution
+  target), in the pinned worktrees `make worktrees` builds — **not** the fork's
+  `maintenance/*` (which carry local CI/tooling commits) nor the developer's working
+  clone. Core C4-verify selects the worktree by the bundle's target version; the addon
+  matrix tests each addons-source branch against its matching core. When a core bundle
+  **fails on upstream** because it needs a harness-enabling fix that isn't upstream yet
+  (e.g. the headless import-safety `segfault` fix), `run-verify.sh` retries on the local
+  **essential line** — `gramps-<ver>-essential` = upstream + the fixes in
+  `engine/essential-fixes.tsv`, built by `make essential-worktrees` — and, if it passes
+  there, writes `essential-dependency.json` into the bundle naming the dependency rather
+  than failing the gate. Keep the essential set minimal and evidence-based: add a fix
+  only once a bundle demonstrably needs it (`process/principles.md` §8). This is the
+  mechanised form of the `11786` merge-order dependency found during the older-bundle
+  revalidation (`process/validate-numbered-bundles.md`).
 
 ## 3. Reproduction fixtures and runners
 > **Engine layout (this instance):** the gramps verification engine lives under

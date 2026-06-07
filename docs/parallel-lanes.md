@@ -15,6 +15,14 @@
 > `WORKSPACE="$REPO_ROOT/.."` **relatively**, the target checkouts are **siblings** under
 > `$WORKSPACE`, containers are **PID-named** (`grampstest-$$-$leg`), and the runner
 > **refuses to patch a dirty checkout** — a loud-failure backstop against silent tangling.
+>
+> **Default target is UPSTREAM (since the upstream-default change).** Both core and addon
+> C4-verify patch the per-version worktrees `gramps-6.{0,1}` (based on
+> `upstream/maintenance/*`), **not** `$WORKSPACE/gramps` — so the shared mutable resource a
+> core cycle touches is also lane-private, and the isolation argument below covers it. A
+> core bundle that fails on upstream is retried on the lane's own `gramps-<ver>-essential`
+> worktree (`engine/essential-fixes.tsv`); each cleared leg is `git clean -fdq`-scrubbed,
+> so residue can't tangle a later run in the same lane.
 
 ## The model in one line
 
@@ -32,7 +40,9 @@ A **lane** is a self-contained `$WORKSPACE`: its own testbed copy **plus** its o
 location, a relocated `$WORKSPACE` just works.
 
 ```
-~/lanes/lane-A/{gramps-testbed-v2, gramps, addons-source, gramps-6.0, gramps-6.1, …}
+~/lanes/lane-A/{gramps-testbed-v2, gramps, addons-source,
+                gramps-6.0, gramps-6.1, gramps-6.1-essential,
+                addons-source-6.0, addons-source-6.1, …}
 ~/lanes/lane-B/{…}
 ```
 
@@ -45,12 +55,20 @@ Create an isolated lane cheaply:
    `git clone --reference <primary>/gramps  <upstream-or-primary>/gramps  <lane>/gramps`
    (same for `addons-source`). `--reference` borrows the primary's object store via
    `alternates` — keep the primary around; don't aggressively `gc`/delete it.
+   **Set the `upstream` remote in each clone** (run `engine/scripts/bootstrap-forks.sh`, or
+   `git remote add upstream …`): a reference-clone inherits objects but **not remote
+   config**, and step 4's `make worktrees` now fetches `upstream` and bases the per-version
+   worktrees on `upstream/maintenance/*` — without the remote the fetch warns and the
+   upstream-ref checkout fails.
 3. **Place the testbed**: `git clone <primary>/gramps-testbed-v2 <lane>/gramps-testbed-v2`
    (or `cp -r`).
 4. **Create the per-version worktrees *locally*** in the lane:
-   `cd <lane>/gramps-testbed-v2 && make worktrees`. **Never `cp` worktrees** from another
-   lane — their `.git` is an absolute `gitdir:` pointer and would cross-link back to the
-   source (the one real trap).
+   `cd <lane>/gramps-testbed-v2 && make worktrees` (upstream-based; needs the `upstream`
+   remote from step 2). If any of the lane's bundles may hit the essential fallback, also
+   `make essential-worktrees` to build the lane's own `gramps-<ver>-essential` from
+   `engine/essential-fixes.tsv`. **Never `cp` worktrees** from another lane — their `.git`
+   is an absolute `gitdir:` pointer and would cross-link back to the source (the one real
+   trap); the same applies to the essential worktrees.
 5. **`make setup`** in the lane (writes a self-located `settings.local.json` pointing at
    the lane's own siblings).
 6. **Print the two manual steps** the script can't do: accept the one-time folder *trust*
