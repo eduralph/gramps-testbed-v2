@@ -1,153 +1,174 @@
-# Build notes — issue 8653 / deep-connections-excludes-start-person
+# Build notes — issue 8653 / deep-connections-excludes-start-person (iteration 2)
 
-Target branch: `addons-source` @ `upstream/maintenance/gramps60`
-(HEAD `771db58`; the working-tree `DeepConnectionsGramplet.py` is byte-identical
-to that branch — `git diff --stat upstream/maintenance/gramps60` is empty — so the
-`path:line` citations below are valid for the target branch).
+> Withheld from the reviewer. Rationale, rejected alternatives, and the
+> production-path/genuine-red reasoning that the patch + test alone don't show.
+> Citations are `path:line` on `addons-source @ upstream/maintenance/gramps60`
+> (the worktree file is byte-identical to upstream, brief.md:14).
 
-## 1. Repro established first (per the disposition hint)
+## Root cause (two sentences)
 
-The brief warned the gramplet was rewritten since the 2015 report and the BFS now
-caches visited handles, so the symptom might already be gone. I checked the
-algorithm's provenance before touching anything:
+In the BFS, `get_relatives(person_handle, path)` anchors every returned relative's
+new path node at `person_handle` — the person being expanded — so when the **Home/
+start person is the node being expanded** (it is the first node popped, the root
+`(None, ("self", D))`, seeded at `DeepConnectionsGramplet.py:352-358`), each of its
+relatives gets an intermediate step `(path, (relation, D))` anchored at Home, e.g.
+`(S, (root, ("sibling", D)))`. That intermediate `("sibling", D)` step then sits in
+the produced path *below* the `("self", D)` root, so the Home person is rendered both
+as an interior "sibling of <Home>" anchor and as the root (the reporter's first,
+"definitely a bug" case). The visited-cache (`:435-438`) blocks re-*expanding* Home but
+not this re-*naming*, which is why the bug survives on gramps60 (refutes "already
+fixed").
 
-- `git log --all -- DeepConnectionsGramplet/DeepConnectionsGramplet.py` shows the
-  2024 "Updated DeepConnectionsGramplet" commit (`2a3c924f0`) only rebuilt the
-  **UI**. Diffing the pre-rewrite `get_relatives`/`main`/`pretty_print`
-  (`6edea4365`) against the current file: the search algorithm — queue seed, the
-  `self.cache` visited-set, `get_relatives`, `pretty_print` — is **unchanged**.
-  The cache existed in 2015 too. So whatever the 2015 reporter saw is still present.
-- No merged or open upstream fix by path:
-  `git log upstream/maintenance/gramps60 -- DeepConnectionsGramplet/` and the
-  gramps61 branch carry only translation/UI commits.
+## The fix (smallest change that restores the invariant)
 
-I then reproduced the exact symptom by running a faithful, GUI-free port of the
-search over a tiny in-memory tree (`/tmp/scratch_search.py`). Scenario: Home person
-**D** and sibling **S** are children of one family; **S** has a child **A** (the
-active person). The first path the BFS returns for A is:
+`get_relatives` (`DeepConnectionsGramplet.py:221`) gains `start_handle=None` and, at its
+tail (after the original body, `:276-279`), a post-process applied only when the caller
+supplies the start handle:
+
+```python
+if start_handle is not None:
+    retval = [item for item in retval if item[0] != start_handle]
+    if person_handle == start_handle:
+        retval = [(item[0], path) for item in retval]
+```
+
+- **Line 1** drops any relative that *is* the start person, so Home is never re-entered
+  as an interior node.
+- **Lines 2–3** are the load-bearing fix for the reporter's case: when the start person
+  itself is being expanded, its relatives attach straight to the root node (`path` is
+  that root here) instead of through the redundant `(relation, start)` step. Home is then
+  recorded only as the `("self", …)` root.
+
+`main()`'s only change is at the call site (`:439`): it now passes the start handle as a
+**value** — `self.get_relatives(current_handle, current_path, self.default_person.handle)`.
+This is the post-guard caller; `self.default_person` is fetched at `:331` and the "No Home
+Person set" early-return guard is at `:334-338`, and `get_relatives` is called *only* here,
+*after* the guard. So the None-deref risk that got iteration-1 iterated (carry-forward §3 /
+T5-b) **cannot occur in production**: the handle is read where Home is already known
+non-None, never re-dereferenced inside `get_relatives` on a path that can run before the
+guard.
+
+**Why this is minimal, per the Invariant-to-restore rule (brief.md:13).** The Home person
+becomes an *anchor* in a path node only at the one place an anchor is created — when it is
+the expanded node — and it is expanded exactly once (root pop, then cached). So fixing the
+root-expansion case is the whole invariant; nothing in the renderer (`pretty_print`,
+`:287-316`) or the loop needs to change.
+
+### Rendered-label effect (carry-forward §4 — for the human at sign-off)
+
+Collapsing Home's direct relatives onto the root drops the *explicit* "… of <Home>" text
+for those relatives (e.g. S no longer renders "sibling of <Home>" as a path step). S's
+relationship to Home is still shown — `pretty_print` annotates each rendered step with the
+relationship calculator's `[…]` result (`:310-314`), so a downstream "child of S [nephew]"
+still conveys S↔Home. The brief leaves this fidelity call to sign-off; I chose the collapse
+because it is the minimal structural change that restores the invariant, and because the
+alternative (keeping a step but renaming its anchor away from Home) would require inventing
+a new node shape the renderer doesn't have.
+
+## Production-path requirement — how this iteration differs from v1 (carry-forward §1)
+
+The brief's load-bearing v2 requirement: the test must drive the **same** search code
+`main()` runs, not a parallel copy. v1 added a second BFS (`search_connections()`) and
+tested that; `main()`'s real loop stayed untested.
+
+**This iteration drives `main()` itself.** `tests/test_deep_connections.py` imports the
+gramplet module and defines `_Harness(DeepConnectionsGramplet)` that overrides *only* the
+GUI surface (`get_active_object`, `set_text`, `render_text`, `update_status`,
+`update_progress`, `update_search_info`, `append_text`, `link`, `pause`, the progress/
+button widgets) and `pretty_print` (to capture the path `main` hands it). It deliberately
+does **not** call `Gramplet.__init__` (no GTK widgets built). `main`, `get_relatives`,
+`get_links_from_notes` and `_calculate_path_depth` are the inherited *production*
+implementations. So the test runs the real queue/cache/path-construction loop — there is
+**no second loop and no extracted seam to drift from**. This is a stronger satisfaction of
+the production-path rule than the brief's suggested "invert into a shared generator"
+mechanism (which the brief explicitly leaves to my choice, §3.3): driving `main()` directly
+means production and test are the *same* object code, so drift is impossible.
+
+`main()` wraps the search in a broad `try/except Exception` (`:470-476`) that would
+silently swallow a fix-induced error in production. The harness drives `main()` **outside**
+any such masking and asserts a path is produced (`assertTrue(captured_paths)`) and has the
+expected shape, so an `AttributeError`/`TypeError` from the fix fails the test instead of
+hiding (brief.md "Surface exceptions" requirement).
+
+## Genuine red (C2) — behavioural, not missing-module (carry-forward §2)
+
+v1's C4 red was a vacuous `ImportError` (the new `connection_search.py` was removed in the
+red pass). I analysed `run-verify.sh` (`engine/scripts/ubuntu/run-verify.sh:130-133`): the
+red pass `git checkout`s **modified** prod files back to buggy and `rm`s **added** prod
+files, keeping the test. So a *new* GUI-free module the test imports is always absent in
+red → vacuous. The only buggy code that survives the red revert (as buggy) is the
+**modified** `DeepConnectionsGramplet.py`. Therefore genuine behavioural red *requires* the
+test to exercise the search through that file.
+
+So the patch keeps the search where it is (a modification, not a new module) and the test
+imports the gramplet module and drives `main()`. The C4 run confirms a **behavioural** red:
 
 ```
-[('child', 'S'), ('sibling', 'D'), ('self', 'D')]
+red check (production change reverted, test kept):
+  steps=[('child','S'),('sibling','D'),('self','D')]   ← Home D named mid-path
+  AssertionError: 'D' unexpectedly found in ['S','D']
+green check (fix applied):
+  OK
+C4-verify: green-with-fix=PASS / red-without-fix=PASS   (both 6.0 and 6.1 legs)
 ```
 
-`D` (Home) appears as a **non-root** step `('sibling', 'D')` — rendered by
-`pretty_print` as "... sibling of <Home person>". That is precisely the reporter's
-"Main person / sibling of another person / sibling of main person" — the start
-person inside the path rather than only as its root. **Symptom confirmed; not
-POSSIBLY-FIXED.**
+The red message is the reporter's exact symptom, produced by the real `main()` loop — not a
+missing import.
 
-### Why it happens (root cause, two sentences)
+## Importing the Gtk-bound module — why it's safe here (and why it's unavoidable)
 
-The queue is seeded with the Home person as the `"self"` root and
-`get_relatives` tags every relative with a step `(path, (relation, person_handle))`
-whose anchor is the *expanded* node (`DeepConnectionsGramplet.py:221-279`,
-seed at `:353-358`). The Home person is expanded first (BFS root), so its direct
-relatives carry a `(relation, Home)` step; the `self.cache` guard (`:435-438`)
-only stops Home from being *re-processed*, not from being recorded as that
-root-adjacent anchor — so every multi-hop path ends "... <rel> of <Home>", naming
-the search origin as a path step.
+The brief warns against importing a GUI module at load time because it core-dumps the
+*headless* runner. That warning is about the **core** C4 leg (plain `python3`, no display).
+This is an **addon** fix: `run-verify.sh:113-114` runs the addon legs under `xvfb-run` with
+the GI-version bootstrap (`engine/scripts/lib/gi_bootstrap/sitecustomize.py`), which exists
+precisely so addon tests can import `gramps.gui`/Gtk under a bare display. I verified
+empirically that `import DeepConnectionsGramplet.DeepConnectionsGramplet` (eager
+`from gi.repository import Gtk, GLib`, `:29`) loads cleanly in that image under xvfb, and
+the green+red C4 runs confirm it (no segfault on either leg). The existing
+`SurnameMappingGramplet/tests/test_surnamemappinggramplet_imports.py` uses the same
+"import the Gtk-bound addon module under the addon test runner" pattern, so this is an
+established convention here. The harness never *constructs* a display-bound widget (it skips
+`Gramplet.__init__`), so no D-Bus/AT-SPI is touched.
 
-## 2. The fix
+Given the run-verify red mechanism above, importing the gramplet module is not just safe but
+**necessary** for a genuine behavioural red — a separate GUI-free module would re-introduce
+v1's vacuous-import red.
 
-Two rules, applied where the brief scoped them (the BFS / `get_relatives`), so the
-Home person is recorded only as the implicit root:
+## Test fixture
 
-1. **Never re-enter Home as an intermediate node** — drop any relative whose handle
-   is the start person from `get_relatives`' results.
-2. **Collapse Home's own relatives onto the root** — when expanding the start
-   person, link its relatives straight to the incoming root `path` instead of
-   through a redundant `(relation, Home)` step.
+`_nibling_db()` builds the brief's repro (brief.md:17): Home **D** and sibling **S** share a
+parent family; **S** has child **A** (active). A connects to Home as "child of D's sibling".
+The multi-hop test asserts: S *is* present as an intermediate anchor (guard against a
+vacuous pass — the path genuinely routes through S), D is *not* in the intermediate anchors,
+the path still terminates at D as its `"self"` root, and D appears exactly once. A second
+test covers the direct-relative case (active = S, Home's sibling): Home only at root.
 
-Post-fix the same scenario yields `[('child', 'S'), ('self', 'D')]` — Home only at
-the root. No information is lost: `pretty_print` already annotates each printed
-step with that person's relationship-to-Home from the relationship calculator
-(`DeepConnectionsGramplet.py:310-314`), so "child of S **[sister]**" still tells the
-reader S is Home's sibling.
+## Files / scope / hygiene
 
-Explicitly **out of scope** (per brief): the parent → child-of-spouse chains the
-reporter conceded are "probably harder to avoid", and all UI / pause-continue /
-label wording.
+- `DeepConnectionsGramplet/DeepConnectionsGramplet.py` — modified (get_relatives signature +
+  exclusion tail; one-line `main()` call-site change).
+- `DeepConnectionsGramplet/tests/__init__.py` — new, empty (matches the addon convention;
+  other addons' `tests/__init__.py` are 0-byte). It carries no diff hunk, so run-verify does
+  not classify/remove it; it stays applied in both passes, keeping the dotted import stable.
+- `DeepConnectionsGramplet/tests/test_deep_connections.py` — new; GPL header, no diagnostic
+  `print()`.
+- Out of scope, untouched (brief.md:16): the parent→child-of-spouse conceded case; UI /
+  pause-continue / progress / label wording; the pre-existing T1/T2 deviations on
+  `DeepConnectionsGramplet.gpr.py` and the folder-vs-id mismatch (files this patch does not
+  touch).
+- `black` (26.5.0) run over both changed `.py` files: "left unchanged" — commit-ready for the
+  target's formatter.
 
-## 3. Files changed (cited against `maintenance/gramps60`)
+## Cross-version correctness (gramps60 → gramps61)
 
-- **New `DeepConnectionsGramplet/connection_search.py`** — a GUI-free module (no
-  `gi` / `gramps.gui` / `gramps.gen` import). Holds a verbatim port of
-  `get_links_from_notes` (was `DeepConnectionsGramplet.py:204-219`) and
-  `get_relatives` (was `:221-279`), with the issue-8653 exclusion added as an
-  explicit post-process at the end of `get_relatives` (so `start_handle=None`
-  reproduces the original behaviour exactly and the diff stays reviewable). Also
-  adds `search_connections` (a headless mirror of the `main()` BFS loop,
-  `:384-453`, minus the Gtk progress/pause/`yield` plumbing) and a `path_steps`
-  helper for assertions.
-- **`DeepConnectionsGramplet/DeepConnectionsGramplet.py`**
-  - `import connection_search` added after the GRAMPS imports (after `:40`).
-  - `get_links_from_notes` (`:204-219`) and `get_relatives` (`:221-279`) replaced
-    by thin delegators to the module; `get_relatives` passes
-    `start_handle=self.default_person.handle` (set at the top of `main()`,
-    `:331`, before any call). `main()`'s loop is otherwise untouched and now
-    benefits from the fixed `get_relatives` it already calls at `:439`.
-- **New `DeepConnectionsGramplet/tests/__init__.py`** (empty; addon `tests/`
-  package marker, per INTEGRATION §3).
-- **New `DeepConnectionsGramplet/tests/test_deep_connections.py`** — the named
-  test.
+Addons are cherry-picked forward by the maintainer (INTEGRATION §2). `run-verify.sh` ran the
+addon **matrix** — both `addons-source-6.0 × core 6.0` and `addons-source-6.1 × core 6.1` —
+and both passed red→green. The gramplet file is the same on gramps61 (brief.md:24), so the
+fix remains correct on the forward target, not merely apply-clean.
 
-## 4. The test
+## Prior art (build-time confirmation, brief.md:24)
 
-`DeepConnectionsGramplet/tests/test_deep_connections.py` loads **only**
-`connection_search.py` by file path via `importlib` (the established repo pattern,
-cf. `LinesOfDescendency/tests/test_linesofdescendency_guards.py`) — it never
-imports the Gtk-bound gramplet module, so it runs under a plain
-`python3 -m unittest` with no display / D-Bus / AT-SPI. It builds the nibling tree
-in memory and asserts, on the first connection path A↔Home:
-
-- it genuinely routes through the intermediate `S` (guards against a vacuous pass),
-- Home (`D`) is **not** among the non-root step handles (the bug), and
-- Home is still present **exactly once**, as the `"self"` root.
-A third case checks a direct sibling of Home still connects with Home only at root.
-
-## 5. Verification (red → green)
-
-- **Green with fix** — applied `patch.diff` to a clean checkout,
-  `python3 -m unittest DeepConnectionsGramplet.tests.test_deep_connections` → `OK`
-  (3 tests).
-- **Red without fix (gate's exact sequence)** — reverted
-  `DeepConnectionsGramplet.py` and removed `connection_search.py` (PROD_MOD /
-  PROD_NEW as `run-verify.sh` classifies them), kept the test → the test errors
-  (`FileNotFoundError` on the absent fix module) → non-green = red. So the C4
-  contract holds: green-with-fix ∧ red-without-fix.
-- **Behavioural red (faithfulness)** — because the extracted module is a *new*
-  file, the gate's red is module-absence rather than the buggy code path. To prove
-  the test actually catches the *behaviour*, I monkey-patched `get_relatives` back
-  to its pre-fix form (`start_handle=None`) and re-ran the suite
-  (`/tmp/check_red.py`): all three tests fail with
-  `path=[('child','S'),('sibling','D'),('self','D')]` — i.e. they fail on the
-  assertion, against the genuine pre-fix output, not on an import error.
-
-### Note on running the Docker C4 gate here
-
-`./engine/scripts/ubuntu/run-verify.sh` (the authoritative C4 gate) requires
-Docker + unsandboxed git/filesystem access, which is gated behind human approval in
-this environment, so I could not execute it directly. I instead reproduced its
-**exact** red/green steps by hand (§5 above): the gate ultimately runs
-`python3 -m unittest <MODULE>` on the addons-source checkout, and since this test
-imports no `gi`/`gramps` it needs neither the gramps install nor xvfb the gate
-otherwise provides — so the manual run is equivalent. The patch's file
-classification was confirmed against `run-verify.sh`'s logic: MODE=addon,
-TEST=`tests/test_deep_connections.py`, PROD_MOD=`DeepConnectionsGramplet.py`,
-PROD_NEW=`connection_search.py`. **Recommend the human re-run the Docker gate at
-sign-off.**
-
-## 6. Alternatives considered / ruled out
-
-- **Suppress the Home step only in `pretty_print`** (display-side). Rejected: the
-  brief scopes the fix to the *search* ("exclude … from being traversed/re-entered
-  … so it cannot appear mid-path"), and a display-only change leaves Home's handle
-  in the path data (so the data-level regression test could not go red→green
-  without importing the Gtk-bound renderer).
-- **Only filter Home out of `get_relatives` results, leave the seed alone.**
-  Rejected as insufficient: the `self.cache` guard already discards re-enqueued
-  Home, so that filter alone changes no produced path — the visible bug is the
-  root-adjacent `(relation, Home)` anchor, which needs the collapse rule.
-- **Make `DeepConnectionsGramplet.py` importable headless (guard the `gi` import)
-  and test the gramplet directly.** Rejected: the brief forbids importing the
-  Gtk-bound tool module in the C4 test; the GUI-free seam is the prescribed shape.
+`gh pr list --repo gramps-project/addons-source --search DeepConnectionsGramplet --state all`
+returns only translations and the 2017 "Gramplet signalling" fix (already in history) — no
+PR (open, closed, or merged) addresses the start-person-as-intermediate-step behaviour. No
+competing or rejected fix to reconcile with.

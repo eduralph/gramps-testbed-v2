@@ -1,39 +1,70 @@
-# Check review — issue 8653 / deep-connections-excludes-start-person
+# Check review — issue 8653 / deep-connections-excludes-start-person (iteration 2)
 
-> Advisory, artifact-only, decorrelated from the builder. Inputs seen: `patch.diff`,
-> `brief.md`, `check-gates.json`. `build-notes.md` was withheld. Every Basis below is
-> re-derived from the artifacts, not copied from the gate text.
+> Advisory, artifact-only, decorrelated from the builder. Inputs: `patch.diff`,
+> `brief.md`, `check-gates.json` (build-notes.md withheld by design). Each Basis
+> below is re-derived independently; `path:line` cites the artifact I checked.
+>
+> **Verification limit I'm honest about:** I am blocked from reading the full
+> production `DeepConnectionsGramplet.py` — only the diff hunks are in-bundle and
+> the addons-source checkout is outside my allowed roots. Verdicts that depend on
+> un-diffed lines of `main()` (the seed/dequeue/self-detection logic, the
+> placement of the "No Home Person set" guard relative to the call site) are
+> reasoned from the diff plus the C4 gate's behavioural red→green, and flagged.
 
 ## Verdict table
 
 | Item | Verdict | Basis |
-|------|---------|-------|
-| C1 — C1 Spec | PASS | Success criterion (brief.md:10 — start person never an intermediate step) is concrete and directly targeted by the exclusion block at `connection_search.py:139-148` (patch.diff:253-262). Scope/out-of-scope (brief.md:12) respected: UI, pause/continue, label wording untouched; the conceded parent→child-of-spouse case is not attempted. |
-| C2 — C2 Reproduction (red pre-fix) | PASS | C4 gate records `red-without-fix=PASS` (check-gates.json:33-39). I re-traced the `_nibling_db` scenario (patch.diff:427-447): without the exclusion block, `search_connections("D","A")` yields path_steps `[(child,S),(sibling,D),(SELF,D)]` — D appears as a non-root anchor, so `assertNotIn("D", intermediate_handles)` (patch.diff:476) fails. Repro is genuine, not vacuous (guard `assertIn("S",…)` at patch.diff:469 forces the multi-hop). NOTE: repro is at the extracted-helper level, not the `example.gramps` GUI repro the brief described (brief.md:13). |
-| C3 — C3 Change | PASS | Refactor extracts relation-gathering into a GUI-free seam as the brief authorised (brief.md:14); new files carry GPL headers and no diagnostic prints; fix is localised to `get_relatives` post-processing. Caveat carried to T5: `search_connections` (patch.diff:265-293) is a **second** BFS that parallels the gramplet's `main()` loop rather than a shared extraction — the production loop in `main()` is not itself extracted, only `get_relatives`/`get_links_from_notes`. |
-| C4 — C4 Verification (red→green) | PASS | Gating gate C4-verify = PASS, `green-with-fix=PASS / red-without-fix=PASS` (check-gates.json:33-39). Re-traced with the fix: rule-2 collapse sets S's path to the root, so path_steps(A) = `[(child,S),(SELF,D)]`; D only at root → green. The fix sits in `get_relatives`, which the real gramplet calls via `connection_search.get_relatives(start_handle=self.default_person.handle)` (patch.diff:98-104), so the production path is exercised by the shared function (though not by the tested BFS loop — see T5). |
-| C5 — C5 Causal adequacy | NEEDS-HUMAN | Always-human + contested mechanism. Root cause re-derived: the modern BFS cache blocks re-*expanding* the start node but NOT its appearance as an intermediate *anchor label* (the `(sibling, D)` step) — so the bug is real on gramps60 and the brief's "possibly already fixed" hypothesis (brief.md:17) is refuted. Rule 1 (drop start as a relative, patch.diff:256) cleanly fixes the reporter's first case. Rule 2 (patch.diff:257-261) is the contestable part: it re-points ALL of the start person's direct relatives to the bare root node, **discarding the relation label** that says how they connect (S's "sibling of Home" is erased; A renders as "child of S" with S floating at root). Human must judge whether that fidelity loss is acceptable vs. a minimal fix. |
-| T1 — T1 Structure | NEEDS-HUMAN | Gate FAIL = folder `DeepConnectionsGramplet` ≠ .gpr.py id `Deep Connections Gramplet` (check-gates.json:55). The patch does **not** touch `DeepConnectionsGramplet.gpr.py` or rename the folder, so this mismatch is **pre-existing**, not introduced — and renaming is out of scope (brief.md:12). Human to confirm the pre-existing structure deviation is acceptable. (The added `tests/__init__.py` is required by the dotted-path test convention the brief mandates, brief.md:14, and is not the flagged item.) |
-| T2 — T2 Shape | NEEDS-HUMAN | Gate FAIL = no GPL header in first 40 lines of `DeepConnectionsGramplet.gpr.py` (check-gates.json:64). That file is **not** in the patch, so the gap is pre-existing. The patch's own new files DO comply: GPL headers at `connection_search.py:1-19` and `tests/test_deep_connections.py:1-15`; no diagnostic prints in either. Human to confirm the untouched-file header gap is out of scope. |
-| T3 — T3 Runtime | NEEDS-HUMAN | Mixed: addon-unit PASS (matches pre-existing `pip install … failure(s)` baseline — meaning that runner may not actually execute the new test; C4's run-verify is the real run evidence). But TWO deltas need human attribution: core unit suite `exited 133 with no parsed failures` (check-gates.json:73 — looks like a segfault/headless-environment crash, not obviously patch-related) and GUI smoke `1 new failure: setUpClass (interface.test_smoke.SmokeTest)` (check-gates.json:91). I cannot decorrelate the smoke delta from the bare top-level `import connection_search` (patch.diff:11) added to the gramplet load path — needs verification that Gramps puts the addon dir on sys.path at plugin-load time. |
-| T4 — T4 Contribution | N/A | No `commit-msg.txt` or `pr-description.md` in the bundle (check-gates.json:100), so there is no commit/PR wrapper to evaluate. Consistent with the brief's STOP discipline (brief.md:21-23 — draft only, PR not ready before sign-off). |
-| T5 — T5 Judgment | NEEDS-HUMAN | Always reviewer+human. Open engineering-judgment items: (a) `search_connections` duplicates `main()`'s BFS — the test validates a *copy* of the loop, so loop-level drift would not be caught (only the shared `get_relatives` is co-exercised); (b) `self.default_person.handle` (patch.diff:103) is a NEW hard dependency inside `get_relatives` — if no Home person is set, `default_person` may be `None` → AttributeError regression; `main()` not in artifacts to confirm it is always set; (c) bare `import connection_search` portability under Gramps plugin loading (see T3); (d) rule-2 relation-label loss (see C5). |
-| V — Validation — fitness-to-purpose | NEEDS-HUMAN | Always human at sign-off. The fix is verified at the unit level only; it has not been validated in the actual gramplet against `example.gramps` in the GUI (brief.md:13), and rule 2 changes how the start person's direct relatives render. Human must confirm the produced paths actually satisfy the reporter's intent. |
+|---|---|---|
+| C1 — C1 Spec | PASS | Success criterion is concrete and testable — Home only as terminal `"self"` root, never an intermediate anchor, chain still connects active→Home (brief.md:12); the test encodes exactly this triad (`assertNotIn "D"` in intermediates, `root[1]=="D"`, count==1: patch.diff:354-372). Spec and oracle agree; no gate, `result:none` (check-gates.json:6-12). |
+| C2 — C2 Reproduction (red pre-fix) | PASS | Re-traced: pre-fix `main()` produces `[('child',S),('sibling',D),('self',D)]`, so `intermediate_handles=[S,D]` and `assertNotIn("D", …)` (patch.diff:354-359) fails *behaviourally*, not as a missing-module ImportError — the iteration-1 defect (brief.md:20). Gate confirms `red-without-fix=PASS` (check-gates.json:33-39). Test is non-vacuous: `assertIn("S", …)` forces a genuine multi-hop route (patch.diff:348-352). |
+| C3 — C3 Change | PASS | Change is coherent and scoped to the search seam: optional `start_handle` param + post-processing in `get_relatives` (patch.diff:9-10, 38-41) threaded from the one `main()` call site (patch.diff:50-52). Case 2 (re-parent root-person relatives onto bare `path`) removes the `('sibling',D)` anchor at its source; case 1 (drop relatives that *are* start) is defensive. No mutation, read-only linked list. New `tests/__init__.py` + GPL-headered test (patch.diff:65-83). |
+| C4 — C4 Verification (red→green) | PASS | Gating C4 reports `green-with-fix=PASS / red-without-fix=PASS` (check-gates.json:33-39). Re-derived green: post-fix path `[('child',S),('self',D)]` satisfies all four assertions. Crucially the test drives the **real** `main()` generator (`for _signal in harness.main()`, patch.diff:326) via a GUI-only-override subclass (patch.diff:220-271) — not a parallel BFS copy — so production routes through the same seam the test exercises (§3.4 / brief.md:19, iteration-1's primary failure). Run outside the broad `try/except` so fix errors surface (patch.diff:99-102). |
+| C5 — C5 Causal adequacy | NEEDS-HUMAN | The fix removes the cause at the construction seam (Home is never emitted as an interior anchor), not by filtering rendered output — good. But the chosen shape *discards the first-hop relation label* (a direct relative of Home renders attached to the root with no "… of \<Home\>" step; e.g. active=S yields just `[('self',D)]`, patch.diff:374-387). Whether that is the adequate causal shape vs. relabelling-relative-to-root is the judgment the brief explicitly routes to sign-off (brief.md:60-65). |
+| T1 — T1 Structure | PASS | Gate PASS, 1 addon conforms, 1 advisory (check-gates.json:54-55) — the advisory is the pre-existing folder-name-vs-`.gpr.py`-id deviation the brief puts out of scope (brief.md:16,66-67). `tests/__init__.py` is required for the dotted-path addon test package (INTEGRATION.md:112), not the addon-root `__init__.py` T1 forbids. |
+| T2 — T2 Shape | PASS | Gate PASS, 1 file conforms (check-gates.json:60-64). New test file carries the GPL header (patch.diff:65-83) and contains no diagnostic `print()` — the only new-file requirements the brief imposes (brief.md:68). |
+| T3 — T3 Runtime | NEEDS-HUMAN | All four T3 rows are deltas, not matched baseline noise: addon-unit ×60 and ×61 report "runner exited 1 with no parsed failures and no matching baseline signature (a new failure mode)" (check-gates.json:73,82), and the addon-unit matrix is documented as *resolved / no standing baseline* (INTEGRATION.md:170-173), so a delta there is a real signal — plausibly the new GTK-importing test erroring under the non-xvfb `run-addon-unit` runner (the test's own portability caveat, patch.diff:104-107). The two interface deltas (`setUpClass interface.test_smoke.SmokeTest`, check-gates.json:91,100) the patch cannot have caused (it touches no core/GUI-startup code) and match the documented `_Glade__dirname` smoke baseline (INTEGRATION.md:176-178) — environmental. Human must triage whether the addon-unit delta is the added test or environment. Advisory (non-gating). |
+| T4 — T4 Contribution | N/A | No `commit-msg.txt` / `pr-description.md` in the bundle (check-gates.json:108-109) — draft-only stage per STOP discipline (brief.md:29-31); the contribution wrapper is authored at publish, so there is nothing for T4 to judge. |
+| T5 — T5 Judgment | NEEDS-HUMAN | Reviewer + human sign-off element (INTEGRATION.md:216,230-231). Reviewer opinion: the build is technically sound and clears all three iteration-1 rejection reasons — production-path test not a copy (patch.diff:220,326), genuine behavioural red (C2), and no `default_person is None` regression because the Home handle is passed by the post-guard caller and never re-dereferenced inside the seam (patch.diff:38-41,50-52; brief.md:56-59). Open judgment carried to human: the label-fidelity shape (see C5/V) and the T3 addon-unit delta. |
+| V — Validation — fitness-to-purpose | NEEDS-HUMAN | Always-human (check-gates.json:123-129; INTEGRATION.md:230-231). Is "Home no longer an intermediate step, but its direct relatives shown attached to the root without a relation label" the right product behaviour for the Deep Connections Gramplet? The brief reserves this for sign-off (brief.md:60-65). The out-of-scope parent→child-of-spouse chains remain unaddressed by design (brief.md:16). |
 
-## §6 — Items the human must clear (one per NEEDS-HUMAN row)
+## §6 — items the human must clear
 
-1. **C5 / root-cause (contested).** Confirm the diagnosis: cache blocks re-expansion but not the intermediate *anchor label*, so the bug is real (brief's "possibly fixed" hypothesis is refuted). Then judge **rule 2** (`connection_search.py:143-147` / patch.diff:257-261): collapsing every direct relative of the Home person onto the bare root node discards the relation label connecting them. Is dropping "S is sibling of Home" acceptable, or should the fix preserve the label while keeping Home out of the *body* of other paths?
+Each NEEDS-HUMAN row above is a §6 item:
 
-2. **T1 / structure (pre-existing, scope).** Folder vs .gpr.py-id mismatch is pre-existing and untouched by the patch. Confirm it is out of scope and not a regression.
+1. **C5 — causal shape / label fidelity.** The fix collapses the first hop from a
+   relative of Home onto the bare root, dropping the "… of \<Home\>" relation
+   label (active=S renders as `[('self',D)]`; the multi-hop A renders as
+   `[('child',S),('self',D)]`, so S attaches to the D-root with no shown relation
+   to D). Confirm this rendered shape is acceptable, or that relabel-relative-to-root
+   is preferred. (build-notes.md, withheld from me, is where Do was asked to state
+   what the chosen shape does to the rendered label — brief.md:60-65; read it.)
 
-3. **T2 / shape (pre-existing, scope).** Missing GPL header on `DeepConnectionsGramplet.gpr.py` is pre-existing (file not in patch). Confirm out of scope; the patch's own new files comply.
+2. **T3 — addon-unit matrix delta.** `T3-addon-unit-60` and `-61` both report a
+   *new failure mode* against a suite that should be green-baseline. Determine
+   whether the new `DeepConnectionsGramplet/tests/test_deep_connections.py`
+   errors under `run-addon-unit.sh` (no xvfb/GI bootstrap, unlike the C4
+   `run-verify.sh`) — the test imports `gi`/Gtk at load (patch.diff:104-107). If
+   so, the regression test is not portable across runners even though C4 is green.
+   The two interface deltas read as the documented environmental smoke baseline,
+   not this patch — confirm.
 
-4. **T3 / runtime deltas (attribution).** Attribute the core-unit `exit 133` (likely environmental crash) and the GUI-smoke `setUpClass` new failure. Specifically verify the bare `import connection_search` resolves when Gramps loads the gramplet (addon dir on sys.path), since a load-time failure there could surface as the smoke delta.
+3. **V — fitness-to-purpose.** Is removing only the Home-as-intermediate-anchor
+   case (with the in-scope label change) the right outcome, given the conceded
+   out-of-scope parent→child-of-spouse chains remain? Human call at sign-off.
 
-5. **T5 / judgment.** (a) Decide whether the duplicated `search_connections` BFS is acceptable or whether `main()`'s loop should be the single tested code path; (b) verify `self.default_person` is guaranteed non-`None` before `get_relatives` runs (else AttributeError when no Home person is set) — `main()` was not in the review bundle to confirm.
+## Notes on evidence strength
 
-6. **V / fitness-to-purpose.** Validate the fix in the real gramplet against `example.gramps` in the GUI; confirm the rendered paths meet the reporter's intent and rule 2's relabeling reads sensibly to a user.
-
-## Summary
-
-The core fix (rule 1, dropping the start person when it surfaces as another node's relative — `connection_search.py:142` / patch.diff:256) is correct and directly resolves the reporter's first case; my independent trace confirms red→green and refutes the "already fixed by the cache" hypothesis. C4 is objectively green. The residual risk is concentrated in **rule 2's label-discarding collapse** (a causal-adequacy/fidelity judgment), the **duplicated BFS** that means the test validates a copy of the production loop rather than the loop itself, a possible **`default_person is None` regression**, and the **two unattributed T3 runtime deltas** (one of which could plausibly stem from the new bare import). None are auto-FAIL on the artifacts available, but all are advisory NEEDS-HUMAN gates that should be cleared before sign-off. The two structure/shape FAILs (T1, T2) are pre-existing on files the patch never touches.
+- **Iteration-2's load-bearing requirement is met.** The test drives the
+  production `main()` generator through a GUI-only-override harness, not a second
+  BFS, and `main()` now calls the shared `get_relatives` seam — so loop-level drift
+  is caught (brief.md:19,40-48; patch.diff:220-271,326,50-52). This is the single
+  thing iteration 1 got wrong, and it is corrected.
+- **C4 red is genuinely behavioural**, not a missing-module ImportError: the
+  assertion that fails pre-fix is `assertNotIn("D", intermediate_handles)` on a
+  path the real `main()` produced (brief.md:20; patch.diff:354-359).
+- **Residual artifact-only risk:** I could not confirm `main()`'s self/root
+  detection still behaves when a direct relative (e.g. S) is handed the root path
+  object by reference (case 2, patch.diff:40-41). The C4 green and test 2
+  (active=S → `root[1]=="D"`) are empirical evidence it does, but a reader with the
+  full `main()` should confirm no code path keys off `current_path[1][0]=="self"`
+  in a way that now misclassifies a collapsed relative.

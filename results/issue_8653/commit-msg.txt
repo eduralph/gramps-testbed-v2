@@ -1,0 +1,22 @@
+Keep the Home person out of Deep Connections path interiors
+
+The Deep Connections Gramplet searches outward from the Home person and
+reports how the active person connects back to them. When the active
+person reached Home through one of Home's own direct relatives -- for
+example a niece or nephew, who is the child of Home's sibling -- the
+reported path named the Home person as an intermediate relationship step
+("... / sibling of <Home> / ...") on top of its terminal root. The Home
+person is the search origin, so it should appear in a path only as that
+root, never as an interior anchor.
+
+The search now keeps the Home person out of the body of every produced
+path: a relative that is the Home person is dropped, and when the Home
+person is the node being expanded its relatives attach directly to the
+root rather than through a redundant "of <Home>" step. Paths still
+terminate at the Home person and still connect the active person to
+them; only the spurious interior mention is removed. The renderer and
+the rest of the search loop are unchanged.
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+Fixes #8653
