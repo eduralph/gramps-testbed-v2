@@ -191,7 +191,13 @@ def _update_manifest(path: Path, runner: str, observed: dict[str, str]) -> None:
         {"id": tid, "type": kind} for tid, kind in sorted(observed.items())
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(m, indent=2) + "\n", encoding="utf-8")
+    # ensure_ascii=False: manifests carry human-readable notes/targets with
+    # non-ASCII (em-dashes, ×). The default escapes those to \uXXXX, so each
+    # --update silently mangled the file's prose (e.g. "—" → "—"). Keep them
+    # literal so the baseline stays reviewable.
+    path.write_text(
+        json.dumps(m, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     print(f"t3-baseline: recorded {len(observed)} known red(s) → {path}")
 
 

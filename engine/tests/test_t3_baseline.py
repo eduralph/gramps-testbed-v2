@@ -133,5 +133,24 @@ class ShippedManifests(unittest.TestCase):
                 self.assertEqual(t3_baseline.classify({}, 0, "OK", m)["verdict"], "green")
 
 
+class UpdateManifest(unittest.TestCase):
+    def test_update_preserves_non_ascii(self) -> None:
+        # --update used the default ensure_ascii=True, so it escaped the readable
+        # notes/targets (em-dash, ×) to \uXXXX every time it ran (run-addon-unit-60).
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, tmp, True)
+        path = tmp / "m.json"
+        path.write_text(
+            '{"note": "addon × core — matched", '
+            '"run_level_signatures": [], "known_failures": []}',
+            encoding="utf-8",
+        )
+        t3_baseline._update_manifest(path, "run-x.sh", {})
+        raw = path.read_text(encoding="utf-8")
+        self.assertIn("×", raw)
+        self.assertIn("—", raw)
+        self.assertNotIn("\\u2014", raw)  # the em-dash must not be escaped
+
+
 if __name__ == "__main__":
     unittest.main()
