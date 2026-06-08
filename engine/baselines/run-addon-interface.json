@@ -1,0 +1,7 @@
+{
+  "runner": "run-addon-interface.sh",
+  "target": "addon end-to-end (addon loaded in a headless gramps GUI; addons-source <Addon>/tests/interface)",
+  "note": "Baseline for the addon E2E gate (T3-addon-interface). Green by default: no addon ships tests/interface/ yet, so the runner is a no-op. As frontend addons add E2E suites, record any pre-existing reds here with `t3_baseline.py ./engine/scripts/ubuntu/run-addon-interface.sh --update`; only a NEW failure then raises §6.",
+  "run_level_signatures": [],
+  "known_failures": []
+}

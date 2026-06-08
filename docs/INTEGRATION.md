@@ -113,6 +113,16 @@ vendored ruleset; each target carries its auditable origin per doc 16
   - So: **core = `test/` + `<x>_test.py`; addon = `tests/` + `test_<x>.py`.** The
     suffix vs prefix flips with the folder; the brief's **Test file** field must name
     the right one for the target branch.
+  - **Addon E2E (frontend addons) → `tests/interface/` + `test_*.py`.** A GUI-facing
+    addon ships its end-to-end tests in `<Addon>/tests/interface/`, each subclassing
+    `AddonInterfaceTestCase` (import portably: `from interface.base import
+    AddonInterfaceTestCase` — the runner puts the testbed's `engine/` on `PYTHONPATH`).
+    Set `ADDON`/`TREE_NAME`; seed a fixture tree from
+    `<Addon>/tests/interface/data/<TreeName>.gramps`. These load the addon **inside a
+    running gramps** (the E2E-with-core a frontend addon needs) — run with
+    `./engine/scripts/ubuntu/run-addon-interface.sh <Addon>` (auto-discovers all such
+    suites when given no args). The brief signals this with **`Surfaces: gui`**, which
+    selects the `T3-addon-interface` gate (`target = ["addon", "frontend"]`).
 - **Reproduction runner(s) + commands:**
   - GUI / dogtail (AT-SPI): `./engine/scripts/ubuntu/run-interface.sh [pattern]` **(ported, advisory)** —
     runs `engine/interface/test_*.py` headless under Xvfb + dbus + `at-spi-bus-launcher`;

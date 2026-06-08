@@ -199,6 +199,20 @@ gating = false
 scope = "repo"
 target = "frontend"   # runs for any GUI-surfacing change (core OR addon); skips pure-logic
 
+# T3 runtime — addon END-TO-END: install a frontend addon into a headless gramps GUI and
+# run the addon's own tests/interface/ suite (the E2E-with-core a GUI addon needs). Runs
+# ONLY for a frontend addon bundle (target subset {addon, frontend}); auto-discovers every
+# addon shipping tests/interface/. Advisory + baseline-diffed like the other T3 gates; the
+# addon-side test convention is in docs/INTEGRATION.md §3.
+[[gates.checks]]
+id = "T3-addon-interface"
+tier = "T3"
+label = "runtime: addon E2E (addon loaded in headless gramps GUI, dogtail)"
+cmd = "python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-addon-interface.sh"
+gating = false
+scope = "repo"
+target = ["addon", "frontend"]   # frontend addons only (AND); pure-logic addons + core skip
+
 # T1/T2/T4 conformance — the structure / shape / contribution tiers, mechanised
 # from wiki doc 16, the foundation of the T1–T4 ladder. Each checker cites every
 # rule back to its source by SECTION (core vs addon per target; see
