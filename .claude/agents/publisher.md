@@ -34,8 +34,9 @@ push / draft-PR after you finish. **Do not push, branch, or open a PR yourself.*
      the user's perspective (not a diff recap);
    - reference any other commit by its **full hash**;
    - the **last line** is the issue trailer the project configures
-     (`[tracker].issue_trailer`, e.g. `Fixes #<id>`) — the T4 gate enforces it. If you
-     add a `Co-Authored-By:` line, place it **above** the trailer. **If no tracker id is
+     (`[tracker].issue_trailer`, e.g. `Fixes #<id>`) — the T4 gate enforces it as the
+     last line, preceded by a blank line, so do **not** append any other trailer
+     (e.g. `Co-Authored-By:`) after it. **If no tracker id is
      assigned yet** (the bundle id is not a real tracker number), OMIT the trailer rather
      than invent a placeholder like `#0000` — `pdca publish --no-issue` relaxes T4 to a
      flag and records the contribution `id_pending` for the human to fill the id in.
