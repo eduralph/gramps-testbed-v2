@@ -235,7 +235,7 @@ scope = "bundle"
 [[gates.checks]]
 id = "T2-shape"
 tier = "T2"
-label = "shape: code shape vs doc 16 §Coding style (GPL header, no diagnostic print)"
+label = "shape: code shape vs doc 16 §Coding style (GPL header on touched files; print() advisory for reviewer)"
 cmd = "python3 ./engine/conformance/gate.py T2"
 gating = false
 scope = "bundle"

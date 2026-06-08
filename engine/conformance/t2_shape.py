@@ -30,7 +30,19 @@ source (testbed issue #6).
 Per ``.py`` file:
 
   * MUST: a GPL-2.0-or-later licence header with copyright   (AGENTS.md §File Headers)
-  * MUST NOT: ``print()`` for diagnostic output              (AGENTS.md §Logging)
+  * ADVISORY: a ``print()`` call — a *candidate* diagnostic print (AGENTS.md §Logging)
+
+§Logging bans ``print()`` *for diagnostic output*, not all output — a report sink,
+a CLI tool, or output behind a ``--debug`` guard is legitimate. Only the reviewer
+can tell a diagnostic print from intentional output by reading the surrounding
+code, so the gate **locates** the call sites (a fact) and emits them as advisories;
+the reviewer leaf adjudicates each and folds it into its T2 Shape verdict. Putting
+that judgment inside the gate would breach the deterministic-driver invariant.
+
+Scope is the *files the contribution touches* (added or modified) — the dispatcher
+(``gate.py``) selects them; a pre-existing file the patch never touched is out of
+scope, matching the §File Headers MUST ("every **new** ``.py`` file") and the
+gate's "no gating on legacy state the contribution did not introduce" intent.
 
 An effectively-empty package marker (a 0-byte / comment-only ``__init__.py``) is
 **exempt** from the header MUST — a marker carries no code to license (resolves
@@ -41,10 +53,10 @@ CLI::
 
     t2_shape.py <path> [<path> …]        # files or directories (recursed)
 
-Prints one ``T2 ✗ …`` line per MUST violation; exits 1 iff any was found. Black
-(§Black, SHOULD) is a separate formatter gate; type hints / docstrings / ``cb_``
-prefixes (SHOULD) are reviewer judgment, not mechanised, to keep T2
-false-positive-free.
+Prints one ``T2 ✗ …`` line per MUST violation and ``T2 ⚠ …`` per advisory; exits 1
+iff any MUST violation was found. Black (§Black, SHOULD) is a separate formatter
+gate; type hints / docstrings / ``cb_`` prefixes (SHOULD) are reviewer judgment,
+not mechanised, to keep T2 false-positive-free.
 """
 
 from __future__ import annotations
@@ -67,9 +79,9 @@ _GPL_MARKERS = (
 )
 _HEADER_LINES = 40  # licence headers sit at the very top of the file
 
-# A diagnostic print: ``print(`` not inside a comment. We do not try to prove a
-# given print is "diagnostic" vs "output" — the rule is a blanket MUST NOT for
-# diagnostics, and as an advisory gate the human weighs any report-sink case.
+# A ``print(`` call not inside a comment. We do NOT decide here whether it is
+# diagnostic (banned) vs intentional output (fine) — that is a contextual judgment
+# the reviewer makes, so the gate only locates the sites and emits them advisory.
 _PRINT = re.compile(r"^\s*print\s*\(")
 
 
@@ -83,15 +95,21 @@ def _is_empty_marker(path: str, lines: list[str]) -> bool:
     )
 
 
-def check_file(path: str) -> list[str]:
-    """Return the list of MUST violations (each citing its section) for one file."""
+def check_file(path: str) -> tuple[list[str], list[str]]:
+    """Return ``(violations, advisories)`` for one file.
+
+    ``violations`` are MUST breaches (a missing GPL header), each citing its
+    section. ``advisories`` are evidence for the reviewer — a located ``print()``
+    the reviewer must confirm is not diagnostic output (§Logging bans the
+    diagnostic case only; the gate cannot tell which it is)."""
     violations: list[str] = []
+    advisories: list[str] = []
     name = os.path.basename(path)
     try:
         with open(path, encoding="utf-8", errors="replace") as fh:
             lines = fh.readlines()
     except OSError as exc:  # unreadable file — surfaced, not swallowed
-        return [f"{name}: unreadable ({exc})"]
+        return [f"{name}: unreadable ({exc})"], []
 
     head = "".join(lines[:_HEADER_LINES])
     if not _is_empty_marker(path, lines) and not any(m in head for m in _GPL_MARKERS):
@@ -100,9 +118,9 @@ def check_file(path: str) -> list[str]:
 
     for ln, line in enumerate(lines, 1):
         if _PRINT.match(line):
-            violations.append(f"{name}:{ln} print() for diagnostics — use a "
-                              f"module logger ({_CITE_PRINT})")
-    return violations
+            advisories.append(f"{name}:{ln} candidate diagnostic print() — reviewer "
+                              f"to confirm it is not intentional output ({_CITE_PRINT})")
+    return violations, advisories
 
 
 def _iter_py(paths: list[str]):
@@ -123,15 +141,21 @@ def main(argv: list[str] | None = None) -> int:
     ns = ap.parse_args(argv)
 
     violations: list[str] = []
+    advisories: list[str] = []
     checked = 0
     for path in _iter_py(ns.paths):
         checked += 1
-        violations += check_file(path)
+        viol, adv = check_file(path)
+        violations += viol
+        advisories += adv
 
     for line in violations:
         print(f"T2 ✗ {line}")
+    for line in advisories:
+        print(f"T2 ⚠ {line}")
     if not violations:
-        print(f"T2 ✓ shape: {checked} file(s) conform to doc 16 §Coding style")
+        print(f"T2 ✓ shape: {checked} file(s) conform to doc 16 §Coding style"
+              + (f" ({len(advisories)} advisory)" if advisories else ""))
     return 1 if violations else 0
 
 
