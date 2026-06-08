@@ -1,318 +1,67 @@
 diff --git a/DeepConnectionsGramplet/DeepConnectionsGramplet.py b/DeepConnectionsGramplet/DeepConnectionsGramplet.py
-index 73f2bf37b..a1f32f206 100644
+index 73f2bf37b..cbcdce44d 100644
 --- a/DeepConnectionsGramplet/DeepConnectionsGramplet.py
 +++ b/DeepConnectionsGramplet/DeepConnectionsGramplet.py
-@@ -39,6 +39,10 @@ from gramps.gen.display.name import displayer as name_displayer
- from gramps.gen.plug import Gramplet
- from gramps.gen.const import GRAMPS_LOCALE as glocale
+@@ -218,9 +218,15 @@ class DeepConnectionsGramplet(Gramplet):
+                             retval += [(link[3], (path, (relation, person_handle)))]
+         return retval
  
-+# The breadth-first connection search lives in a GUI-free sibling module so it
-+# can be unit-tested without importing Gtk (issue 8653).
-+import connection_search
-+
- try:
-     _trans = glocale.get_addon_translator(__file__)
- except ValueError:
-@@ -205,78 +209,26 @@ class DeepConnectionsGramplet(Gramplet):
-         """
-         Get anyone mentioned in any note attached to this object.
-         """
--        retval = []
--        note_list = obj.get_note_list()
--        for note_handle in note_list:
--            note = self.dbstate.db.get_note_from_handle(note_handle)
--            if note:
--                links = note.get_links()
--                for link in links:
--                    if link[0] == "gramps" and link[1] == "Person":
--                        relation = _("mentioned in note")
--                        if link[2] == "handle":
--                            retval += [(link[3], (path, (relation, person_handle)))]
--        return retval
-+        return connection_search.get_links_from_notes(
-+            self.dbstate.db, obj, path, relation, person_handle, _
-+        )
- 
-     def get_relatives(self, person_handle, path):
+-    def get_relatives(self, person_handle, path):
++    def get_relatives(self, person_handle, path, start_handle=None):
          """
          Gets all of the relations of person_handle.
--        """
--        retval = []
--        person = self.dbstate.db.get_person_from_handle(person_handle)
--        if person is None:
--            return []
--        family_list = person.get_family_handle_list()
--        for family_handle in family_list:
--            family = self.dbstate.db.get_family_from_handle(family_handle)
--            if family:
--                children = family.get_child_ref_list()
--                husband = family.get_father_handle()
--                wife = family.get_mother_handle()
--                retval.extend(
--                    (child_ref.ref, (path, (_("child"), person_handle, husband, wife)))
--                    for child_ref in children
--                )
--                if husband and husband != person_handle:
--                    retval += [(husband, (path, (_("husband"), person_handle)))]
--                if wife and wife != person_handle:
--                    retval += [(wife, (path, (_("wife"), person_handle)))]
--                retval += self.get_links_from_notes(
--                    family, path, _("Note on Family"), person_handle
--                )
- 
--        parent_family_list = person.get_parent_family_handle_list()
--        for family_handle in parent_family_list:
--            family = self.dbstate.db.get_family_from_handle(family_handle)
--            if family:
--                children = family.get_child_ref_list()
--                husband = family.get_father_handle()
--                wife = family.get_mother_handle()
--                retval.extend(
--                    (
--                        child_ref.ref,
--                        (path, (_("sibling"), person_handle, husband, wife)),
--                    )
--                    for child_ref in children
--                    if child_ref.ref != person_handle
--                )
--                if husband and husband != person_handle:
--                    retval += [(husband, (path, (_("father"), person_handle, wife)))]
--                if wife and wife != person_handle:
--                    retval += [(wife, (path, (_("mother"), person_handle, husband)))]
--                retval += self.get_links_from_notes(
--                    family, path, _("Note on Parent Family"), person_handle
--                )
--        assoc_list = person.get_person_ref_list()
--        for assoc in assoc_list:
--            relation = _("%s (association)") % assoc.get_relation()
--            assoc_handle = assoc.get_reference_handle()
--            retval += [(assoc_handle, (path, (relation, person_handle)))]
--
--        retval += self.get_links_from_notes(
--            person, path, _("Note on Person"), person_handle
-+        The Home (start) person is excluded from the produced paths so it cannot
-+        be re-entered as an intermediate relationship step (issue 8653); it
-+        appears only as the implicit search root.  ``self.default_person`` is set
-+        at the top of :meth:`main` before this method is ever called.
-+        """
-+        return connection_search.get_relatives(
-+            self.dbstate.db,
-+            person_handle,
-+            path,
-+            _,
-+            start_handle=self.default_person.handle,
++
++        ``start_handle`` is the Home/start person's handle, passed in by the
++        caller (:meth:`main`) *after* its "No Home Person set" guard so this
++        method never has to re-dereference ``self.default_person``.  When it is
++        given, the Home person is kept out of the body of every produced path
++        (issue 8653) -- see the post-processing at the end of this method.
+         """
+         retval = []
+         person = self.dbstate.db.get_person_from_handle(person_handle)
+@@ -276,6 +282,22 @@ class DeepConnectionsGramplet(Gramplet):
+         retval += self.get_links_from_notes(
+             person, path, _("Note on Person"), person_handle
          )
--        return retval
++
++        # Issue 8653: the Home (start) person is the search origin, so it may
++        # appear in a produced path only as its terminal "self" root -- never
++        # as, nor as the anchor of, an intermediate relationship step.  Two
++        # cases, applied only once the caller has supplied the start handle:
++        #   * drop a relative that *is* the start person, so the origin is never
++        #     re-entered as an interior node of a path; and
++        #   * when the start person itself is being expanded, attach its
++        #     relatives straight to the root node (``path`` is that root here)
++        #     instead of through a redundant "(relation, start)" step that would
++        #     render the Home person mid-path (the reporter's
++        #     "... / sibling of <Home>" chain).
++        if start_handle is not None:
++            retval = [item for item in retval if item[0] != start_handle]
++            if person_handle == start_handle:
++                retval = [(item[0], path) for item in retval]
+         return retval
  
      def active_changed(self, handle):
-         """
-diff --git a/DeepConnectionsGramplet/connection_search.py b/DeepConnectionsGramplet/connection_search.py
-new file mode 100644
-index 000000000..8b1b017fb
---- /dev/null
-+++ b/DeepConnectionsGramplet/connection_search.py
-@@ -0,0 +1,192 @@
-+# encoding: utf-8
-+#
-+# Gramps - a GTK+/GNOME based genealogy program
-+#
-+# Copyright (C) 2009 Doug Blank <doug.blank@gmail.com>
-+# Copyright (C) 2026 The Gramps Development Team
-+#
-+# This program is free software; you can redistribute it and/or modify
-+# it under the terms of the GNU General Public License as published by
-+# the Free Software Foundation; either version 2 of the License, or
-+# (at your option) any later version.
-+#
-+# This program is distributed in the hope that it will be useful,
-+# but WITHOUT ANY WARRANTY; without even the implied warranty of
-+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-+# GNU General Public License for more details.
-+#
-+# You should have received a copy of the GNU General Public License
-+# along with this program; if not, write to the
-+# Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-+#
-+
-+"""
-+GUI-free breadth-first connection search for the Deep Connections Gramplet.
-+
-+The relation-gathering and path-search logic used to live entangled with the
-+Gtk UI inside :class:`DeepConnectionsGramplet` (``self.append_text``,
-+``self.link``, generator ``yield`` points).  It is extracted here so the
-+algorithm can be exercised without importing ``gi`` / ``gramps.gui``; the
-+gramplet now delegates to :func:`get_relatives` and so re-uses the exact code
-+the tests cover.
-+
-+Path representation (unchanged from the gramplet)::
-+
-+    (more_path, (relation_text, anchor_handle, [parent_handle, ...]))
-+
-+The chain terminates in the *root* node ``(None, ("self", start_handle, []))``,
-+where ``start_handle`` is the Home / start person.
-+
-+Issue 8653 -- the Home (start) person is the implicit origin of the search and
-+must appear *only* as that root, never re-entered as an intermediate
-+relationship step in a produced path (the reporter's "... / sibling of main
-+person" chain).  :func:`get_relatives` enforces that with two rules applied on
-+top of the original relation-gathering:
-+
-+  * the start person is dropped if it turns up as a relative of another node,
-+    so it can never be re-entered as an intermediate node; and
-+  * relatives **of** the start person are linked straight to the root node
-+    instead of through a redundant ``(relation, start_handle)`` step, so the
-+    start person is recorded as the root and nowhere else.
-+"""
-+
-+SELF = "self"  # relation marker for the root (start) node; never translated
-+
-+
-+def _identity(text):
-+    """Default no-op translation, so the module needs no gramps import."""
-+    return text
-+
-+
-+def get_links_from_notes(db, obj, path, relation, person_handle, _=_identity):
-+    """
-+    Get anyone mentioned in any note attached to ``obj``.
-+    """
-+    retval = []
-+    for note_handle in obj.get_note_list():
-+        note = db.get_note_from_handle(note_handle)
-+        if note:
-+            for link in note.get_links():
-+                if link[0] == "gramps" and link[1] == "Person":
-+                    relation = _("mentioned in note")
-+                    if link[2] == "handle":
-+                        retval += [(link[3], (path, (relation, person_handle)))]
-+    return retval
-+
-+
-+def get_relatives(db, person_handle, path, _=_identity, start_handle=None):
-+    """
-+    Return ``[(relative_handle, relative_path), ...]`` for ``person_handle``.
-+
-+    The body below is the original gramplet relation-gathering, verbatim; the
-+    issue-8653 start-person exclusion is applied as an explicit post-process so
-+    the original behaviour stays reviewable and ``start_handle=None`` reproduces
-+    it exactly.
-+    """
-+    person = db.get_person_from_handle(person_handle)
-+    if person is None:
-+        return []
-+    retval = []
-+    family_list = person.get_family_handle_list()
-+    for family_handle in family_list:
-+        family = db.get_family_from_handle(family_handle)
-+        if family:
-+            children = family.get_child_ref_list()
-+            husband = family.get_father_handle()
-+            wife = family.get_mother_handle()
-+            retval.extend(
-+                (child_ref.ref, (path, (_("child"), person_handle, husband, wife)))
-+                for child_ref in children
-+            )
-+            if husband and husband != person_handle:
-+                retval += [(husband, (path, (_("husband"), person_handle)))]
-+            if wife and wife != person_handle:
-+                retval += [(wife, (path, (_("wife"), person_handle)))]
-+            retval += get_links_from_notes(
-+                db, family, path, _("Note on Family"), person_handle, _
-+            )
-+
-+    parent_family_list = person.get_parent_family_handle_list()
-+    for family_handle in parent_family_list:
-+        family = db.get_family_from_handle(family_handle)
-+        if family:
-+            children = family.get_child_ref_list()
-+            husband = family.get_father_handle()
-+            wife = family.get_mother_handle()
-+            retval.extend(
-+                (child_ref.ref, (path, (_("sibling"), person_handle, husband, wife)))
-+                for child_ref in children
-+                if child_ref.ref != person_handle
-+            )
-+            if husband and husband != person_handle:
-+                retval += [(husband, (path, (_("father"), person_handle, wife)))]
-+            if wife and wife != person_handle:
-+                retval += [(wife, (path, (_("mother"), person_handle, husband)))]
-+            retval += get_links_from_notes(
-+                db, family, path, _("Note on Parent Family"), person_handle, _
-+            )
-+
-+    assoc_list = person.get_person_ref_list()
-+    for assoc in assoc_list:
-+        relation = _("%s (association)") % assoc.get_relation()
-+        assoc_handle = assoc.get_reference_handle()
-+        retval += [(assoc_handle, (path, (relation, person_handle)))]
-+
-+    retval += get_links_from_notes(
-+        db, person, path, _("Note on Person"), person_handle, _
-+    )
-+
-+    # --- issue 8653: keep the Home (start) person out of the path body ---
-+    if start_handle is not None:
-+        # The start person must never be re-entered as an intermediate node.
-+        retval = [(handle, rel_path) for (handle, rel_path) in retval if handle != start_handle]
-+        if person_handle == start_handle:
-+            # Relatives of the start person connect to the implicit root
-+            # (``path`` is the root node here), not through a redundant
-+            # "(relation, start)" step that would print the Home person mid-path.
-+            retval = [(handle, path) for (handle, _rel_path) in retval]
-+    return retval
-+
-+
-+def search_connections(db, default_handle, active_handle, _=_identity, max_paths=1):
-+    """
-+    Breadth-first search for connection paths from the Home (``default_handle``)
-+    person to ``active_handle``.
-+
-+    Returns a list of paths (the linked-list structure documented above), at
-+    most ``max_paths`` of them.  This mirrors the BFS run by
-+    ``DeepConnectionsGramplet.main`` (minus the Gtk progress / pause plumbing)
-+    and shares the issue-8653 fix through :func:`get_relatives`.
-+    """
-+    cache = set()
-+    queue = [(default_handle, (None, (SELF, default_handle, [])))]
-+    found = []
-+    while queue:
-+        current_handle, current_path = queue.pop(0)
-+        if current_handle == active_handle:
-+            found.append(current_path)
-+            if default_handle == active_handle or len(found) >= max_paths:
-+                break
-+            continue
-+        if current_handle in cache:
-+            continue
-+        cache.add(current_handle)
-+        for person_handle, rel_path in get_relatives(
-+            db, current_handle, current_path, _, start_handle=default_handle
-+        ):
-+            if person_handle is not None:
-+                queue.append((person_handle, rel_path))
-+    return found
-+
-+
-+def path_steps(path):
-+    """
-+    Flatten a path into ``[(relation_text, anchor_handle), ...]`` ordered from
-+    the outermost step down to the root ``(SELF, start_handle)`` node.
-+    """
-+    steps = []
-+    node = path
-+    while node is not None:
-+        steps.append((node[1][0], node[1][1]))
-+        node = node[0]
-+    return steps
+@@ -436,7 +458,9 @@ class DeepConnectionsGramplet(Gramplet):
+                     continue
+ 
+                 self.cache.add(current_handle)
+-                relatives = self.get_relatives(current_handle, current_path)
++                relatives = self.get_relatives(
++                    current_handle, current_path, self.default_person.handle
++                )
+ 
+                 # Track search depth
+                 if current_path[0] is not None:
 diff --git a/DeepConnectionsGramplet/tests/__init__.py b/DeepConnectionsGramplet/tests/__init__.py
 new file mode 100644
 index 000000000..e69de29bb
 diff --git a/DeepConnectionsGramplet/tests/test_deep_connections.py b/DeepConnectionsGramplet/tests/test_deep_connections.py
 new file mode 100644
-index 000000000..fa6ede092
+index 000000000..0c11beb76
 --- /dev/null
 +++ b/DeepConnectionsGramplet/tests/test_deep_connections.py
-@@ -0,0 +1,191 @@
+@@ -0,0 +1,327 @@
 +#
 +# Gramps - a GTK+/GNOME based genealogy program
 +#
@@ -329,41 +78,49 @@ index 000000000..fa6ede092
 +# GNU General Public License for more details.
 +#
 +# You should have received a copy of the GNU General Public License
-+# along with this program; if not, write to the
-+# Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 +#
 +
 +"""
 +Regression test for Mantis issue 8653 -- the Deep Connections Gramplet must not
-+route a connection path back through the Home (start) person, i.e. the start
-+person must appear only as the implicit search root, never as an intermediate
-+relationship step in a produced path (the reporter's
-+"... / sibling of another person / sibling of main person" chain).
++route a connection path back through the Home (start) person.  The Home person
++is the search origin and may appear in a produced path only as its terminal
++"self" root; it must never be named as the anchor of an intermediate
++relationship step (the reporter's "... / sibling of <Home>" chain).
 +
-+The gramplet module imports Gtk at load time, so the connection-search logic was
-+extracted into the GUI-free ``connection_search`` module (no ``gi`` /
-+``gramps.gui`` import).  This test exercises that module directly with a tiny
-+in-memory database, so it runs under a plain ``python3 -m unittest`` with no
-+display / D-Bus / AT-SPI.
++PRODUCTION-PATH NOTE (brief.md PRODUCTION-PATH REQUIREMENT / principles §3.4):
++this test drives ``DeepConnectionsGramplet.main()`` itself -- the *actual*
++breadth-first search generator the gramplet runs in production -- not a copy of
++its loop.  A lightweight harness subclass overrides only the GUI surface
++(``append_text``/``link``/``pretty_print``/progress widgets/``pause``...), so
++``main`` runs the real queue/cache/``get_relatives`` path-construction code
++against a tiny in-memory database.  The produced path is captured at the point
++``main`` hands it to ``pretty_print``.  Because the harness drives ``main``
++*outside* the broad ``try/except`` in production, any error in the search
++surfaces as a test failure rather than being swallowed into "Error during
++search".
++
++The gramplet module imports ``gi``/Gtk at load time; the addon C4 gate runs
++under ``xvfb`` with the GI-version bootstrap, so importing it here is safe (the
++same pattern SurnameMappingGramplet's import test uses).  No display-bound
++widget is ever constructed: the harness skips ``Gramplet.__init__``.
 +"""
 +
-+import importlib.util
 +import os
++import sys
 +import unittest
 +
-+# Load the GUI-free search module by file path (no gi import is triggered).
-+_IMPL_PATH = os.path.join(
-+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-+    "connection_search.py",
-+)
-+_spec = importlib.util.spec_from_file_location("connection_search", _IMPL_PATH)
-+connection_search = importlib.util.module_from_spec(_spec)
-+_spec.loader.exec_module(connection_search)
++sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
++
++# The addon directory and its implementation module share a name; use the
++# explicit submodule path (same trap noted in libaccess / gramps bug 0012691).
++from DeepConnectionsGramplet import DeepConnectionsGramplet as dcg_mod
 +
 +
 +# ---------------------------------------------------------------------------
 +# Minimal in-memory stand-ins for the Gramps person/family/db objects, exposing
-+# only the accessors connection_search.get_relatives uses.
++# only the accessors get_relatives / main touch.
 +# ---------------------------------------------------------------------------
 +class _ChildRef:
 +    def __init__(self, ref):
@@ -388,6 +145,9 @@ index 000000000..fa6ede092
 +    def get_note_list(self):
 +        return []
 +
++    def get_primary_name(self):
++        return self.handle
++
 +
 +class _Family:
 +    def __init__(self, handle, father=None, mother=None, children=()):
@@ -410,9 +170,13 @@ index 000000000..fa6ede092
 +
 +
 +class _DB:
-+    def __init__(self, people, families):
++    def __init__(self, people, families, default):
 +        self._people = people
 +        self._families = families
++        self._default = default
++
++    def get_default_person(self):
++        return self._people.get(self._default)
 +
 +    def get_person_from_handle(self, handle):
 +        return self._people.get(handle)
@@ -420,17 +184,116 @@ index 000000000..fa6ede092
 +    def get_family_from_handle(self, handle):
 +        return self._families.get(handle)
 +
-+    def get_note_from_handle(self, handle):  # pragma: no cover - no notes here
++    def get_note_from_handle(self, handle):  # no notes in these fixtures
 +        return None
++
++
++class _DBState:
++    def __init__(self, db):
++        self.db = db
++
++
++class _StubRelCalc:
++    """Relationship calculator stub; main() only needs a falsy/str result."""
++
++    def get_one_relationship(self, db, person1, person2):
++        return ""
++
++
++class _StubNameDisplayer:
++    """Avoid needing a real gramps Name object for display."""
++
++    def display_name(self, name):
++        return str(name)
++
++
++class _Widget:
++    """No-op stand-in for the Gtk widgets main() toggles."""
++
++    def set_visible(self, *args, **kwargs):
++        pass
++
++    def set_sensitive(self, *args, **kwargs):
++        pass
++
++
++class _Harness(dcg_mod.DeepConnectionsGramplet):
++    """
++    Drives the real ``DeepConnectionsGramplet.main`` generator without a GTK
++    context.  Only the GUI surface is overridden; ``main``, ``get_relatives``,
++    ``get_links_from_notes`` and ``_calculate_path_depth`` are the inherited
++    production implementations.
++    """
++
++    def __init__(self, db, active_handle):
++        # Deliberately do NOT call Gramplet.__init__ (no GUI / GTK).
++        self.dbstate = _DBState(db)
++        self._active_handle = active_handle
++        self.selected_handles = set()
++        self.captured_paths = []
++        self.relationship_calc = _StubRelCalc()
++        self.progress_bar = _Widget()
++        self.pause_button = _Widget()
++        self.continue_button = _Widget()
++        self.copy_button = _Widget()
++
++    # -- GUI surface stubbed out -------------------------------------------
++    def get_active_object(self, _kind):
++        return self.dbstate.db.get_person_from_handle(self._active_handle)
++
++    def set_text(self, *args, **kwargs):
++        pass
++
++    def render_text(self, *args, **kwargs):
++        pass
++
++    def update_status(self, *args, **kwargs):
++        pass
++
++    def update_progress(self, *args, **kwargs):
++        pass
++
++    def update_search_info(self, *args, **kwargs):
++        pass
++
++    def append_text(self, *args, **kwargs):
++        pass
++
++    def link(self, *args, **kwargs):
++        pass
++
++    def pause(self, *args, **kwargs):
++        pass
++
++    # -- capture the produced path instead of rendering it -----------------
++    def pretty_print(self, path):
++        self.captured_paths.append(path)
++
++
++def _flatten(path):
++    """
++    Flatten a connection path's linked list into ``[(relation, anchor), ...]``
++    ordered from the outermost step down to the terminal "self" root.
++
++    Node shape (unchanged from the gramplet)::
++
++        (more_path, (relation_text, anchor_handle, [parents...]))
++    """
++    steps = []
++    node = path
++    while node is not None:
++        steps.append((node[1][0], node[1][1]))
++        node = node[0]
++    return steps
 +
 +
 +def _nibling_db():
 +    """
-+    Home person D and sibling S are children of family Fp (parents P1/P2).
-+    S has their own family Fs with spouse W and child A.  So the active person A
-+    connects to the Home person D as "child of D's sibling S" -- a two-hop path
-+    that, before the fix, was rendered with D as an intermediate
-+    "sibling of <Home>" step.
++    Home person ``D`` and sibling ``S`` are children of family ``Fp`` (parents
++    ``P1``/``P2``).  ``S`` has their own family ``Fs`` with spouse ``W`` and
++    child ``A`` (the active person).  So ``A`` connects to Home ``D`` as
++    "child of D's sibling S" -- a two-hop path that, before the fix, named
++    ``D`` (Home) as an intermediate "sibling of <Home>" step.
 +    """
 +    families = {
 +        "Fp": _Family("Fp", father="P1", mother="P2", children=["D", "S"]),
@@ -444,62 +307,84 @@ index 000000000..fa6ede092
 +        "P1": _Person("P1", families=["Fp"]),
 +        "P2": _Person("P2", families=["Fp"]),
 +    }
-+    return _DB(people, families)
++    return _DB(people, families, default="D")
 +
 +
 +class TestStartPersonNotIntermediate(unittest.TestCase):
 +    """The Home (start) person must never be an intermediate path step (8653)."""
 +
-+    def _first_path_steps(self, db, home, active):
-+        paths = connection_search.search_connections(db, home, active)
-+        self.assertTrue(paths, "expected a connection path from %s to %s" % (home, active))
-+        return connection_search.path_steps(paths[0])
++    def _first_path_steps(self, db, active_handle):
++        """
++        Run the production ``main`` generator until it produces the first
++        connection path; return its flattened steps (outermost -> root).
++        """
++        harness = _Harness(db, active_handle)
++        # Patch the module-level name displayer so main() needs no real Name.
++        original_displayer = dcg_mod.name_displayer
++        dcg_mod.name_displayer = _StubNameDisplayer()
++        try:
++            for _signal in harness.main():
++                if harness.captured_paths:
++                    break
++        finally:
++            dcg_mod.name_displayer = original_displayer
++        self.assertTrue(
++            harness.captured_paths,
++            "main() produced no connection path to %r" % (active_handle,),
++        )
++        return _flatten(harness.captured_paths[0])
 +
 +    def test_home_not_an_intermediate_step_on_multi_hop_path(self):
-+        """A two-hop connection must not list the Home person mid-path."""
-+        db = _nibling_db()
-+        steps = self._first_path_steps(db, "D", "A")
++        """A two-hop connection must not name the Home person mid-path."""
++        steps = self._first_path_steps(_nibling_db(), "A")
 +
-+        non_root = [s for s in steps if s[0] != connection_search.SELF]
-+        intermediate_handles = [handle for (relation, handle) in non_root]
++        root = steps[-1]
++        non_root = steps[:-1]
++        intermediate_handles = [anchor for (_relation, anchor) in non_root]
 +
-+        # Guard against a vacuous pass: the connection must genuinely route
-+        # through the intermediate relative S (active A is "child of S"), i.e.
-+        # this is the multi-hop case the bug needs -- not a direct relative.
++        # Not vacuous: the connection genuinely routes through the intermediate
++        # relative S (active A is "child of S") -- the multi-hop case the bug
++        # needs, not a direct relative of Home.
 +        self.assertIn(
 +            "S",
 +            intermediate_handles,
-+            "scenario does not route through the intermediate S; path=%r" % (steps,),
++            "scenario does not route through the intermediate S; steps=%r" % (steps,),
 +        )
 +
-+        # The bug: D (Home) appears as a non-root "sibling of <Home>" step.
++        # The bug (issue 8653): D (Home) appears as a non-root anchor.
 +        self.assertNotIn(
 +            "D",
 +            intermediate_handles,
-+            "Home person re-entered as an intermediate step; path=%r" % (steps,),
++            "Home person re-entered as an intermediate step; steps=%r" % (steps,),
 +        )
 +
-+    def test_home_present_only_as_root(self):
-+        """The Home person is still recorded -- exactly once, as the root."""
-+        db = _nibling_db()
-+        steps = self._first_path_steps(db, "D", "A")
-+
-+        root = steps[-1]
-+        self.assertEqual(root, (connection_search.SELF, "D"))
++        # The chain is not broken: it still terminates at the Home person as the
++        # "self" root, so A is connected to Home (A -> child of S -> root D).
 +        self.assertEqual(
-+            [handle for (relation, handle) in steps].count("D"),
++            root[1],
++            "D",
++            "path must terminate at the Home person as its root; steps=%r" % (steps,),
++        )
++        self.assertEqual(
++            [anchor for (_relation, anchor) in steps].count("D"),
 +            1,
-+            "Home person should appear exactly once (as the root); path=%r" % (steps,),
++            "Home person must appear exactly once (as the root); steps=%r" % (steps,),
 +        )
 +
-+    def test_direct_relative_still_found_without_home_mid_path(self):
++    def test_direct_relative_of_home_only_at_root(self):
 +        """A direct sibling of Home still connects, with Home only as root."""
-+        db = _nibling_db()
-+        steps = self._first_path_steps(db, "D", "S")  # S is Home's sibling
-+        intermediate_handles = [
-+            handle for (relation, handle) in steps if relation != connection_search.SELF
-+        ]
-+        self.assertNotIn("D", intermediate_handles, "path=%r" % (steps,))
++        steps = self._first_path_steps(_nibling_db(), "S")  # S is Home's sibling
++        intermediate_handles = [anchor for (_relation, anchor) in steps[:-1]]
++        self.assertNotIn(
++            "D",
++            intermediate_handles,
++            "Home person re-entered as an intermediate step; steps=%r" % (steps,),
++        )
++        self.assertEqual(
++            steps[-1][1],
++            "D",
++            "path must terminate at the Home person as its root; steps=%r" % (steps,),
++        )
 +
 +
 +if __name__ == "__main__":
