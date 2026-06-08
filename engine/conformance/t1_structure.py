@@ -29,7 +29,7 @@ addon guideline's §Structure, cited by **section** (not line number) via
 Checks one addon directory against the §Structure MUST rules (all cite
 ``doc16-addon §Structure``):
 
-  * folder name == ``id`` in ``.gpr.py`` (case-insensitive)
+  * folder name is a valid Python import identifier
   * ``.gpr.py`` declares ``gramps_target_version``
   * ``fname`` points to a module shipped in the same folder
   * NO ``__init__.py`` in the addon dir (Mantis 12691 trap)
@@ -86,13 +86,17 @@ def check_addon(addon_dir: str) -> tuple[list[str], list[str]]:
         return must, should
     text = _gpr_text(gprs)
 
-    # MUST — folder name matches the id in .gpr.py (case-insensitive; a
-    # multi-register addon conforms if the folder matches ANY of its ids).
-    ids = re.findall(r"""\bid\s*=\s*["']([^"']+)["']""", text)
-    if ids and name.lower() not in {i.strip().lower() for i in ids}:
+    # MUST — folder name is a valid Python import identifier. Gramps puts each
+    # addon dir on sys.path and shares code across addons via ``import <Folder>``
+    # (wiki "04 - Technical Documentation/addons-development.md"), so the folder
+    # name must be importable. The registration ``id`` is an independent plugin
+    # key and need NOT match the folder — ~25% of addons-source declare a
+    # spaced/human-readable id (e.g. folder DeepConnectionsGramplet ↔ id
+    # "Deep Connections Gramplet"), and a folder may bundle several unrelated ids.
+    if not name.isidentifier():
         must.append(
-            f"{name}: folder name does not match any .gpr.py id "
-            f"{ids} ({_CITE})"
+            f"{name}: folder name is not a valid Python import identifier "
+            f"({_CITE})"
         )
 
     # MUST — gramps_target_version is declared.

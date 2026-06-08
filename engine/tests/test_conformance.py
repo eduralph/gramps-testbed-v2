@@ -53,7 +53,8 @@ class T1Structure(unittest.TestCase):
         )
 
     def test_conformant_addon_passes(self) -> None:
-        # folder CalcThing ↔ id "calcthing" — case-insensitive match (doc16:30).
+        # folder CalcThing is a valid Python import identifier; the register id
+        # need not match it (§Structure).
         d = self._addon("CalcThing", self._conformant_gpr("calcthing", "CalcThing.py"),
                         module="CalcThing.py")
         (d / "tests").mkdir()
@@ -62,11 +63,31 @@ class T1Structure(unittest.TestCase):
         self.assertEqual(must, [])
         self.assertEqual(should, [])
 
-    def test_folder_id_mismatch_flagged(self) -> None:  # §Structure
-        d = self._addon("CalcThing", self._conformant_gpr("somethingelse", "CalcThing.py"),
-                        module="CalcThing.py")
+    def test_id_need_not_match_folder(self) -> None:  # §Structure
+        # ~25% of addons-source declare a spaced, human-readable id whose folder
+        # is the spaceless form (DeepConnectionsGramplet ↔ "Deep Connections
+        # Gramplet", Form ↔ "Form Gramplet"). The id is an independent plugin
+        # key — no folder↔id match is required.
+        for folder, addon_id, module in (
+            ("DeepConnectionsGramplet", "Deep Connections Gramplet",
+             "DeepConnectionsGramplet.py"),
+            ("Form", "Form Gramplet", "Form.py"),
+        ):
+            d = self._addon(folder, self._conformant_gpr(addon_id, module),
+                            module=module)
+            must, _ = t1_structure.check_addon(str(d))
+            self.assertFalse(any("folder name" in m for m in must), (folder, must))
+
+    def test_non_identifier_folder_flagged(self) -> None:  # §Structure
+        # A folder name with a space is not importable via ``import <Folder>``.
+        d = self._addon("Calc Thing", self._conformant_gpr("calcthing", "Calc Thing.py"),
+                        module="Calc Thing.py")
         must, _ = t1_structure.check_addon(str(d))
-        self.assertTrue(any("doc16-addon §Structure" in m for m in must), must)
+        self.assertTrue(
+            any("valid Python import identifier" in m and "doc16-addon §Structure" in m
+                for m in must),
+            must,
+        )
 
     def test_missing_target_version_flagged(self) -> None:  # §Structure
         d = self._addon("CalcThing",
@@ -94,11 +115,14 @@ class T1Structure(unittest.TestCase):
         must, _ = t1_structure.check_addon(str(d))
         self.assertTrue(any("Gramps-injected name" in m for m in must), must)
 
-    def test_multi_register_matches_any_id(self) -> None:  # §Structure multi-kind
+    def test_multi_register_unrelated_ids_pass(self) -> None:  # §Structure multi-kind
+        # One folder may bundle several plugins with ids unrelated to the folder
+        # name (e.g. lxml ships "etree Gramplet" + "lxml Gramplet"). The folder is
+        # importable, so no §Structure violation.
         gpr = (
-            'register(GRAMPLET, id="lxml gramplet", gramps_target_version="6.0",\n'
+            'register(GRAMPLET, id="etree Gramplet", gramps_target_version="6.0",\n'
             '         fname="etree.py")\n'
-            'register(VIEW, id="lxml", gramps_target_version="6.0", fname="etree.py")\n'
+            'register(VIEW, id="lxml Gramplet", gramps_target_version="6.0", fname="etree.py")\n'
         )
         d = self._addon("lxml", gpr, module="etree.py")
         must, _ = t1_structure.check_addon(str(d))
