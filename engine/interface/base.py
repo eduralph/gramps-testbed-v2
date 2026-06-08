@@ -455,3 +455,35 @@ class GrampsInterfaceTestCase(unittest.TestCase):
             # for rationale (dogtail screenshot is broken in CI).
             type(self)._dump_app_tree_on_failure(self._testMethodName)
         return outcome
+
+
+class AddonInterfaceTestCase(GrampsInterfaceTestCase):
+    """Base class for an ADDON's end-to-end GUI test (the "addon E2E" convention).
+
+    Ship these in the addon's own repo at ``<Addon>/tests/interface/test_*.py`` and run
+    them with ``engine/scripts/ubuntu/run-addon-interface.sh <Addon>`` (or the
+    ``T3-addon-interface`` gate). The runner installs ``<Addon>`` into the launched
+    gramps' ``USER_PLUGINS`` and puts the testbed's ``engine/`` on ``PYTHONPATH``, so the
+    addon test imports the harness portably:
+
+        from interface.base import AddonInterfaceTestCase
+
+        class MyAddonView(AddonInterfaceTestCase):
+            ADDON = "MyAddon"           # documents which addon is under test (installed
+                                        # by the runner; informational here)
+            TREE_NAME = "MyAddonTree"   # a tree seeded from
+                                        # <Addon>/tests/interface/data/MyAddonTree.gramps,
+                                        # else the default "TestTree" example fixture
+
+            def test_view_opens(self):
+                btn = self.app.child(name="My Addon", roleName="toggle button")
+                btn.click()
+                ...
+
+    Everything else (headless launch, AT-SPI wait, dialog dismissal, screenshot +
+    tree-dump on failure) is inherited from ``GrampsInterfaceTestCase``. This subclass
+    adds only the ``ADDON`` marker and this contract — so an addon's frontend behaviour
+    is verified *inside* a real gramps, the E2E-with-core a GUI-facing addon needs.
+    """
+
+    ADDON: str = ""
