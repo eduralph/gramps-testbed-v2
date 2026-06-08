@@ -74,9 +74,17 @@ adds only `xvfb` (a bare display). The full display + D-Bus + AT-SPI belongs to 
 (`gi.repository` / `gramps.gui.*`, e.g. a ManagedWindow tool) **crashes the headless
 runner** (core dump) — and it recurs on every iterate-do until the test stops
 importing it. Keep the unit under test import-light: extract the logic into a module
-free of `gi`/`gramps.gui` imports and test *that*. This pre-fix/post-fix check is a
-fast sanity pass (Check's gates re-run the real suite), so a single quick
-`run-verify.sh` is enough.
+free of `gi`/`gramps.gui` imports and test *that*. **But the test must exercise the
+production path, not a copy of it** (principles §3.4): production has to *route through*
+the extracted module — call the same code the test drives. If part of the production
+path can't be made import-light without restructuring (e.g. a GUI-entangled generator
+loop), **restructure it so production and the test share one implementation** — invert
+the loop into a shared generator, add a callback seam — rather than re-implementing it
+in a parallel headless copy. A green test that drives a hand-copy of production is not
+acceptable evidence: it leaves the real path untested and any drift between the two
+uncaught (the issue-8653 `search_connections`-mirrors-`main()` trap). This pre-fix/
+post-fix check is a fast sanity pass (Check's gates re-run the real suite), so a single
+quick `run-verify.sh` is enough.
 
 ## Commit-ready for the target repo
 

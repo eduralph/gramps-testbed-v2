@@ -29,6 +29,66 @@
 - The next Do phases should not recreate <specific issue>. Watch the next K cycles.
 -->
 
+# Act review — 2026-06-08 — cycles considered: 8653
+
+## What the cycles' records exposed
+- **A test validated a *copy* of production, not production — a *planning-phase* miss
+  (issue_8653, T5(a) NEEDS-HUMAN).** The fix is correct, but its test drives
+  `connection_search.search_connections`, a hand-port of the gramplet's BFS loop, while
+  the real loop in `DeepConnectionsGramplet.main()` is never exercised (only the shared
+  `get_relatives` is). `build-notes.md:79` calls it openly *"a headless mirror of the
+  `main()` BFS loop"*, and §6 records the builder **considered** testing the gramplet
+  directly and rejected it. So this was a disclosed, deliberate trade-off — not
+  sloppiness — and the deterministic C4 gate went green on the copy. Only the human's
+  T5 caught it.
+- **Root cause is upstream of Do — an instruction interaction, not a one-off brief.**
+  (a) Plan is *correctly* forbidden from naming a mechanism (principles §3.1), so the
+  brief could only say "extract a GUI-free, testable seam" (outcome) and not prescribe
+  the dedup mechanism. (b) `builder.md` told Do to "extract the logic into an
+  import-light module and test *that*" — which a parallel copy satisfies literally when
+  `main()`'s loop can't be made import-light without restructuring. (c) **Nothing
+  required the test to exercise the production path.** A green test of a copy met every
+  written instruction. Companion fear T5(b) (`default_person is None`) was **not live** —
+  `main():334` guards it before the only call site (`:439`); flagged only because
+  `main()` was absent from the review bundle.
+
+## Process deltas
+- **Reference (applied):** new principle **§3.4 — test the production path**: when a fix
+  needs a testable seam, the success evidence MUST exercise the production path
+  (production routes through the same extracted unit the test drives); a parallel
+  re-implementation that mirrors production is not acceptable evidence. Stated as an
+  *outcome*, so it composes with §3.1 (mechanism stays with Do).   (`docs/principles.md` §3.4)
+- **Spec template (applied):** brief **Test file** field now reminds that the test must
+  drive the production path, not a parallel copy (§3.4).   (`templates/brief.md.tpl` Test file)
+- **Agent skill — builder (applied):** the "extract import-light and test that" guidance
+  now requires production to *route through* the extracted module; if a path can't be
+  made import-light without restructuring, restructure (shared generator / callback)
+  rather than reimplementing in parallel.   (`.claude/agents/builder.md` §running-tests)
+- **Agent skill — planner (applied):** Plan-exit gate gains a binary — *does Success/Scope
+  force the test to drive the production path (no parallel copy)?*   (`.claude/agents/planner.md` Plan-exit gate)
+- **Model/effort (applied):** the Plan leaf — the highest-leverage beat — is pinned to
+  the strongest model + raised effort rather than inheriting an un-versioned machine
+  default: `--model claude-opus-4-8 --effort xhigh` in the planner leaf spawn.
+  (`pdca.toml` `[leaves.planner].argv`)
+
+## Follow-ups routed (not process deltas — work handed to an owner)
+- **Instance rebuild (issue_8653) — iterate the Do leaf, not a sign-off hand-patch:**
+  with the §3.4-corrected brief, dedupe via control inversion (one `search_connections`
+  events generator that `main()` consumes and the test drives headless), preserving the
+  `default_person` guard. Owner: human (re-run Do). The rule-2 label-loss question
+  (C5/T5-d) is a separate fidelity decision, untouched here.
+- **Testbed/driver issue:** §3.4 + the planner/builder/template/leaf changes are
+  **generic** → candidates to feed back to the `pdca-harness` template per the
+  template-vs-instance boundary. Owner: human (template work).
+
+## How effectiveness will be judged
+- Over the next ~3 **seam-extraction** cycles: the Plan-exit gate should reject a brief
+  whose test could pass against a copy; build-notes should show production routing
+  through the extracted unit; and no T5 "test validates a copy" item should reach the
+  human. Watch the next K cycles.
+- Track whether the Plan-leaf model/effort bump lowers the T5/Check NEEDS-HUMAN rate —
+  the empirical test of Track B; revisit at the next review.
+
 # Act review — 2026-06-07 — cycles considered: headless-ut-segfault (+ decision-point cross-ref 8653, 12576)
 
 ## What the cycles' records exposed

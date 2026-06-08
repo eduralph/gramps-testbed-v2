@@ -22,7 +22,11 @@
   shape for Do. Leave mechanism to Do; Do prefers removing the cause over guarding it
   (principles.md §3.1, §3.3).> / out of scope: <what is explicitly excluded>
 - **Repro instruction:** <fixture + exact steps on the target branch>
-- **Test file:** <path where the regression test ships — must fail pre-fix, pass post-fix>
+- **Test file:** <path where the regression test ships — must fail pre-fix, pass post-fix.
+  If the fix needs a testable seam (extraction so the test avoids the GUI / heavy deps),
+  the test MUST exercise the PRODUCTION path — production routes through the same
+  extracted unit the test drives — NOT a parallel copy that mirrors production
+  (principles.md §3.4).>
 - **Citations expected:** Do must cite path:line on the target branch for every change.
 - **Prior-art check (triage cycles):** <searched by file path — merged history / open PRs / closed PRs — result>
 - **Disposition hint:** <likely-fix | likely-close | POSSIBLY-FIXED → verify first | UPSTREAM | EXTERNAL | NO-NOTES>

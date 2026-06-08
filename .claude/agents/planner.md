@@ -80,14 +80,18 @@ write Scope and the Invariant field:
   falls in a `docs/principles.md` §6 category. A sourced invariant can override
   "minimal" downstream; an unsourced intuition cannot.
 
-**Plan-exit gate (category-gated).** Before a brief for an **import-safety /
-lifecycle / structural** defect leaves Plan, it MUST pass both binary checks —
+**Plan-exit gate.** Before a brief for an **import-safety / lifecycle / structural**
+defect leaves Plan, it MUST pass checks 1–2; check 3 applies to **any** brief whose fix
+will need a testable seam (extraction so the test avoids the GUI / heavy deps) —
 
 1. Does Scope name a mechanism (a probe/guard/helper)? → must be **no**.
 2. Could the stated invariant be satisfied by guarding a single module? → must be **no**.
+3. Will the fix need a testable seam? If so, does Success/Scope force the test to drive
+   the **production path** — production routing through the same extracted unit the test
+   drives — rather than a parallel copy that mirrors it? → must be **yes** (principles §3.4).
 
-If either fails, the brief is not ready — widen the invariant / strip the mechanism and
-re-check. This gates the brief's *shape*, not the fix; it is the upstream twin of the
+If any applicable check fails, the brief is not ready — widen the invariant / strip the
+mechanism / state the production-path requirement, and re-check. This gates the brief's *shape*, not the fix; it is the upstream twin of the
 reviewer's C5 symptom-guard smell-test, moved to where the error starts. Keep it
 category-gated; a category graduates to an unconditional gate only on evidence
 (`docs/principles.md` §8).
