@@ -21,6 +21,7 @@ CONF = Path(__file__).resolve().parents[1] / "conformance"
 sys.path.insert(0, str(CONF))
 
 import doc16  # noqa: E402
+import gate  # noqa: E402
 import t1_structure  # noqa: E402
 import t2_shape  # noqa: E402
 import t4_contribution  # noqa: E402
@@ -153,36 +154,77 @@ class T2Shape(unittest.TestCase):
 
     def test_header_present_no_print_passes(self) -> None:
         p = self._py("ok.py", _GPL + "import logging\nLOG = logging.getLogger(__name__)\n")
-        self.assertEqual(t2_shape.check_file(str(p)), [])
+        self.assertEqual(t2_shape.check_file(str(p)), ([], []))
 
     def test_missing_gpl_header_flagged(self) -> None:  # AGENTS.md §File Headers
         p = self._py("nohdr.py", "x = 1\n")
-        self.assertTrue(any("AGENTS.md §File Headers" in v for v in t2_shape.check_file(str(p))))
+        viol, _ = t2_shape.check_file(str(p))
+        self.assertTrue(any("AGENTS.md §File Headers" in v for v in viol), viol)
 
-    def test_print_flagged(self) -> None:  # AGENTS.md §Logging
+    def test_print_is_advisory_not_violation(self) -> None:  # AGENTS.md §Logging
+        # §Logging bans print() for *diagnostic* output only — the gate cannot tell
+        # diagnostic from intentional output, so it surfaces print() as an advisory
+        # for the reviewer to adjudicate, never a MUST violation.
         p = self._py("prints.py", _GPL + "print('debug')\n")
-        viol = t2_shape.check_file(str(p))
-        self.assertTrue(any("AGENTS.md §Logging" in v for v in viol), viol)
+        viol, adv = t2_shape.check_file(str(p))
+        self.assertEqual(viol, [])
+        self.assertTrue(any("AGENTS.md §Logging" in a and "print()" in a for a in adv), adv)
 
     def test_commented_print_not_flagged(self) -> None:
         p = self._py("comment.py", _GPL + "# print('debug') left as a note\n")
-        self.assertEqual(t2_shape.check_file(str(p)), [])
+        self.assertEqual(t2_shape.check_file(str(p)), ([], []))
 
     def test_empty_init_marker_exempt_from_header(self) -> None:
         # A 0-byte / comment-only __init__.py package marker carries no code to
         # license, so the header MUST is exempt (11589 §10 / act-log resolution).
         empty = self._py("__init__.py", "")
-        self.assertEqual(t2_shape.check_file(str(empty)), [])
+        self.assertEqual(t2_shape.check_file(str(empty)), ([], []))
         comment_only = self.tmp / "pkg"
         comment_only.mkdir()
         marker = comment_only / "__init__.py"
         marker.write_text("# tests package\n", encoding="utf-8")
-        self.assertEqual(t2_shape.check_file(str(marker)), [])
+        self.assertEqual(t2_shape.check_file(str(marker)), ([], []))
 
     def test_init_with_code_still_needs_header(self) -> None:
         # An __init__.py that actually contains code is NOT a bare marker — header applies.
         p = self._py("__init__.py", "import os\nx = os.getcwd()\n")
-        self.assertTrue(any("AGENTS.md §File Headers" in v for v in t2_shape.check_file(str(p))))
+        viol, _ = t2_shape.check_file(str(p))
+        self.assertTrue(any("AGENTS.md §File Headers" in v for v in viol), viol)
+
+
+# ---------------------------------------------------------------------------
+# T2 dispatch — touched-file scope (gate.py)
+# ---------------------------------------------------------------------------
+class T2TouchedScope(unittest.TestCase):
+    """T2 audits only the .py files the patch touches (added or modified), never a
+    pre-existing untouched file — the §File Headers MUST is "every *new* .py file"
+    and pdca.toml mandates no gating on legacy state the patch did not introduce."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addons = self.tmp / "addons-source"
+        addon = self.addons / "MyAddon"
+        addon.mkdir(parents=True)
+        for f in ("added.py", "modified.py", "untouched.py"):
+            (addon / f).write_text("x = 1\n", encoding="utf-8")
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_only_touched_files_in_scope(self) -> None:
+        patch = self.tmp / "patch.diff"
+        patch.write_text(
+            "diff --git a/MyAddon/added.py b/MyAddon/added.py\n"
+            "new file mode 100644\n--- /dev/null\n+++ b/MyAddon/added.py\n"
+            "@@ -0,0 +1 @@\n+x = 1\n"
+            "diff --git a/MyAddon/modified.py b/MyAddon/modified.py\n"
+            "--- a/MyAddon/modified.py\n+++ b/MyAddon/modified.py\n"
+            "@@ -1 +1 @@\n-x = 1\n+x = 2\n",
+            encoding="utf-8",
+        )
+        names = {f.name for f in gate._touched_addon_files(patch, self.addons)}
+        self.assertEqual(names, {"added.py", "modified.py"})
+        self.assertNotIn("untouched.py", names)
 
 
 # ---------------------------------------------------------------------------

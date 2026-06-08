@@ -88,3 +88,15 @@ effect is the canonical case. This is the downstream backstop for the planner's
 Plan-exit gate (`docs/principles.md` §3) — it catches a guard Do introduces even
 when the brief was clean. It does **not** fire on a fix that *removes / transforms* the
 cause rather than guarding a present capability.
+
+### T2 Shape — diagnostic `print()` adjudication
+
+The T2 gate is deterministic: it FAILs only a missing GPL header on a touched file,
+and **locates** `print()` call sites as `T2 ⚠` advisories — it does not decide whether
+any of them is a defect. That decision is yours. §Logging bans `print()` *for
+diagnostic output*, not all output. For each advisory, read the surrounding code and
+judge: a debug / trace / "got here" print is diagnostic → it should be a module logger,
+so weigh it toward **FAIL**; output that is the code's actual product — a report or
+quickview writing to stdout, a CLI tool's result, output behind a `--debug` / verbosity
+guard — is legitimate → **PASS**. Record the call you made in the T2 Shape basis with
+`path:line`; raise **NEEDS-HUMAN** only when you genuinely cannot tell from the code.

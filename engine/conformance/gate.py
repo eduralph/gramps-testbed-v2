@@ -121,6 +121,27 @@ def _touched_core_files(patch: Path, addons_root: Path, core_root: Path) -> list
     return list(found.values())
 
 
+def _touched_addon_files(patch: Path, addons_root: Path) -> list[Path]:
+    """Existing addon ``.py`` files the patch touches (added or modified), resolved
+    under ``addons_root``.
+
+    A b-path is an addon path when its leading segment is an addon dir. T2 audits
+    only the ``.py`` files the contribution *touches* — not the whole addon dir —
+    so a pre-existing file the patch never touched is out of scope, per the
+    §File Headers MUST ("every **new** ``.py`` file") and pdca.toml's "no gating on
+    legacy state the contribution did not introduce." Added files are present on
+    disk once the bundle's patch is applied for the run; absent files are skipped,
+    like the core scan."""
+    found: dict[str, Path] = {}
+    for p in _patch_bpaths(patch):
+        if not p.endswith(".py") or not (addons_root / p.split("/", 1)[0]).is_dir():
+            continue
+        f = addons_root / p
+        if f.is_file() and str(f) not in found:
+            found[str(f)] = f
+    return list(found.values())
+
+
 def _na(tier: str, msg: str) -> int:
     print(f"{tier} – N/A: {msg}")
     return 0
@@ -147,12 +168,13 @@ def main(argv: list[str] | None = None) -> int:
         return t1_structure.main([str(a) for a in addons])
 
     if tier == "T2":
-        paths = [str(a) for a in addons] + [
-            str(f) for f in _touched_core_files(patch, addons_root, core_root)
-        ]
-        if not paths:
+        # T2 audits the .py files the patch *touches* (added or modified), not the
+        # whole addon dir — pre-existing untouched files are out of scope.
+        files = (_touched_addon_files(patch, addons_root)
+                 + _touched_core_files(patch, addons_root, core_root))
+        if not files:
             return _na("T2", "no checkable .py path in patch.diff")
-        return t2_shape.main(paths)
+        return t2_shape.main([str(f) for f in files])
 
     # T4 — the contribution wrapper, judged against the target's guideline.
     args: list[str] = []
