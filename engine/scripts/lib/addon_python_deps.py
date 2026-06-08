@@ -6,8 +6,10 @@ Sibling to ``addon_system_deps.py`` (which covers the *system* deps —
 ``requires_gi`` typelibs and ``requires_exe`` executables). This module covers
 the third kind a Gramps addon declares in its ``.gpr.py``:
 
-* ``requires_mod`` — importable, pip-installable Python modules
-  (e.g. ``["psycopg2"]``, ``["life_line_chart", "svgwrite"]``).
+* ``requires_mod`` — importable Python module names (e.g. ``["psycopg2"]``,
+  ``["life_line_chart", "svgwrite"]``). These are *import* names (doc 16
+  §Runtime), which are not always the PyPI *distribution* name, so the union is
+  mapped to installable names via ``_IMPORT_TO_DISTRIBUTION`` (e.g. PIL→Pillow).
 
 The addon-unit CI jobs (``addon-unit-tests.yml`` and
 ``windows-addon-unit-tests.yml``) install these before running each addon's
@@ -45,6 +47,17 @@ import sys
 # the only shape that occurs in addons-source.
 _MOD_RE = re.compile(r"requires_mod\s*=\s*(\[[^\]]*\])")
 
+# ``requires_mod`` holds the *importable module* name (doc 16 §Runtime: declare
+# "PIL", the import name, NOT "Pillow", the PyPI distribution — Gramps verifies it
+# with ``importlib.util.find_spec``). But ``pip install`` wants the *distribution*
+# name, which differs for some packages, so installing the raw import name fails
+# (``pip install PIL`` → no such distribution; the package is ``Pillow``). Map the
+# known import→distribution cases so the derived install list resolves on PyPI.
+# Addons stay correct (import name); only the install side translates.
+_IMPORT_TO_DISTRIBUTION = {
+    "PIL": "Pillow",
+}
+
 
 def _gpr_files(addons_dir: str) -> list[str]:
     return sorted(glob.glob(os.path.join(addons_dir, "*", "*.gpr.py")))
@@ -77,7 +90,7 @@ def requires_mod_union(addons_dir: str) -> list[str]:
                 continue
             for mod in value:
                 if mod:
-                    mods.add(mod)
+                    mods.add(_IMPORT_TO_DISTRIBUTION.get(mod, mod))
     return sorted(mods)
 
 

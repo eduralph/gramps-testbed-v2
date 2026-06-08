@@ -253,6 +253,14 @@ timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
         fail=1
         detail=$(grep -oE "FAILED \([^)]*\)" "$run_log" | tail -n 1 || true)
         detail="${detail:-crashed}"
+        # If xmlrunner crashed during collection (e.g. an addon raising at import,
+        # like GraphView when GraphViz is absent), it ran 0 tests and wrote no
+        # JUnit — t3_baseline would see "no parsed failures". Emit a synthetic
+        # <error> so the crash is attributable and baseline-able by addon name.
+        if [ "$ran" -eq 0 ] && ! compgen -G "$out_dir"/*.xml >/dev/null; then
+          python3 "/workspace/$TESTBED_NAME/engine/scripts/lib/synth_junit.py" \
+            "$results_dir" "$addon" "$rc" "$run_log" || true
+        fi
         summary_lines+=( "$(printf "  %-30s  FAIL  (%s tests, %s)" "$addon" "$ran" "$detail")" )
       elif [ "$ran" -gt 0 ] && [ "$skipped" -eq "$ran" ]; then
         fail=1
