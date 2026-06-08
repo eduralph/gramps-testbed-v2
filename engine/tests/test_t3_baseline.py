@@ -41,6 +41,20 @@ class ParseJunit(unittest.TestCase):
     def test_missing_dir_is_empty(self) -> None:
         self.assertEqual(t3_baseline.parse_junit(Path("/no/such/dir")), {})
 
+    def test_recurses_into_per_addon_subdirs(self) -> None:
+        # run-addon-unit.sh writes JUnit one level down (test-results/<addon>/*.xml);
+        # a non-recursive glob missed them, so addon-unit reds were never parsed and
+        # surfaced only as an unattributable "no parsed failures" delta (issue_8653).
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, tmp, True)
+        sub = tmp / "DeepConnectionsGramplet"
+        sub.mkdir()
+        (sub / "TEST-x.xml").write_text(_SUITE, encoding="utf-8")
+        got = t3_baseline.parse_junit(tmp)
+        self.assertEqual(
+            got, {"pkg.Mod::test_bad": "failure", "pkg.Other::test_err": "error"}
+        )
+
 
 class Classify(unittest.TestCase):
     MANIFEST = {
