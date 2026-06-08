@@ -13,10 +13,14 @@ import unittest
 from pathlib import Path
 
 LIB = Path(__file__).resolve().parents[1] / "scripts" / "lib"
+CONF = Path(__file__).resolve().parents[1] / "conformance"
 sys.path.insert(0, str(LIB))
+sys.path.insert(0, str(CONF))
 
 import addon_python_deps  # noqa: E402
 import junit_coverage  # noqa: E402
+import synth_junit  # noqa: E402
+import t3_baseline  # noqa: E402
 
 
 class AddonPythonDeps(unittest.TestCase):
@@ -48,6 +52,36 @@ class AddonPythonDeps(unittest.TestCase):
     def test_empty_when_no_declarations(self) -> None:
         self._addon("Z", "register(GENERAL, id='z')\n")
         self.assertEqual(addon_python_deps.requires_mod_union(str(self.tmp)), [])
+
+    def test_import_name_mapped_to_pip_distribution(self) -> None:
+        # requires_mod holds the IMPORT name (doc 16 §Runtime: "PIL", not "Pillow");
+        # the union maps it to the pip DISTRIBUTION so `pip install` resolves
+        # (`pip install PIL` fails; the package is Pillow). issue_8653.
+        self._addon("EditExifMetadata", 'requires_mod = ["PIL"]\n')
+        self.assertEqual(
+            addon_python_deps.requires_mod_union(str(self.tmp)), ["Pillow"]
+        )
+
+
+class SynthJunit(unittest.TestCase):
+    """A collection crash (0 tests, no XML) becomes an attributable JUnit error."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_crash_is_parseable_and_named(self) -> None:
+        log = self.tmp / "_run.log"
+        log.write_text("Traceback …\nException: GraphViz is required\n", encoding="utf-8")
+        out = synth_junit.write_crash(str(self.tmp), "GraphView", 1, str(log))
+        self.assertTrue(out.is_file())
+        # t3_baseline.parse_junit (flat glob) now sees the crash, named by addon.
+        self.assertEqual(
+            t3_baseline.parse_junit(self.tmp),
+            {"GraphView.collection::import_or_collection": "error"},
+        )
 
 
 class JunitCoverage(unittest.TestCase):

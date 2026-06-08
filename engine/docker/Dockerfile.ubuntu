@@ -27,8 +27,15 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # test harness (xvfb, at-spi). Addon-specific GI typelibs and executables are
 # NOT listed here — they are installed in the next layer from the single-source
 # map (see below) so this base list never drifts from what addons declare.
+#
+# Build headers for addon `requires_mod` packages that compile from source: a
+# wheel-less `pip install` of pygraphviz needs graphviz' dev headers
+# (`graphviz/cgraph.h`, libgraphviz-dev) and psycopg2 needs libpq/pg_config
+# (libpq-dev). Without these the addon-dep install step fails to build them, and
+# an addon that hard-imports the module (e.g. GraphView) crashes its unit suite.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 python3-pip python3-dev \
+      libgraphviz-dev libpq-dev \
       python3-gi python3-gi-cairo python3-cairo python3-pyatspi python3-icu \
       gir1.2-gtk-3.0 \
       libgirepository1.0-dev \
