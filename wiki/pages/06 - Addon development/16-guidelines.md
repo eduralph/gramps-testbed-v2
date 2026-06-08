@@ -35,7 +35,7 @@ Where a rule has a known origin — an upstream PR, a maintainer ruling, a Manti
 
 ## Structure
 
-- **MUST**: the addon's folder name matches the `id` in `.gpr.py`.
+- **MUST**: the addon's folder name is a valid Python import name (an importable identifier — no spaces). Gramps puts each addon's directory on `sys.path` and addons share code via `import <FolderName>` (see [04 - Technical Documentation/addons-development.md](../04%20-%20Technical%20Documentation/addons-development.md) → "name your addons with a name appropriate for Python imports"). The folder name need **not** match the `id` in `.gpr.py`: the registration `id` is an independent plugin key and routinely differs (e.g. folder `DeepConnectionsGramplet` ↔ id `Deep Connections Gramplet`), and one folder may register several plugins with unrelated ids.
 - **MUST**: `.gpr.py` declares `gramps_target_version` matching the Gramps minor the addon targets.
 - **MUST**: `fname` points to an implementation module shipped in the same folder.
 - **MUST** (Gramps 6.0): the addon is physically present under the plugin path. 6.0 plugin discovery does not follow symlinks. **MAY** (Gramps 6.1+): the addon folder is reached via a symlink. 6.1 plugin discovery follows symlinks, with realpath-based dedup so symlink loops terminate. The symlink test is skipped on Windows because the platform's symlink behavior is inconsistent without elevated privileges; on Windows a physical copy remains the recommended approach even on 6.1+.
