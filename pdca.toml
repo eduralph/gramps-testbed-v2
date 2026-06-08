@@ -72,7 +72,14 @@ argv = ["claude", "-p", "--agent", "reviewer", "--permission-mode", "acceptEdits
 mode = "command"
 family = "claude"
 interactive = true
-argv = ["claude", "--agent", "planner", "--permission-mode", "acceptEdits"]
+# Plan is the highest-leverage beat: a brief defect propagates through Do and is only
+# caught (if at all) by a human at T5. So pin the strongest model + raised effort here
+# EXPLICITLY (version-controlled) rather than inheriting an un-versioned machine default
+# from ~/.claude.json. `--effort xhigh` is the recommended level for agentic/coding work
+# (and 4.8 defaults to `high`, so effort must be pinned or the tier bump lowers it).
+# Act 2026-06-08 (issue_8653: under-specified brief). Use the `opus` alias if a frozen
+# id is undesirable; mechanical leaves (builder/reviewer) intentionally stay on default.
+argv = ["claude", "--model", "claude-opus-4-8", "--effort", "xhigh", "--agent", "planner", "--permission-mode", "acceptEdits"]
 
 [leaves.signoff]
 mode = "command"

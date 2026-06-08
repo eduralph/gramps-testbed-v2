@@ -55,6 +55,14 @@
   narrow symptom-sentence — widen it until a one-module patch visibly fails it.
 - **3.3** Mechanism is left to Do; Do prefers removing the cause over guarding the
   symptom.
+- **3.4** When the fix needs a *testable seam* — extracting logic so a test can reach it
+  without the GUI / heavy deps — the success evidence MUST exercise the **production
+  path**: production calls the same extracted unit the test drives. A test that drives a
+  *parallel re-implementation* or hand-copy of the production path (so it validates a
+  copy) is not acceptable evidence — it leaves the real path untested and drift uncaught.
+  This is an *outcome*, not a mechanism (so it does not violate 3.1): Plan states "the
+  test drives the production path"; Do chooses how — e.g. inverting a GUI-entangled
+  generator into a shared one, or a callback seam — per 3.3.
 
 > The self-test is the load-bearing rule: a success criterion narrow enough to be met
 > by guarding one module is narrow enough to let the wrong fix pass. Widen it until only
