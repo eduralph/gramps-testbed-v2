@@ -1,0 +1,12 @@
+diff --git a/CalculateEstimatedDates/tests/__init__.py b/CalculateEstimatedDates/tests/__init__.py
+new file mode 100644
+index 000000000..e69de29bb
+diff --git a/DataEntryGramplet/tests/__init__.py b/DataEntryGramplet/tests/__init__.py
+new file mode 100644
+index 000000000..e69de29bb
+diff --git a/Form/tests/__init__.py b/Form/tests/__init__.py
+new file mode 100644
+index 000000000..e69de29bb
+diff --git a/TMGimporter/tests/__init__.py b/TMGimporter/tests/__init__.py
+new file mode 100644
+index 000000000..e69de29bb

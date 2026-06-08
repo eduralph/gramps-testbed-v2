@@ -1,0 +1,13 @@
+Add missing tests/__init__.py markers to four gramps60 addons
+
+Four addons on maintenance/gramps60 (CalculateEstimatedDates,
+DataEntryGramplet, Form, TMGimporter) ship a tests/ directory with test_*.py
+files but no tests/__init__.py, so those directories are not proper Python
+packages. Add an empty tests/__init__.py to each so every addon test directory
+is an importable package, discoverable via the dotted path
+<Addon>.tests.<module>.
+
+This brings maintenance/gramps60 to 22/22 markers, matching the empty markers
+already present on maintenance/gramps61 (23/23); the change is gramps60-only.
+It is the gramps60 counterpart to the sister cleanup in
+https://github.com/gramps-project/addons-source/pull/931.
