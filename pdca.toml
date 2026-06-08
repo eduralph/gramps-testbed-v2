@@ -125,6 +125,13 @@ target_default = "core"
 [gates.target_match]
 addon = "addons-source"
 
+# Additive flag (template v0.13.0): a change "surfaces" in the GUI iff the brief's
+# `Surfaces` field mentions "gui". A frontend-interacting change (core OR addon) gets
+# the `frontend` label, so the GUI smoke (target = "frontend") and the addon-in-GUI E2E
+# (target = ["addon", "frontend"]) run for it; a pure-logic change does not.
+[gates.target_flags]
+frontend = { field = "surfaces", substring = "gui" }
+
 # C4 — the per-fix CORRECTNESS gate (bundle-scoped, GATING). Applies the bundle's
 # patch.diff and runs ONLY its test, asserting red-without-fix / green-with-fix.
 # This is what makes a bugfix cycle mean something — it actually validates THIS
@@ -190,10 +197,7 @@ label = "runtime: GUI interface smoke (launch + open tree, headless dogtail)"
 cmd = "python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-interface.sh test_smoke.py"
 gating = false
 scope = "repo"
-# Intentionally UNTAGGED: this core GUI smoke must NOT be skipped for a frontend-
-# interacting addon (it needs an E2E that includes core). A precise `target = "frontend"`
-# tag arrives once the brief carries a `Surfaces` signal (template v0.13.0); until then,
-# leaving it untagged runs it for every bundle rather than over-skipping addons.
+target = "frontend"   # runs for any GUI-surfacing change (core OR addon); skips pure-logic
 
 # T1/T2/T4 conformance — the structure / shape / contribution tiers, mechanised
 # from wiki doc 16, the foundation of the T1–T4 ladder. Each checker cites every
