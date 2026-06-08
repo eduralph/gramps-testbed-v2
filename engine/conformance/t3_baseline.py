@@ -77,11 +77,17 @@ BASELINE_DIR = ROOT / "engine" / "baselines"
 # ---------------------------------------------------------------------------
 def parse_junit(results_dir: Path) -> dict[str, str]:
     """``{classname::name: 'failure'|'error'}`` for every non-passing testcase in
-    the JUnit XML under ``results_dir`` (best-effort; a malformed file is skipped)."""
+    the JUnit XML under ``results_dir`` (best-effort; a malformed file is skipped).
+
+    Recurses: ``run-addon-unit.sh`` writes one JUnit dir *per addon*
+    (``test-results/<addon>/*.xml``), whereas the other runners write flat to
+    ``test-results/*.xml`` — a non-recursive glob silently missed every addon-unit
+    result, so a real per-addon red could never be parsed or baselined and surfaced
+    only as an unattributable "exited N, no parsed failures" delta (issue_8653)."""
     failing: dict[str, str] = {}
     if not results_dir.is_dir():
         return failing
-    for xml in sorted(results_dir.glob("*.xml")):
+    for xml in sorted(results_dir.rglob("*.xml")):
         try:
             tree = ElementTree.parse(xml)
         except ElementTree.ParseError:
