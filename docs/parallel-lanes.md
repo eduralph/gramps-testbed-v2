@@ -1,11 +1,51 @@
 # Running PDCA in parallel lanes (gramps-testbed-v2)
 
-> **Status: DESIGN — not implemented.** This is a runbook/spec, not a description of
-> working machinery. What exists today: `pdca batch` (strictly serial, one bundle at a
-> time), the C4 apply→test→trap-restore, `make worktrees`, and the refuse-on-dirty
-> guards. What does **not** exist: lanes, `new-lane.sh`, `scatter-briefs.sh`, the
-> `PDCA_LANES` worker pool, and the automated cross-fix merge re-gate. Sections below
-> that reference scripts "(to add)" or "lanes" describe intended behavior, not current.
+> **Status: two mechanisms, one implemented.**
+> - **In-driver worker pool — IMPLEMENTED (§0, the primary path).** `PDCA_LANES=N` /
+>   `pdca batch|flow --lanes N` runs N bundles concurrently in **one** workspace; each
+>   worker is pinned to a slot and the gates patch that lane's own per-version worktree
+>   (`gramps-6.1-lane$PDCA_LANE`, built by `make worktrees LANES=N`). The cross-fix merge
+>   re-gate (`pdca gates --working-tree`) already exists.
+> - **Full-copy lanes — DESIGN, not built (§1–§8 below).** A separate `$WORKSPACE` per
+>   lane with `new-lane.sh` / `scatter-briefs.sh` / `make lane`: the heavier alternative,
+>   kept here as a runbook. Sections that reference scripts "(to add)" describe intended
+>   behavior, not current. Prefer §0 unless per-lane disk / sign-off ergonomics force a
+>   full split.
+>
+> What exists today regardless: `pdca batch` (serial when `lanes=1`), the C4
+> apply→test→trap-restore, `make worktrees`, and the refuse-on-dirty guards.
+
+## 0. In-driver worker pool (the implemented path)
+
+The driver (`pdca-harness` v0.14.0+) can fan the **unattended Do+Check band** out across a
+worker pool while Plan, sign-off, publish and Act stay serial. Set the pool size with
+`[driver].lanes` in `pdca.toml`, or override per run with `PDCA_LANES=N` /
+`pdca batch|flow --lanes N`. `lanes = 1` (the default) is the strictly-serial driver,
+unchanged.
+
+Each worker thread is pinned to a fixed slot `0..N-1` and exposes it to every gate command
+as `$PDCA_LANE`. The instance side honors the pdca.toml contract — *a gate that touches a
+shared mutable resource outside its bundle MUST name it by `$PDCA_LANE`*:
+
+- **Per-version worktrees are lane-private.** The runners
+  (`engine/scripts/ubuntu/run-verify.sh`, `run-addon-{unit,interface}.sh`) derive
+  `LANE_SFX="${PDCA_LANE:+-lane$PDCA_LANE}"` and patch `gramps-6.{0,1}$LANE_SFX` /
+  `addons-source-6.{0,1}$LANE_SFX` / `gramps-<ver>-essential$LANE_SFX`. Serial runs (no
+  `$PDCA_LANE`) get the bare worktrees, byte-for-byte as before.
+- **Create the lane copies:** `make worktrees LANES=N` (and `make essential-worktrees
+  LANES=N` if any bundle may hit the essential fallback) adds the `-lane0…-lane{N-1}`
+  worktrees alongside the bare set. They are extra `git worktree add` of the same
+  `upstream/maintenance/*` ref — objects shared with the primary, disk ≈ a working tree
+  each (the in-driver model's payoff over full `$WORKSPACE` copies).
+- **Containers need no lane scoping.** Each gate runs as a fresh subprocess, so the
+  PID-named `grampstest-$$-…` is already unique per gate invocation even across pool
+  threads; the shared resource is the filesystem worktree path, which the suffix isolates.
+
+Converge exactly as in §6: each accepted bundle opens its own `fix/<id>` PR and CI runs the
+single-sourced merge re-gate `pdca gates --working-tree` on the merge result.
+
+Run it: `make worktrees LANES=2 && PDCA_LANES=2 make batch IDS="<a> <b>"` (locality-disjoint
+ids per §3). The §1–§8 full-copy runbook follows for the heavier, fully-isolated option.
 
 > Instance realization of the template doctrine
 > `PCDA/quality-cycle/09-parallel-lanes.md`. Everything here is instance-side (engine
@@ -111,7 +151,7 @@ containers are already private because the whole `$WORKSPACE` is separate.
 - **Validate the combination at the merge boundary, not in the lane.** Each accepted
   bundle publishes its own `fix/<id>` draft PR. Correctness-under-combination is
   established there: GitHub surfaces merge **conflicts**, and CI runs the repo-scoped
-  re-gate (`pdca gates` over the working tree — the same command, single-sourced) on the
+  re-gate (`pdca gates --working-tree` — the same impl, single-sourced) on the
   **merge result**. A per-lane green says only "correct on its own"; the merge re-gate is
   what says "mergeable with the others." Resolve any conflict/failure at the PR — not by
   re-opening a lane.
@@ -141,6 +181,9 @@ Spin up 2 lanes with locality-disjoint ids and run both `make batch` concurrentl
 
 The 3 Raspberry Pis don't help here — they can't run the Docker/GTK gates and the
 orchestration they *can* run isn't the bottleneck. Keep them for a lightweight project
-(where a Pi is a full self-sufficient lane) or an always-on dashboard/queue role. The
-in-driver worker pool (one workspace, `PDCA_LANES` thread pool) is the future upgrade if
-the per-lane sign-off ergonomics or disk become a pain point.
+(where a Pi is a full self-sufficient lane) or an always-on dashboard/queue role.
+
+The in-driver worker pool (one workspace, `PDCA_LANES` thread pool) is now **implemented**
+— see §0; it is the default path. The full-copy lanes of §1–§8 stay design-only, the
+heavier fallback for when per-lane sign-off ergonomics or disk pressure justify fully
+separate `$WORKSPACE`s.
