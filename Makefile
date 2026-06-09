@@ -97,21 +97,27 @@ open('.claude/settings.local.json', 'w'), indent=2)"
 # addon matrix uses gramps-6.{0,1} + addons-source-6.{0,1}. Detached so they don't
 # contend for the primary checkout's branch. Fetches upstream first, then creates
 # missing worktrees AND realigns clean existing ones to the current upstream tip.
+# LANES=N additionally creates per-lane copies (gramps-6.x-lane0 … -lane{N-1}) for the
+# in-driver worker pool (docs 09): lane K's gates patch its own worktree so concurrent
+# bundles never contend. The bare set is always (re)built — serial runs use it unchanged.
 worktrees:
 	@ws=$$(cd .. && pwd); \
+	sfxs=""; if [ -n "$(LANES)" ]; then k=0; while [ "$$k" -lt "$(LANES)" ]; do sfxs="$$sfxs -lane$$k"; k=$$((k+1)); done; fi; \
 	for r in gramps addons-source; do git -C "$$ws/$$r" fetch upstream --prune --quiet || echo "warn: fetch upstream failed for $$r"; done; \
+	for sfx in "" $$sfxs; do \
 	for spec in "gramps gramps-6.0 upstream/maintenance/gramps60" \
 	            "gramps gramps-6.1 upstream/maintenance/gramps61" \
 	            "addons-source addons-source-6.0 upstream/maintenance/gramps60" \
 	            "addons-source addons-source-6.1 upstream/maintenance/gramps61"; do \
-	  set -- $$spec; repo="$$ws/$$1"; wt="$$ws/$$2"; ref="$$3"; \
+	  set -- $$spec; repo="$$ws/$$1"; wt="$$ws/$$2$$sfx"; ref="$$3"; \
 	  if [ -d "$$wt" ]; then \
 	    if [ -n "$$(git -C "$$wt" status --porcelain 2>/dev/null)" ]; then echo "✔ $$wt (exists, dirty — left as-is)"; \
 	    else git -C "$$wt" checkout --detach --quiet "$$ref" && echo "↻ $$wt → $$ref ($$(git -C "$$repo" rev-parse --short "$$ref"))"; fi; \
-	  else echo "→ git -C $$1 worktree add --detach $$2 $$ref"; \
+	  else echo "→ git -C $$1 worktree add --detach $$2$$sfx $$ref"; \
 	    git -C "$$repo" worktree add --detach "$$wt" "$$ref" || exit 1; fi; \
 	done; \
-	echo "worktrees ready (upstream base) — core uses gramps-6.{0,1}; addon matrix adds addons-source-6.{0,1}."
+	done; \
+	echo "worktrees ready (upstream base)$${sfxs:+; lanes:$$sfxs} — core uses gramps-6.{0,1}; addon matrix adds addons-source-6.{0,1}."
 
 # --- essential fallback line: upstream + harness-enabling fixes -------------
 # Builds gramps-<ver>-essential = upstream/maintenance/gramps<ver> + the fixes listed in
@@ -119,12 +125,17 @@ worktrees:
 # run-verify.sh retries a CORE bundle here when it FAILS on upstream, and stamps the
 # dependency. Idempotent — skips existing worktrees; pass REBUILD=1 to refresh from the
 # manifest (e.g. after upstream moves or the manifest changes).
+# LANES=N also builds per-lane essential worktrees (gramps-<ver>-essential-lane{0..N-1})
+# on lane-specific branches (a branch can live in only one worktree), mirroring the lane
+# copies `make worktrees LANES=N` creates.
 essential-worktrees:
 	@ws=$$(cd .. && pwd); manifest=engine/essential-fixes.tsv; \
 	[ -f "$$manifest" ] || { echo "no $$manifest"; exit 1; }; \
+	sfxs=""; if [ -n "$(LANES)" ]; then k=0; while [ "$$k" -lt "$(LANES)" ]; do sfxs="$$sfxs -lane$$k"; k=$$((k+1)); done; fi; \
 	git -C "$$ws/gramps" fetch upstream --prune --quiet || echo "warn: fetch upstream failed"; \
+	for sfx in "" $$sfxs; do \
 	for v in $$(awk -F'\t' '!/^#/ && NF>=3 {print $$1}' "$$manifest" | sort -u); do \
-	  tag=$$(echo "$$v" | tr -d .); wt="$$ws/gramps-$$v-essential"; br="testbed/essential-gramps$$tag"; up="upstream/maintenance/gramps$$tag"; \
+	  tag=$$(echo "$$v" | tr -d .); wt="$$ws/gramps-$$v-essential$$sfx"; br="testbed/essential-gramps$$tag$$sfx"; up="upstream/maintenance/gramps$$tag"; \
 	  if [ -d "$$wt" ] && [ -z "$(REBUILD)" ]; then echo "✔ $$wt (exists; REBUILD=1 to refresh)"; continue; fi; \
 	  [ -d "$$wt" ] && { git -C "$$ws/gramps" worktree remove --force "$$wt"; git -C "$$ws/gramps" branch -D "$$br" 2>/dev/null || true; }; \
 	  git -C "$$ws/gramps" branch -f "$$br" "$$up"; \
@@ -133,6 +144,7 @@ essential-worktrees:
 	    git -C "$$wt" cherry-pick "$$c" >/dev/null 2>&1 || { echo "cherry-pick $$c FAILED in $$wt"; git -C "$$wt" cherry-pick --abort 2>/dev/null; exit 1; }; \
 	  done; \
 	  echo "→ $$wt = $$up + $$(awk -F'\t' -v v="$$v" '!/^#/ && $$1==v {print $$3}' "$$manifest" | paste -sd, -)"; \
+	done; \
 	done; \
 	echo "essential worktrees ready — run-verify falls back here on an upstream failure."
 

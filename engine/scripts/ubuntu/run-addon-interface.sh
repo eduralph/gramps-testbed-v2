@@ -51,15 +51,18 @@ ADDONS=("$@")   # explicit names (C4 per-fix); empty ⇒ auto-discover (the repo
 # run-addon-unit.sh / run-verify.sh.
 GRAMPS_DIR="$WORKSPACE/gramps"
 ADDONS_DIR="$WORKSPACE/addons-source"
+# In-driver lane concurrency (docs 09): $PDCA_LANE (set by the worker pool) scopes the
+# per-version worktrees to this lane; unset (serial) → the shared gramps-6.x, unchanged.
+LANE_SFX="${PDCA_LANE:+-lane$PDCA_LANE}"
 if [ -n "${CORE_VERSION:-}" ]; then
   case "$CORE_VERSION" in
-    6.0) GRAMPS_DIR="$WORKSPACE/gramps-6.0"; ADDONS_DIR="$WORKSPACE/addons-source-6.0" ;;
-    6.1) GRAMPS_DIR="$WORKSPACE/gramps-6.1"; ADDONS_DIR="$WORKSPACE/addons-source-6.1" ;;
+    6.0) GRAMPS_DIR="$WORKSPACE/gramps-6.0$LANE_SFX"; ADDONS_DIR="$WORKSPACE/addons-source-6.0$LANE_SFX" ;;
+    6.1) GRAMPS_DIR="$WORKSPACE/gramps-6.1$LANE_SFX"; ADDONS_DIR="$WORKSPACE/addons-source-6.1$LANE_SFX" ;;
     *) echo "run-addon-interface.sh: unknown CORE_VERSION '$CORE_VERSION' (expected 6.0 or 6.1)" >&2; exit 2 ;;
   esac
 fi
 for d in "$GRAMPS_DIR" "$ADDONS_DIR"; do
-  [ -d "$d" ] || { echo "run-addon-interface.sh: checkout $d missing — run 'make worktrees'." >&2; exit 1; }
+  [ -d "$d" ] || { echo "run-addon-interface.sh: checkout $d missing — run 'make worktrees${LANE_SFX:+ LANES=N}'." >&2; exit 1; }
 done
 
 # No explicit addon(s) ⇒ auto-discover every addon that ships a tests/interface/ suite

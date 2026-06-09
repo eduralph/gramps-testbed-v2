@@ -41,6 +41,13 @@ WORKSPACE="$(cd "$REPO_ROOT/.." && pwd)"
 TESTBED_NAME="$(basename "$REPO_ROOT")"
 cd "$WORKSPACE"
 
+# In-driver lane concurrency (docs 09): when the driver runs a worker pool it pins each
+# worker to a slot and exposes it as $PDCA_LANE, so a lane patches its OWN per-version
+# worktree (gramps-6.1-lane0) instead of the shared one. Unset (serial driver) → empty
+# suffix → the bare gramps-6.1 worktrees, exactly as before. `make worktrees LANES=N`
+# creates the lane copies.
+LANE_SFX="${PDCA_LANE:+-lane$PDCA_LANE}"
+
 BUNDLE="${PDCA_BUNDLE:?run-verify.sh is bundle-scoped — \$PDCA_BUNDLE must be set}"
 PATCH="$BUNDLE/patch.diff"
 [ -f "$PATCH" ] || { echo "run-verify.sh: no patch.diff in $BUNDLE" >&2; exit 1; }
@@ -163,20 +170,20 @@ _verify_leg() {
   if [ "$MODE" = core ]; then
     # Default: the target-version UPSTREAM worktree (the contribution target), NOT the
     # developer's working clone. Overridable to the essential worktree for the retry.
-    gramps_dir="${gramps_override:-$WORKSPACE/gramps-$leg}"; repo="$gramps_dir"; cwd=/workspace/gramps
+    gramps_dir="${gramps_override:-$WORKSPACE/gramps-$leg$LANE_SFX}"; repo="$gramps_dir"; cwd=/workspace/gramps
     runenv="GRAMPS_RESOURCES=."; xvfb=""
-    [ -d "$gramps_dir" ] || { echo "run-verify.sh: core worktree $gramps_dir missing — run 'make worktrees'." >&2; return 1; }
+    [ -d "$gramps_dir" ] || { echo "run-verify.sh: core worktree $gramps_dir missing — run 'make worktrees${LANE_SFX:+ LANES=N}'." >&2; return 1; }
     mounts=( -v "$gramps_dir":/workspace/gramps -v "$REPO_ROOT":/workspace/"$TESTBED_NAME" )
     # A worktree's .git is a file pointing at the primary gitdir — bind-mount it so
     # in-container `git apply`/`checkout` resolve.
     if [ -f "$gramps_dir/.git" ]; then gd="$(git -C "$gramps_dir" rev-parse --path-format=absolute --git-common-dir)"; mounts+=( -v "$gd":"$gd" ); fi
   else
-    gramps_dir="$WORKSPACE/gramps-$leg"; repo="$WORKSPACE/addons-source-$leg"
+    gramps_dir="$WORKSPACE/gramps-$leg$LANE_SFX"; repo="$WORKSPACE/addons-source-$leg$LANE_SFX"
     cwd=/workspace/addons-source
     runenv="GRAMPS_RESOURCES=/workspace/gramps PYTHONPATH=/workspace/$TESTBED_NAME/engine/scripts/lib/gi_bootstrap"
     xvfb="xvfb-run -a"
     for d in "$gramps_dir" "$repo"; do
-      [ -d "$d" ] || { echo "run-verify.sh: worktree $d missing — run 'make worktrees'." >&2; return 1; }
+      [ -d "$d" ] || { echo "run-verify.sh: worktree $d missing — run 'make worktrees${LANE_SFX:+ LANES=N}'." >&2; return 1; }
     done
     mounts=( -v "$gramps_dir":/workspace/gramps -v "$repo":/workspace/addons-source \
              -v "$REPO_ROOT":/workspace/"$TESTBED_NAME" )
@@ -240,7 +247,7 @@ for leg in "${LEGS[@]}"; do
   # Upstream leg failed. For a CORE fix, retry on the essential line (upstream +
   # harness-enabling fixes). If it passes there, the fix is correct but carries a
   # dependency — stamp it and do NOT fail the gate on a known-essential prerequisite.
-  ess="$WORKSPACE/gramps-$leg-essential"
+  ess="$WORKSPACE/gramps-$leg-essential$LANE_SFX"
   if [ "$MODE" = core ] && [ -d "$ess" ]; then
     echo "→ upstream leg $leg FAILED — retrying on the essential line ($ess)…"
     if _verify_leg "$leg" "$ess"; then
