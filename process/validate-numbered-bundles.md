@@ -113,6 +113,17 @@ likewise environmental (now baseline-diffed and matrix-split).
   POSSIBLY-FIXED C2 question (BFS cache may already mask some routes). C4 green/red both
   pass on both matrix legs. Pre-existing T1/T2 advisory fails (folder≠gpr-id, gpr GPL
   header) are not patch-introduced.
+  - **Recheck 2026-06-10** (addon-unit matrix, current engine + upstream tips): resolves
+    the bundle's frozen vague rows (`runner exited 1, no parsed failures, no matching
+    baseline signature` on both legs) into concrete per-leg verdicts — **6.0 GREEN** (no
+    failures); **6.1 one real failure**, `Sqlite.tests.test_sqlite.ExportSQLTestCase::`
+    `test_export_sql` (an export→import round-trip of `example.gramps`, new vs baseline),
+    filed on the addons fork as **eduralph/addons-source#47**. T4 also flips N/A→PASS (a
+    `commit-msg.txt` is now present in the bundle). The §9 *"cause never established"* item
+    is thus **resolved**: a genuine 6.1-specific Sqlite failure, not a pure `t3_baseline`
+    parsing artifact — though the unparseable runner-exit had masked it (an instance of the
+    *stale frozen check-gates* drift below). The frozen `check-gates.*` are left immutable
+    by design; this note is the durable record (the recheck worktree was discarded).
 - **`11589`** — HOLDS-WITH-NOTES. Reviewer: Scope over-specified the helper mechanism
   (§3.1 drift, but the named mechanism was in fact correct); fitness question on
   whether sibling-detection matches real FilterRules packaging (by-design Validation
