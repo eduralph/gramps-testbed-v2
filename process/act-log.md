@@ -29,6 +29,115 @@
 - The next Do phases should not recreate <specific issue>. Watch the next K cycles.
 -->
 
+# Act review — 2026-06-09 — cycles considered: 8796 publish (publish-field-parse failure class; cross-ref #23a/#23b)
+
+## What the cycles' records exposed
+- **A recurring publish-failure class, not three unrelated bugs.** `pdca publish` is a
+  deterministic step that turns the human-authored, free-prose `Repo + branch target`
+  brief field plus git/gh invocations into exact commands — and each past failure was a
+  real input shape it didn't anticipate, surfacing as a cryptic git/gh error *mid-run*
+  (after artifacts were drafted) and re-diagnosed from scratch. Prior: #23a (commit
+  must stage patch-ADDED files), #23b (fork PR `--head` must be `OWNER:BRANCH`). This
+  cycle (issue 8796 publish): `_resolve_target` used everything after `@` as the base
+  ref, so the field's trailing annotation reached `git checkout -B … upstream/<base>`
+  → `fatal: 'upstream/maintenance/gramps61 (core fix; …)' is not a commit`. The
+  **repo_spec half of the same field** was the same bug latent — `gramps (core)`,
+  ``gramps (fork `eduralph/gramps`)``, bare `addons-source` would all fail `gh --repo`;
+  only saved so far because every *published* bundle happened to use a clean OWNER/REPO.
+
+## Process deltas (applied this cycle)
+- Gates (applied): `_resolve_target` now takes the first token of BOTH halves (strips
+  markdown backticks / trailing prose) and maps a repo shorthand to canonical
+  OWNER/REPO via a new `[publisher.repo_aliases]`.  (`src/pdca_harness/publish.py`
+  `_resolve_target`/`_first_token`/`_canonical_repo`; `pdca.toml [publisher.repo_aliases]`;
+  `src/pdca_harness/config.py` `repo_aliases`)
+- Gates (applied): publish now **preflights** the parsed target — `git rev-parse
+  --verify upstream/<base>` + `gh repo view <repo>` — *before any mutation*, so a
+  mis-parsed field fails fast with a named-field message instead of a cryptic mid-run
+  git/gh error. This is the generalizable guard for the whole class.
+  (`src/pdca_harness/publish.py` `_preflight`)
+- Tests: `test_resolve_target_normalizes_repo_and_branch` (both annotation forms ×
+  repo aliases) + `test_preflight_rejects_unresolvable_target`.  (`tests/test_publish_slice.py`)
+
+## Process deltas (candidate — routed for engineering, NOT applied)
+- Spec template (candidate): make the brief's `Repo + branch target` a **structured**
+  field — separate machine `repo:` / `branch:` keys (or a constrained `OWNER/REPO@ref`
+  grammar) — so there is nothing to mis-parse and annotation lives in a free-text note.
+  Removes the root cause rather than hardening the parser around it.  (`templates/brief.md.tpl`;
+  `src/pdca_harness/publish.py _resolve_target`; pdca-harness template feedback)
+
+## Follow-ups routed (not process deltas — work handed to an owner)
+- **Template feedback:** the parse-hardening + preflight + structured-field idea are
+  pdca-harness-template-relevant (the publish mechanic is shared) — fold into the next
+  template catch-up. Owner: human.
+
+## How effectiveness will be judged
+- No future publish should fail with a cryptic git/gh error from a brief-field shape:
+  a bad parse now fails at preflight with a clear, field-named message. Watch the next
+  publishes of the prose-target bundles (12576, 13636, 11589, 46). If the structured
+  field lands, `repo_aliases` + the token-stripping can later retire.
+
+# Act review — 2026-06-09 — cycles considered: 8796 (T3 mechanism; cross-ref headless-ut-segfault, glade-setattr)
+
+## What the cycles' records exposed
+- **The advisory T3 gate masked, not informed, across issue_8796's 4 iterations.**
+  C4 was green from iter-3 (the `views_to_show([])` fix is verified, no collateral
+  delta), yet sign-off bounced the bundle to Do four times over T3 reds that are
+  **pre-existing tree defects, not patch-induced** — proven by the T3 delta set
+  being byte-identical (`test_imp_3_4` ×7, `SmokeTest.setUpClass`) across iterations
+  whose test plumbing changed completely. Iterating Do cannot clear a red Do did not
+  cause; the loop was structural.
+- **`t3_baseline.classify()` is blind to tests that did not run.** It diffs observed
+  failing ids vs `known_failures` with no executed/expected-count check
+  (`engine/conformance/t3_baseline.py:116-156`). A known red that collapses a subtree
+  at `setUpClass`/import (the segfault; the Glade crash) emits one failing id; record
+  it and the verdict is "baseline" (exit 0) while every test behind it silently never
+  ran — a *new* regression there is fully masked.
+- **T3 has no pinned substrate.** `run-unit.sh`/`run-interface.sh` mount the developer
+  working clone `../gramps` (today a fix branch), not the `gramps-$leg` upstream
+  worktree C4-verify uses; the manifest records no captured commit. So a T3 delta is
+  not attributable (clone drift vs patch) and a stale baseline is undetectable.
+- **`merged-wider` ≠ in upstream.** `issue_glade-setattr` and
+  `issue_headless-ut-segfault` are recorded `merged-wider`, but neither fix is present
+  in `upstream/maintenance/gramps61` @ `674e3be80a` (the Glade `__setattr__` bug is
+  still verbatim at `gramps/gui/glade.py:64-69`). The bundle outcome overstates the
+  upstream state the T3 gate validates against.
+
+## Process deltas (candidates — routed for engineering, NOT applied here)
+- Triage principle (ruleset): **a red that prevents other tests from running belongs
+  on the essential line (`engine/essential-fixes.tsv`), never in `known_failures`** —
+  parking a harness-blocker in the baseline masks its collapsed subtree. Only *leaf*
+  reds (one test, runs-but-asserts-false) are baseline-eligible.  (docs/INTEGRATION.md §3)
+- Gate: add an **executed-count invariant** to `classify()` — record `expected_total`
+  (or per-class counts) and treat *fewer executed than baseline* as a delta even when
+  the failing-id set matches. Highest-value change; closes the subtree-collapse blind
+  spot.  (`engine/conformance/t3_baseline.py:116-156`)
+- Gate: **pin T3 to the `gramps-$leg` worktree** like C4-verify, and stamp the manifest
+  with the captured upstream commit; warn when the live tree ≠ that commit.
+  (`engine/scripts/ubuntu/run-{unit,interface}.sh`; baseline manifest schema)
+- Gate: **guard `--update`** to accept only the pinned, unmodified tree; add per-id
+  `cause`+`tracking`; enforce shrink-on-clear (fail if a recorded red cleared and was
+  not removed).  (`engine/conformance/t3_baseline.py:185`)
+- Ruleset: narrowest-possible `run_level_signatures`, prefer per-test ids over regexes.
+
+## Follow-ups routed (not process deltas — work handed to an owner)
+- **Bundle-outcome integrity:** `issue_glade-setattr` / `issue_headless-ut-segfault`
+  say `merged-wider` but the fixes are not in `upstream/maintenance/gramps61` tip.
+  Verify the upstream PR merge state and reconcile the recorded outcome. Owner: human.
+- **Un-mask the smoke subtree:** route the Glade `__setattr__` fix onto
+  `engine/essential-fixes.tsv` (alongside the segfault fix) so `T3-interface` actually
+  executes the smoke tests instead of collapsing at `setUpClass`. Owner: human (engine).
+- **C4/T3 substrate asymmetry → testbed issue:** wire the T3 whole-suite runners to the
+  pinned worktree + essential fallback (the seam `run-verify.sh` already has), a
+  prerequisite for ever re-promoting T3 to gating. Owner: human (engine; cross-ref
+  testbed issue #7).
+
+## How effectiveness will be judged
+- Future whole-suite reds should be **attributable** (pinned substrate) and a collapsed
+  subtree should raise as a *delta*, not pass as "baseline." Sign-off should stop
+  routing all-human/environmental §6 sets back to Do (cross-ref the iterate-to-Do
+  guard candidate). Watch the next ~3 cycles for a repeat of the 8796 loop.
+
 # Act review — 2026-06-08 — cycles considered: 8653
 
 ## What the cycles' records exposed

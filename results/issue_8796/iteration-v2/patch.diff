@@ -1,0 +1,276 @@
+diff --git a/gramps/gui/test/viewmanager_test.py b/gramps/gui/test/viewmanager_test.py
+new file mode 100644
+index 0000000000..405fca6ca7
+--- /dev/null
++++ b/gramps/gui/test/viewmanager_test.py
+@@ -0,0 +1,225 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026       The Gramps project
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""Unittest for viewmanager.py.
++
++Regression test for bug 8796: hiding **every** view plugin in the Plugin
++Manager makes Gramps crash at startup with
++``IndexError: list assignment index out of range``.
++
++With no view plugins available, ``ViewManager.get_available_views()`` returns
++``[]``, so ``views_to_show([])`` yields ``(0, 0, [])``
++(``gramps/gui/viewmanager.py`` ``views_to_show``).  ``init_interface`` then sets
++``self.current_views = []`` and calls ``goto_page(0, 0)``, whose
++``self.current_views[cat_num] = view_num`` indexes the empty list and raises.
++The same empty-view state cascades into ``__change_page`` (reached via
++``post_load`` after a tree is opened: ``self.pages[0]`` indexes an empty list)
++and into ``config_view`` (dereferences a ``None`` active page).
++
++This test drives the **production** functions on the real
++``gramps.gui.viewmanager`` module -- the same ``views_to_show`` /
++``ViewManager.goto_page`` / ``ViewManager.__change_page`` / ``config_view`` that
++``init_interface`` and ``post_load`` chain -- not a copy.
++
++The C4-verify runner is HEADLESS (no display / D-Bus / AT-SPI), and
++``viewmanager.py`` does ``from gi.repository import Gtk`` plus a tree of
++``gramps.gui.*`` widget imports.  Importing it for real would need a GTK
++typelib and a display and would crash the runner.  So ``gi`` and the
++``gramps.gui`` submodules ``viewmanager`` imports are stubbed in ``sys.modules``
++*around the import only*: the stubbing is installed in ``setUpClass`` with
++``unittest.mock.patch.dict`` and torn down in ``tearDownClass``, which restores
++``sys.modules`` exactly to its pre-test state (removing every stub and the
++``viewmanager`` module imported under them).  Nothing leaks into other tests run
++in the same ``unittest discover`` process.  The module body still runs and
++defines the **real** ``ViewManager`` class and ``views_to_show`` function, which
++is what we exercise.
++"""
++
++import sys
++import unittest
++from unittest import mock
++
++
++class _Base:
++    """Real-type stand-in for base classes viewmanager subclasses.
++
++    ``class ViewManager(CLIManager)`` and ``class QuickBackup(ManagedWindow)``
++    need real types as bases, so a MagicMock will not do here.
++    """
++
++    def __init__(self, *args, **kwargs):
++        pass
++
++
++def _build_stub_modules():
++    """Return the ``sys.modules`` entries that make ``viewmanager`` import.
++
++    Only the *names* of the GUI widget submodules are needed at import time
++    (they are dereferenced at runtime, inside methods this test does not call),
++    so plain MagicMocks suffice; the two base classes must be real types.
++    The pure ``gramps.gen.*`` modules ``viewmanager`` imports are import-light
++    and load normally headless, so they are left alone.
++    """
++    # gi / gi.repository: a MagicMock satisfies ``from gi.repository import Gtk``.
++    _gi = mock.MagicMock()
++    stubs = {
++        "gi": _gi,
++        "gi.repository": _gi.repository,
++    }
++    for name in (
++        "gramps.gui.user",
++        "gramps.gui.plug",
++        "gramps.gui.plug.report",
++        "gramps.gui.utils",
++        "gramps.gui.pluginmanager",
++        "gramps.gui.displaystate",
++        "gramps.gui.dialog",
++        "gramps.gui.widgets",
++        "gramps.gui.undohistory",
++        "gramps.gui.dbloader",
++        "gramps.gui.display",
++        "gramps.gui.configure",
++        "gramps.gui.aboutdialog",
++        "gramps.gui.navigator",
++        "gramps.gui.views.tags",
++        "gramps.gui.uimanager",
++        "gramps.gui.editors",
++        "gramps.gui.fs.manager",
++        "gramps.gui.fs.session",
++        "gramps.gui.fs.tools_window",
++    ):
++        stubs[name] = mock.MagicMock()
++    # Base classes must be real types so the ``class ViewManager(CLIManager)``
++    # and ``class QuickBackup(ManagedWindow)`` statements succeed.
++    stubs["gramps.cli.grampscli"] = mock.MagicMock(CLIManager=_Base)
++    stubs["gramps.gui.managedwindow"] = mock.MagicMock(ManagedWindow=_Base)
++    return stubs
++
++
++class TestEmptyViewsStartup(unittest.TestCase):
++    """The navigation path must be total over zero available views (bug 8796).
++
++    The import stubbing is confined to this class: ``setUpClass`` starts a
++    ``mock.patch.dict(sys.modules, ...)`` and imports the real module under it;
++    ``tearDownClass`` stops the patch, which restores ``sys.modules`` to its
++    pre-test snapshot (dropping the stubs *and* the ``viewmanager`` module
++    imported under them).  This is what keeps the stubs from leaking into the
++    rest of the ``unittest discover`` run.
++    """
++
++    @classmethod
++    def setUpClass(cls):
++        cls._modpatch = mock.patch.dict(sys.modules, _build_stub_modules())
++        cls._modpatch.start()
++        try:
++            from gramps.gui import viewmanager
++        except Exception:
++            cls._modpatch.stop()
++            raise
++        cls.viewmanager = viewmanager
++
++    @classmethod
++    def tearDownClass(cls):
++        # Restores sys.modules to the snapshot taken at start: removes every
++        # stub and the viewmanager module imported under them, so no stub leaks
++        # into later tests in the same process.
++        cls._modpatch.stop()
++
++    def _empty_view_manager(self):
++        """A ViewManager in the all-views-hidden startup state.
++
++        Built via ``__new__`` to bypass the heavy GTK ``__init__``; the
++        attributes set here are exactly those ``init_interface`` establishes
++        just before it calls ``goto_page`` (``self.views`` / ``self.current_views``
++        from ``views_to_show()``, ``self.pages``, ``self.active_page``), plus the
++        few ``__change_page`` reads before its guard.
++        """
++        vman = self.viewmanager.ViewManager.__new__(self.viewmanager.ViewManager)
++        vman.views = []
++        vman.current_views = []
++        vman.pages = []
++        vman.page_lookup = {}
++        vman.active_page = None
++        vman.merge_ids = []
++        vman.uimanager = mock.MagicMock()
++        return vman
++
++    def test_views_to_show_empty(self):
++        """No views -> default selection is empty, never raising."""
++        self.assertEqual(self.viewmanager.views_to_show([], use_last=False), (0, 0, []))
++
++    def test_goto_page_empty_views_does_not_raise(self):
++        """goto_page on the empty-view startup state must not crash.
++
++        This is the production path ``init_interface`` takes:
++        ``defaults = views_to_show(self.views)`` -> ``self.current_views =
++        defaults[2]`` (== ``[]``) -> ``self.goto_page(defaults[0],
++        defaults[1])``.  Pre-fix this raises
++        ``IndexError: list assignment index out of range``; post-fix it
++        resolves to a no-active-page state.
++        """
++        vman = self._empty_view_manager()
++        current_cat, current_view, default_cat_views = self.viewmanager.views_to_show(
++            vman.views, use_last=False
++        )
++        vman.current_views = default_cat_views
++        try:
++            result = vman.goto_page(current_cat, current_view)
++        except IndexError as err:
++            self.fail(
++                "goto_page() raised IndexError on the empty-view startup state "
++                "(bug 8796): %s" % err
++            )
++        # No page could be shown -> no active page, no crash.
++        self.assertIsNone(result)
++        self.assertIsNone(vman.active_page)
++
++    def test_change_page_empty_pages_does_not_raise(self):
++        """__change_page must not index an empty self.pages (bug 8796 cascade).
++
++        Reached in production via ``post_load`` after a tree is opened:
++        ``self.__change_page(self.notebook.get_current_page())`` with an empty
++        notebook passes ``page_num == -1``; pre-fix both ``self.pages[-1]`` and
++        the ``self.pages[0]`` fallback raise ``IndexError`` on the empty list.
++        Post-fix it returns leaving no active page.
++        """
++        vman = self._empty_view_manager()
++        change_page = getattr(vman, "_ViewManager__change_page")
++        try:
++            change_page(-1)
++        except IndexError as err:
++            self.fail(
++                "__change_page() raised IndexError with no pages (bug 8796): %s" % err
++            )
++        self.assertIsNone(vman.active_page)
++
++    def test_config_view_no_active_page_does_not_raise(self):
++        """config_view must not dereference a None active_page (bug 8796 cascade)."""
++        vman = self._empty_view_manager()
++        try:
++            vman.config_view()
++        except AttributeError as err:
++            self.fail(
++                "config_view() raised AttributeError with no active page "
++                "(bug 8796): %s" % err
++            )
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/gramps/gui/viewmanager.py b/gramps/gui/viewmanager.py
+index 8c6280111b..785ad64d13 100644
+--- a/gramps/gui/viewmanager.py
++++ b/gramps/gui/viewmanager.py
+@@ -921,6 +921,14 @@ class ViewManager(CLIManager):
+         """
+         Create the page if it doesn't exist and make it the current page.
+         """
++        if not self.views:
++            # bug 8796: no views are available (e.g. every view plugin has been
++            # hidden in the Plugin Manager).  views_to_show() then yields an
++            # empty current_views list, so indexing self.current_views below
++            # raised 'IndexError: list assignment index out of range' at
++            # startup.  With no view to show, leave the interface with no active
++            # page rather than crashing.
++            return None
+         if view_num is None:
+             view_num = self.current_views[cat_num]
+         else:
+@@ -1043,6 +1051,14 @@ class ViewManager(CLIManager):
+         """
+         self.__disconnect_previous_page()
+ 
++        if not self.pages:
++            # bug 8796: with no available views no page was ever created, so
++            # there is nothing to activate (page_num is -1).  Leave the
++            # interface with no active page rather than indexing the empty
++            # self.pages list (the self.pages[0] fallback below would also
++            # raise IndexError).
++            return
++
+         # The following is to avoid 'IndexError: list index out of range'
+         # Bugs: 12304, 12429, 12623, 12695
+         try:
+@@ -1498,6 +1514,10 @@ class ViewManager(CLIManager):
+         """
+         Displays the configuration dialog for the active view
+         """
++        if self.active_page is None:
++            # bug 8796: with no available views there is no active page, so
++            # there is nothing to configure -- do not dereference None.
++            return
+         self.active_page.configure()
+ 
+     def undo(self, *obj):
