@@ -73,7 +73,7 @@ def publish(
         return 1
 
     # Resolve the target from the brief (the contribution's where).
-    repo_spec, base, slug = _resolve_target(d)
+    repo_spec, base, slug = _resolve_target(d, cfg)
     if not repo_spec or not base:
         msg = (f"publish: brief has no usable 'Repo + branch target' "
                f"(got repo={repo_spec!r} base={base!r})")
@@ -112,8 +112,8 @@ def publish(
     repo = _checkout_path(cfg, repo_spec)
 
     git = lambda *a: ["git", "-C", str(repo), *a]
+    fetch = git("fetch", "upstream")
     steps = [
-        git("fetch", "upstream"),
         git("checkout", "-B", branch, f"upstream/{base}"),
         git("apply", str((d / "patch.diff").resolve())),
         # `commit -a` stages only modified-tracked files and would silently drop the
@@ -135,12 +135,24 @@ def publish(
 
     if dry_run:
         print(f"publish --dry-run — {d.name} → draft PR on {repo_spec} ({branch} → {base}):")
-        for c in steps + ([pr_cmd] if open_pr else []):
+        print(f"  # preflight: verify upstream/{base} resolves and {repo_spec} is accessible")
+        for c in [fetch] + steps + ([pr_cmd] if open_pr else []):
             print("  " + " ".join(shlex.quote(x) for x in c))
         return 0
 
     # Real run: mutate the local checkout — guard it is present and clean first.
     rc = _check_repo(repo, repo_spec)
+    if rc != 0:
+        return rc
+
+    # Fetch, then PREFLIGHT the parsed target before any mutation — a mis-parsed brief
+    # field fails here with a clear message, not as a cryptic git/gh error mid-run.
+    print("→ " + " ".join(fetch[3:]))
+    if subprocess.run(fetch).returncode != 0:
+        print("publish: `git fetch upstream` failed — check the 'upstream' remote",
+              file=sys.stderr)
+        return 1
+    rc = _preflight(repo, repo_spec, base, check_repo=open_pr)
     if rc != 0:
         return rc
 
@@ -192,14 +204,60 @@ def publish(
 
 
 # ----------------------------------------------------------------------------
-def _resolve_target(d: Path) -> tuple[str, str, str]:
+def _resolve_target(d: Path, cfg: Config | None = None) -> tuple[str, str, str]:
     """``(repo_spec, base_branch, slug)`` from the brief, e.g.
-    ``("example-org/example-repo", "main", "fix-the-thing")``."""
+    ``("example-org/example-repo", "main", "fix-the-thing")``.
+
+    Both halves of the ``Repo + branch target`` field carry free-form annotation in
+    practice ("gramps (core) @ `maintenance/gramps61` — branched from …"). A repo is
+    ``OWNER/REPO`` and a git ref is a single token, so take the first token of each
+    (stripping markdown backticks), then map a repo shorthand to a canonical
+    ``OWNER/REPO`` via ``[publisher.repo_aliases]``. Otherwise the prose reaches
+    ``git checkout -B … upstream/<base>`` / ``gh pr --repo/--base`` and fails with a
+    cryptic "not a commit" / invalid-repo error mid-run (issue 8796 + the repo twin)."""
     bp = d / "brief.md"
     target = brief.field(bp, "repo + branch target", "repo + branch", "target")
-    repo_spec, _, base = target.partition("@")
+    repo_raw, _, base_raw = target.partition("@")
+    repo_spec = _canonical_repo(cfg, _first_token(repo_raw))
+    base = _first_token(base_raw)
     slug = brief.field(bp, "slug") or d.name.removeprefix("issue_")
-    return repo_spec.strip(), base.strip(), _slugify(slug)
+    return repo_spec, base, _slugify(slug)
+
+
+def _first_token(s: str) -> str:
+    """First whitespace/backtick/'('-delimited token of ``s`` — the bare ref or repo,
+    stripped of the brief's surrounding backticks and trailing annotation. ``""`` if none."""
+    m = re.match(r"`?([^\s`(]+)", s.strip())
+    return m.group(1) if m else ""
+
+
+def _canonical_repo(cfg: Config | None, token: str) -> str:
+    """Map a brief repo shorthand ('gramps', 'addons-source') to canonical
+    ``OWNER/REPO`` via ``[publisher.repo_aliases]``. An explicit ``OWNER/REPO`` (already
+    contains '/') passes through; an unknown bare name passes through too (preflight
+    then surfaces it as an unresolvable repo rather than a silent wrong push)."""
+    if not token or "/" in token:
+        return token
+    return (getattr(cfg, "repo_aliases", None) or {}).get(token, token)
+
+
+def _preflight(repo: Path, repo_spec: str, base: str, check_repo: bool) -> int:
+    """Validate the parsed target against git/gh BEFORE any mutation, so a mis-parsed
+    ``Repo + branch target`` fails fast with a clear message instead of a cryptic
+    git/gh error mid-run (the recurring publish-failure class: #23, 8796). Assumes
+    ``git fetch upstream`` already ran, so ``upstream/<base>`` is current."""
+    if subprocess.run(["git", "-C", str(repo), "rev-parse", "--verify", "--quiet",
+                       f"upstream/{base}^{{commit}}"], stdout=subprocess.DEVNULL).returncode != 0:
+        print(f"publish: base ref 'upstream/{base}' does not resolve — check the brief's "
+              f"'Repo + branch target' (parsed base={base!r})", file=sys.stderr)
+        return 1
+    if check_repo and subprocess.run(["gh", "repo", "view", repo_spec],
+                                     stdout=subprocess.DEVNULL,
+                                     stderr=subprocess.DEVNULL).returncode != 0:
+        print(f"publish: repo '{repo_spec}' not found/accessible on GitHub — check the "
+              f"brief's 'Repo + branch target' (parsed repo={repo_spec!r})", file=sys.stderr)
+        return 1
+    return 0
 
 
 def _slugify(s: str) -> str:
