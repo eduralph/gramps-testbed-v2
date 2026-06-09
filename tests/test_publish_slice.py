@@ -200,6 +200,66 @@ class PublishSlice(unittest.TestCase):
         self.assertEqual(publish._checkout_path(self.cfg, "org/foo"),
                          (self.cfg.root / "../custom-foo").resolve())
 
+    def test_resolve_target_normalizes_repo_and_branch(self) -> None:
+        """Regression (the publish-failure class — 8796 base ref + the repo_spec twin):
+        the 'Repo + branch target' field carries free-form prose on BOTH sides; only a
+        bare git ref and a canonical OWNER/REPO (resolved via repo_aliases) may reach
+        `git checkout -B … upstream/<base>` / `gh pr --repo/--base`."""
+        self.cfg.repo_aliases = {"gramps": "gramps-project/gramps",
+                                 "addons-source": "gramps-project/addons-source"}
+        cases = {
+            # 8796 form: clean repo, branch + parenthetical annotation
+            "gramps-project/gramps @ maintenance/gramps61 (core fix; branch from "
+            "`upstream/maintenance/gramps61`, forward-merged to `master` — INTEGRATION §2).":
+                ("gramps-project/gramps", "maintenance/gramps61"),
+            # prose repo shorthand + backticked branch + em-dash annotation
+            "gramps (core) @ `maintenance/gramps61` — branched from "
+            "`upstream/maintenance/gramps61`.": ("gramps-project/gramps", "maintenance/gramps61"),
+            # fork-annotated repo prose still maps to the canonical upstream repo
+            "gramps (fork `eduralph/gramps`) @ maintenance/gramps61 (core GUI fix).":
+                ("gramps-project/gramps", "maintenance/gramps61"),
+            # bare addon shorthand → canonical
+            "addons-source @ maintenance/gramps60 (addons production).":
+                ("gramps-project/addons-source", "maintenance/gramps60"),
+            # already-canonical, no annotation (unchanged behaviour)
+            "example-org/example-repo @ main": ("example-org/example-repo", "main"),
+        }
+        for target, want in cases.items():
+            d = self.tmp / f"issue_{abs(hash(target))}"
+            d.mkdir()
+            (d / "brief.md").write_text(
+                f"- **Slug:** s\n- **Repo + branch target:** {target}\n", encoding="utf-8")
+            repo_spec, base, _ = publish._resolve_target(d, self.cfg)
+            self.assertEqual((repo_spec, base), want, msg=target)
+
+    def test_preflight_rejects_unresolvable_target(self) -> None:
+        """Preflight catches a mis-parsed target (bad base ref / unknown repo) BEFORE
+        any mutation, with a clear message — the generalizable guard for the class."""
+        repo = self.tmp / "co"
+        repo.mkdir()
+        # base ref does not resolve → rc 1, named field in the message
+        with mock.patch("pdca_harness.publish.subprocess.run",
+                        return_value=SimpleNamespace(returncode=1)):
+            buf = io.StringIO()
+            with redirect_stderr(buf):
+                rc = publish._preflight(repo, "org/repo", "nope", check_repo=False)
+        self.assertEqual(rc, 1)
+        self.assertIn("does not resolve", buf.getvalue())
+        # base ok but repo not accessible (check_repo path) → rc 1
+        with mock.patch("pdca_harness.publish.subprocess.run",
+                        side_effect=[SimpleNamespace(returncode=0),
+                                     SimpleNamespace(returncode=1)]):
+            buf = io.StringIO()
+            with redirect_stderr(buf):
+                rc = publish._preflight(repo, "org/repo", "main", check_repo=True)
+        self.assertEqual(rc, 1)
+        self.assertIn("not found/accessible", buf.getvalue())
+        # everything resolves → rc 0
+        with mock.patch("pdca_harness.publish.subprocess.run",
+                        return_value=SimpleNamespace(returncode=0)):
+            self.assertEqual(
+                publish._preflight(repo, "org/repo", "main", check_repo=True), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

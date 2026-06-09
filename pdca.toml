@@ -41,6 +41,14 @@ feature_branch_pattern = "enhancement/{id}-{slug}"
 # "<org/repo>" = "../<checkout-dir>"   # only the exceptions to the sibling default
 # (the sibling default already resolves gramps-project/gramps → ../gramps, etc.)
 
+[publisher.repo_aliases]
+# Brief "Repo + branch target" shorthand → canonical OWNER/REPO. A brief may name the
+# repo loosely ("gramps (core)", "addons-source"); publish takes the first token and
+# maps it here so `gh --repo` / the checkout path get a real OWNER/REPO. An explicit
+# OWNER/REPO in the brief passes through untouched.
+gramps = "gramps-project/gramps"
+addons-source = "gramps-project/addons-source"
+
 # The six model leaves (docs 03 §Implementation substrate). mode = "stub" runs
 # the offline placeholders (no model/TTY) so the driver works without a model;
 # mode = "command" runs `argv` as a subprocess with the leaf's prompt. `interactive

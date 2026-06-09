@@ -63,6 +63,7 @@ class Config:
     feature_branch_pattern: str = "enhancement/{id}-{slug}"
     issue_trailer: str = "Fixes #{id}"  # commit/PR trailer; "" → none enforced
     repo_checkouts: dict[str, str] = field(default_factory=dict)  # repo_spec → local path
+    repo_aliases: dict[str, str] = field(default_factory=dict)  # brief shorthand → OWNER/REPO
     gates_checks: list[dict] = field(default_factory=list)
     # Target-aware gate selection (docs 04). A check may carry ``target`` (a label or
     # list); it runs iff its labels are a SUBSET of the bundle's label set. The bundle is
@@ -138,6 +139,7 @@ class Config:
             feature_branch_pattern=publisher_cfg.get("feature_branch_pattern", "enhancement/{id}-{slug}"),
             issue_trailer=tracker.get("issue_trailer", "Fixes #{id}"),
             repo_checkouts=dict(publisher_cfg.get("checkouts", {})),
+            repo_aliases=dict(publisher_cfg.get("repo_aliases", {})),
             gate_target_default=gates.get("target_default", ""),
             gate_target_match=dict(gates.get("target_match", {})),
             gate_target_flags=gate_target_flags,
