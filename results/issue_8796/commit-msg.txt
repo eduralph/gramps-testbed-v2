@@ -1,0 +1,19 @@
+Fix IndexError at startup when all view plugins are hidden
+
+Hiding every view plugin in the Plugin Manager left Gramps with no
+available views, and on the next start the main window crashed with
+"IndexError: list assignment index out of range" before it could open.
+
+With no views to show, the view-selection logic used to report category 0
+as the page to open even though no category existed, so startup tried to
+navigate into an empty view set and failed. It now reports "no category"
+when there are no views, and the interface simply opens with no active
+page. Opening the configuration dialog or loading a family tree in that
+same no-view state could hit the same crash from other directions; those
+paths now also resolve cleanly to "nothing to show" instead of raising.
+
+This complements the earlier per-case guards from commit
+d5d86e913967db40e41e2c471507e370f043b74d by making the empty-view set
+total at its source.
+
+Fixes #8796

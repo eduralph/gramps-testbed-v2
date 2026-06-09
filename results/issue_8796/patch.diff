@@ -1,0 +1,268 @@
+diff --git a/gramps/gui/test/viewmanager_test.py b/gramps/gui/test/viewmanager_test.py
+new file mode 100644
+index 0000000000..70b13d9e72
+--- /dev/null
++++ b/gramps/gui/test/viewmanager_test.py
+@@ -0,0 +1,68 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026       The Gramps project
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""Unittest for gramps.gui.viewmanagerutils.views_to_show.
++
++Regression test for bug 8796: hiding **every** view plugin in the Plugin
++Manager makes Gramps crash at startup with
++``IndexError: list assignment index out of range``.
++
++Root cause: with no view plugins available ``ViewManager.get_available_views()``
++returns ``[]``, so ``views_to_show([])`` used to yield ``(0, 0, [])`` -- claiming
++category 0 exists.  ``ViewManager.init_interface`` then called
++``goto_page(0, 0)``, whose ``self.current_views[cat_num] = view_num`` indexed the
++empty ``current_views`` list and raised.
++
++This test drives the **production** ``views_to_show`` -- the exact function
++``viewmanager.init_interface`` calls (``viewmanager`` re-imports it from
++``viewmanagerutils``) -- not a re-implementation.  ``viewmanagerutils`` carries no
++``gi`` / GTK import, so the genuine production decision logic is exercised here
++under the headless test runner without launching the GTK ``ViewManager``.
++
++The fix makes ``views_to_show`` total over the empty view set: it reports "no
++category" (``current_cat is None``) so ``init_interface`` leaves the interface
++with no active page instead of navigating into the empty set.
++"""
++
++import unittest
++
++from ..viewmanagerutils import views_to_show
++
++
++class TestViewsToShowEmpty(unittest.TestCase):
++    """views_to_show must be total over zero available views (bug 8796)."""
++
++    def test_empty_views_reports_no_category(self):
++        """views_to_show([]) reports no category instead of collapsing to (0, 0, []).
++
++        Pre-fix this returns ``(0, 0, [])``; the caller then ran
++        ``goto_page(0, 0)`` -> ``self.current_views[0] = 0`` on an empty list and
++        raised ``IndexError: list assignment index out of range`` at startup.
++        Post-fix it returns ``(None, None, [])`` so ``init_interface`` skips
++        navigation and the app opens with no active page.
++        """
++        self.assertEqual(views_to_show([], use_last=False), (None, None, []))
++
++    def test_empty_views_use_last(self):
++        """The empty-view set is total under use_last=True as well."""
++        self.assertEqual(views_to_show([], use_last=True), (None, None, []))
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/gramps/gui/viewmanager.py b/gramps/gui/viewmanager.py
+index 8c6280111b..db333e6390 100644
+--- a/gramps/gui/viewmanager.py
++++ b/gramps/gui/viewmanager.py
+@@ -77,6 +77,7 @@ from .plug import PluginWindows, ReportPluginDialog, ToolPluginDialog
+ from .plug.report import report, BookSelector
+ from .utils import AvailableUpdates, Popup
+ from .pluginmanager import GuiPluginManager
++from .viewmanagerutils import views_to_show
+ from gramps.gen.relationship import get_relationship_calculator
+ from .displaystate import DisplayState, RecentDocsMenu
+ from gramps.gen.const import (
+@@ -637,12 +638,19 @@ class ViewManager(CLIManager):
+         Initialize the interface.
+         """
+         self.views = self.get_available_views()
+-        defaults = views_to_show(self.views, config.get("preferences.use-last-view"))
+-        self.current_views = defaults[2]
++        current_cat, current_cat_view, self.current_views = views_to_show(
++            self.views, config.get("preferences.use-last-view")
++        )
+ 
+         self.navigator.load_plugins(self.dbstate, self.uistate)
+ 
+-        self.goto_page(defaults[0], defaults[1])
++        if current_cat is not None:
++            # bug 8796: only navigate when there is a view to show.  With every
++            # view plugin hidden get_available_views() returns [], views_to_show()
++            # then reports no category (current_cat is None), and the interface is
++            # left with no active page instead of navigating into the empty view
++            # set (which raised 'IndexError: list assignment index out of range').
++            self.goto_page(current_cat, current_cat_view)
+ 
+         self.uimanager.set_actions_sensitive(self.fileactions, False)
+         self.__build_tools_menu(self._pmgr.get_reg_tools())
+@@ -1043,6 +1051,15 @@ class ViewManager(CLIManager):
+         """
+         self.__disconnect_previous_page()
+ 
++        if not self.pages:
++            # bug 8796: with no available views no page was ever created, so
++            # there is nothing to activate.  Reached e.g. via _post_load_newdb_gui
++            # (viewmanager.py:1221), which calls __change_page(notebook.get_current
++            # _page()) -- get_current_page() returns -1 for an empty notebook, so
++            # both self.pages[-1] and the self.pages[0] fallback below would raise
++            # IndexError.  Leave the interface with no active page.
++            return
++
+         # The following is to avoid 'IndexError: list index out of range'
+         # Bugs: 12304, 12429, 12623, 12695
+         try:
+@@ -1498,6 +1515,12 @@ class ViewManager(CLIManager):
+         """
+         Displays the configuration dialog for the active view
+         """
++        if self.active_page is None:
++            # bug 8796: with no available views (every view plugin hidden) there
++            # is no active page, so the ConfigView action (viewmanager.py:528,
++            # <shift><PRIMARY>c) has nothing to configure -- do not dereference
++            # None.
++            return
+         self.active_page.configure()
+ 
+     def undo(self, *obj):
+@@ -1823,36 +1846,6 @@ def make_plugin_callback(pdata, dbstate, uistate):
+     return lambda x, y: run_plugin(pdata, dbstate, uistate)
+ 
+ 
+-def views_to_show(views, use_last=True):
+-    """
+-    Determine based on preference setting which views should be shown
+-    """
+-    current_cat = 0
+-    current_cat_view = 0
+-    default_cat_views = [0] * len(views)
+-    if use_last:
+-        current_page_id = config.get("preferences.last-view")
+-        default_page_ids = config.get("preferences.last-views")
+-        found = False
+-        for indexcat, cat_views in enumerate(views):
+-            cat_view = 0
+-            for pdata, page_def in cat_views:
+-                if not found:
+-                    if pdata.id == current_page_id:
+-                        current_cat = indexcat
+-                        current_cat_view = cat_view
+-                        default_cat_views[indexcat] = cat_view
+-                        found = True
+-                        break
+-                if pdata.id in default_page_ids:
+-                    default_cat_views[indexcat] = cat_view
+-                cat_view += 1
+-        if not found:
+-            current_cat = 0
+-            current_cat_view = 0
+-    return current_cat, current_cat_view, default_cat_views
+-
+-
+ class QuickBackup(ManagedWindow):  # TODO move this class into its own module
+     def __init__(self, dbstate, uistate, user):
+         """
+diff --git a/gramps/gui/viewmanagerutils.py b/gramps/gui/viewmanagerutils.py
+new file mode 100644
+index 0000000000..01ee9ac132
+--- /dev/null
++++ b/gramps/gui/viewmanagerutils.py
+@@ -0,0 +1,87 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2005-2007  Donald N. Allingham
++# Copyright (C) 2008       Brian G. Matherly
++# Copyright (C) 2009       Benny Malengier
++# Copyright (C) 2010,2025  Nick Hall
++# Copyright (C) 2026       The Gramps project
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++GTK-independent helpers for :mod:`gramps.gui.viewmanager`.
++
++This module deliberately carries no ``gi`` / GTK import, so the pure
++view-selection logic it holds can be unit tested headless (see
++``gramps/gui/test/viewmanager_test.py``).  ``viewmanager`` re-imports
++``views_to_show`` from here, so production and the test exercise the *same*
++implementation rather than a parallel copy.
++"""
++
++# -------------------------------------------------------------------------
++#
++# Gramps modules
++#
++# -------------------------------------------------------------------------
++from gramps.gen.config import config
++
++
++# -------------------------------------------------------------------------
++#
++# Functions
++#
++# -------------------------------------------------------------------------
++def views_to_show(views, use_last=True):
++    """
++    Determine based on preference setting which views should be shown.
++
++    Returns a ``(current_cat, current_cat_view, default_cat_views)`` tuple.
++    When there are no views to show -- ``views`` is empty, e.g. every view
++    plugin has been hidden in the Plugin Manager -- ``current_cat`` is ``None``
++    to signal "no category to select", so the caller leaves the interface with
++    no active page instead of navigating into the empty set.
++    """
++    current_cat = 0
++    current_cat_view = 0
++    default_cat_views = [0] * len(views)
++    if not views:
++        # bug 8796: with no available views there is no category to select.
++        # Returning (0, 0, []) here claimed category 0 exists, so the caller's
++        # goto_page(0, 0) indexed an empty current_views list and raised
++        # 'IndexError: list assignment index out of range' at startup.  Signal
++        # "no view to show" with a None category instead.
++        return None, None, default_cat_views
++    if use_last:
++        current_page_id = config.get("preferences.last-view")
++        default_page_ids = config.get("preferences.last-views")
++        found = False
++        for indexcat, cat_views in enumerate(views):
++            cat_view = 0
++            for pdata, page_def in cat_views:
++                if not found:
++                    if pdata.id == current_page_id:
++                        current_cat = indexcat
++                        current_cat_view = cat_view
++                        default_cat_views[indexcat] = cat_view
++                        found = True
++                        break
++                if pdata.id in default_page_ids:
++                    default_cat_views[indexcat] = cat_view
++                cat_view += 1
++        if not found:
++            current_cat = 0
++            current_cat_view = 0
++    return current_cat, current_cat_view, default_cat_views
