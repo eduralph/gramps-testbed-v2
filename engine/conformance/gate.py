@@ -55,6 +55,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import t1_structure  # noqa: E402
+import t2_potfiles  # noqa: E402
 import t2_shape  # noqa: E402
 import t4_contribution  # noqa: E402
 
@@ -172,9 +173,21 @@ def main(argv: list[str] | None = None) -> int:
         # whole addon dir — pre-existing untouched files are out of scope.
         files = (_touched_addon_files(patch, addons_root)
                  + _touched_core_files(patch, addons_root, core_root))
-        if not files:
+        shape_rc = t2_shape.main([str(f) for f in files]) if files else 0
+        # POTFILES registration (§Adding and removing Python files) — a CORE MUST;
+        # read from the patch since a file the patch *adds* isn't on disk yet, so a
+        # new-.py-only patch leaves `files` empty but still needs this check.
+        pot_violations: list[str] = []
+        if target == "core" and patch.is_file():
+            pot_violations = t2_potfiles.check_patch(
+                patch.read_text(encoding="utf-8", errors="replace"),
+                already_listed=t2_potfiles.listed_on_disk(str(core_root)),
+            )
+            for v in pot_violations:
+                print(f"T2 ✗ {v}")
+        if not files and not pot_violations:
             return _na("T2", "no checkable .py path in patch.diff")
-        return t2_shape.main([str(f) for f in files])
+        return 1 if (shape_rc or pot_violations) else 0
 
     # T4 — the contribution wrapper, judged against the target's guideline.
     args: list[str] = []

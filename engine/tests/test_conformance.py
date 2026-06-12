@@ -23,6 +23,7 @@ sys.path.insert(0, str(CONF))
 import doc16  # noqa: E402
 import gate  # noqa: E402
 import t1_structure  # noqa: E402
+import t2_potfiles  # noqa: E402
 import t2_shape  # noqa: E402
 import t4_contribution  # noqa: E402
 
@@ -328,6 +329,105 @@ class T4Contribution(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# T2 — POTFILES registration (doc 16 §Adding and removing Python files), issue #67
+# ---------------------------------------------------------------------------
+class T2Potfiles(unittest.TestCase):
+    _NEWFILE = (
+        "diff --git a/gramps/plugins/test/_bsddb_avail.py b/gramps/plugins/test/_bsddb_avail.py\n"
+        "new file mode 100644\n"
+        "index 0000000..1111111\n"
+        "--- /dev/null\n"
+        "+++ b/gramps/plugins/test/_bsddb_avail.py\n"
+        "@@ -0,0 +1,2 @@\n"
+        "+import berkeleydb\n"
+        "+VALUE = 1\n"
+    )
+    _POT_HUNK = (
+        "diff --git a/po/POTFILES.skip b/po/POTFILES.skip\n"
+        "index 2222222..3333333 100644\n"
+        "--- a/po/POTFILES.skip\n"
+        "+++ b/po/POTFILES.skip\n"
+        "@@ -439,6 +439,7 @@\n"
+        " gramps/plugins/test/display_test.py\n"
+        "+gramps/plugins/test/_bsddb_avail.py\n"
+        " gramps/plugins/test/user_test.py\n"
+    )
+
+    def test_new_py_registered_in_skip_passes(self) -> None:
+        self.assertEqual(t2_potfiles.check_patch(self._NEWFILE + self._POT_HUNK), [])
+
+    def test_new_py_unregistered_flagged(self) -> None:
+        v = t2_potfiles.check_patch(self._NEWFILE)
+        self.assertEqual(len(v), 1)
+        self.assertIn("_bsddb_avail.py", v[0])
+        self.assertIn("doc16-core §Adding and removing Python files", v[0])
+
+    def test_new_py_registered_in_in_passes(self) -> None:
+        pot_in = self._POT_HUNK.replace("POTFILES.skip", "POTFILES.in")
+        self.assertEqual(t2_potfiles.check_patch(self._NEWFILE + pot_in), [])
+
+    def test_already_listed_satisfies_add(self) -> None:
+        already = {"gramps/plugins/test/_bsddb_avail.py"}
+        self.assertEqual(t2_potfiles.check_patch(self._NEWFILE, already_listed=already), [])
+
+    def test_modified_not_new_py_not_required(self) -> None:
+        # A modified (not added) .py file is out of scope — only adds/deletes.
+        mod = (
+            "diff --git a/gramps/plugins/test/imports_test.py b/gramps/plugins/test/imports_test.py\n"
+            "index aaa..bbb 100644\n"
+            "--- a/gramps/plugins/test/imports_test.py\n"
+            "+++ b/gramps/plugins/test/imports_test.py\n"
+            "@@ -1,1 +1,1 @@\n"
+            "-old\n"
+            "+new\n"
+        )
+        self.assertEqual(t2_potfiles.check_patch(mod), [])
+
+    def test_new_non_py_not_required(self) -> None:
+        data = (
+            "diff --git a/gramps/data/foo.txt b/gramps/data/foo.txt\n"
+            "new file mode 100644\n"
+            "--- /dev/null\n"
+            "+++ b/gramps/data/foo.txt\n"
+            "@@ -0,0 +1,1 @@\n"
+            "+hello\n"
+        )
+        self.assertEqual(t2_potfiles.check_patch(data), [])
+
+    def test_deleted_py_still_listed_flagged(self) -> None:
+        delete = (
+            "diff --git a/gramps/plugins/test/old_test.py b/gramps/plugins/test/old_test.py\n"
+            "deleted file mode 100644\n"
+            "--- a/gramps/plugins/test/old_test.py\n"
+            "+++ /dev/null\n"
+            "@@ -1,1 +0,0 @@\n"
+            "-VALUE = 1\n"
+        )
+        already = {"gramps/plugins/test/old_test.py"}
+        v = t2_potfiles.check_patch(delete, already_listed=already)
+        self.assertEqual(len(v), 1)
+        self.assertIn("still referenced", v[0])
+
+    def test_deleted_py_deregistered_passes(self) -> None:
+        delete = (
+            "diff --git a/gramps/plugins/test/old_test.py b/gramps/plugins/test/old_test.py\n"
+            "deleted file mode 100644\n"
+            "--- a/gramps/plugins/test/old_test.py\n"
+            "+++ /dev/null\n"
+            "@@ -1,1 +0,0 @@\n"
+            "-VALUE = 1\n"
+            "diff --git a/po/POTFILES.skip b/po/POTFILES.skip\n"
+            "--- a/po/POTFILES.skip\n"
+            "+++ b/po/POTFILES.skip\n"
+            "@@ -10,2 +9,1 @@\n"
+            " keep.py\n"
+            "-gramps/plugins/test/old_test.py\n"
+        )
+        already = {"gramps/plugins/test/old_test.py"}
+        self.assertEqual(t2_potfiles.check_patch(delete, already_listed=already), [])
+
+
+# ---------------------------------------------------------------------------
 # doc16 anchors — every cited section must exist in its vendored source
 # ---------------------------------------------------------------------------
 class Doc16Anchors(unittest.TestCase):
@@ -349,6 +449,7 @@ class Doc16Anchors(unittest.TestCase):
         ("addon", "Mantis trailer keywords"),
         ("core", "Contributor workflow"),
         ("addon", "addons-source: bug reference in PR body"),
+        ("core", "Adding and removing Python files"),
     ]
 
     def test_every_cited_section_exists(self) -> None:
