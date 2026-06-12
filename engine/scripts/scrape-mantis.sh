@@ -80,8 +80,16 @@ esac
 if [ "$#" -eq 0 ]; then usage; exit 2; fi
 
 # Normalize ids (strip leading zeros) so they match the issue_<id> bundle naming.
+# Validate each id is digits-only BEFORE the arithmetic expansion: $((10#$raw))
+# evaluates $raw as a bash arithmetic expression, so a non-numeric id such as
+# '1+a[$(cmd)]' would execute cmd via array-subscript evaluation (CWE-95
+# arithmetic-eval command injection — the 10# prefix binds only the first token).
 ids=()
 for raw in "$@"; do
+  if [[ ! "$raw" =~ ^[0-9]+$ ]]; then
+    echo "scrape-mantis.sh: invalid issue id '$raw' (must be digits only)" >&2
+    exit 2
+  fi
   ids+=("$((10#$raw))")
 done
 csv_ids="$(IFS=,; echo "${ids[*]}")"
