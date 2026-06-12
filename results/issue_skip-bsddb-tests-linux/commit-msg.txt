@@ -1,0 +1,17 @@
+Skip legacy-bsddb import tests when no backend is loadable
+
+The five legacy-bsddb import tests (test_imp_3_4_5_zip, test_imp_4_1_3_zip,
+test_imp_4_2_8_zip, test_imp_5_0_1bsd_zip, test_imp_5_1_2bsd_zip) failed
+instead of skipping on any Linux install where the bsddb backend cannot be
+loaded — that is, where neither berkeleydb nor bsddb3 is importable. db_load
+fell through to make_database("bsddb"), which raises, and the catch-all
+reported it as a test failure rather than an environmental skip.
+
+Commit 29a0bedaa03eae52cb2e678f9a1a22121a0a7fc5 already skips these tests, but
+only under a hard-coded win() check, so the default SQLite install on Linux
+still failed. This widens the skip condition to probe the backend's actual
+loadability — mirroring the plugin loader, which tries berkeleydb then bsddb3 —
+so the tests skip cleanly on any platform that lacks the backend and run
+unchanged wherever a backend is installed.
+
+Bug #13260

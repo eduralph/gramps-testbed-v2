@@ -114,3 +114,15 @@ index 0000000000..fad91157d8
 +
 +if __name__ == "__main__":
 +    unittest.main()
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index b95b077991..51a420db88 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -439,6 +439,7 @@ gramps/gui/selectors/selectorfactory.py
+ # gui.test package
+ #
+ gramps/gui/test/display_test.py
++gramps/gui/test/glade_test.py
+ gramps/gui/test/user_test.py
+ #
+ # gui/views - the GUI views package

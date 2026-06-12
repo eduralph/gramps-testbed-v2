@@ -1,0 +1,111 @@
+diff --git a/gramps/plugins/test/_bsddb_avail.py b/gramps/plugins/test/_bsddb_avail.py
+new file mode 100644
+index 0000000000..951db0c7a7
+--- /dev/null
++++ b/gramps/plugins/test/_bsddb_avail.py
+@@ -0,0 +1,53 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026 Gramps Development Team
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""Test-harness helper: probe whether the bsddb database backend is loadable.
++
++The legacy-bsddb import tests in :mod:`gramps.plugins.test.imports_test` must
++*skip* — not *fail* — when the bsddb backend cannot be loaded, on every
++platform rather than only on Windows.  This helper answers the exact question
++the plugin loader asks at ``gramps/plugins/db/bsddb/bsddb.py`` lines 32-35:
++is :mod:`berkeleydb` (the maintained successor) importable, or failing that
++:mod:`bsddb3` (deprecated since Python 3.6)?  If neither is, the backend is
++unavailable and ``make_database("bsddb")`` would raise.
++"""
++
++
++def bsddb_backend_available():
++    """Return ``True`` iff the bsddb backend is loadable on this platform.
++
++    Mirrors the loader's probe order at ``gramps/plugins/db/bsddb/bsddb.py``
++    lines 32-35 (try ``berkeleydb`` then ``bsddb3``) so the test harness's
++    notion of "bsddb is available" matches what ``make_database("bsddb")``
++    will actually find.  Any import error — a missing package or a failed
++    shared library — counts as unavailable, exactly as the loader tolerates.
++    """
++    try:
++        from berkeleydb.db import DB  # noqa: F401
++
++        return True
++    except Exception:
++        pass
++    try:
++        from bsddb3.db import DB  # noqa: F401
++
++        return True
++    except Exception:
++        pass
++    return False
+diff --git a/gramps/plugins/test/imports_test.py b/gramps/plugins/test/imports_test.py
+index 800d1e2c3b..67fd12df2b 100644
+--- a/gramps/plugins/test/imports_test.py
++++ b/gramps/plugins/test/imports_test.py
+@@ -64,6 +64,16 @@ from gramps.gen.db.exceptions import (
+     DbConnectionError,
+ )
+ 
++try:
++    from gramps.plugins.test._bsddb_avail import bsddb_backend_available
++except ImportError:  # pragma: no cover - defensive fallback
++
++    def bsddb_backend_available():
++        # If the availability prober cannot be imported, do not skip: let the
++        # real backend load attempt surface any problem rather than mask it.
++        return True
++
++
+ # logger = logging.getLogger(__name__)
+ 
+ # the following defines where to find test error diffs and import result XML files
+@@ -241,9 +251,15 @@ def db_load(zipfn, self):
+             else:
+                 dbid = "bsddb"
+ 
+-            # skip if the bsddb backend is not available
+-            if dbid == "bsddb" and win():
+-                self.skipTest("bsddb not supported on Windows")
++            # skip if the bsddb backend is not loadable on this platform
++            # (mirrors the loader's probe at
++            # gramps/plugins/db/bsddb/bsddb.py:32-35 — neither berkeleydb nor
++            # bsddb3 importable means make_database("bsddb") would raise)
++            if dbid == "bsddb" and not bsddb_backend_available():
++                self.skipTest(
++                    "bsddb backend not loadable on this platform "
++                    "(neither berkeleydb nor bsddb3 is installed)"
++                )
+ 
+             db = make_database(dbid)
+             db.disable_signals()
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index b95b077991..d80f1b4d1a 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -624,6 +624,7 @@ gramps/plugins/sidebar/expandersidebar.py
+ #
+ # plugins/test directory
+ #
++gramps/plugins/test/_bsddb_avail.py
+ gramps/plugins/test/db_undo_and_signals_test.py
+ gramps/plugins/test/exports_test.py
+ gramps/plugins/test/imports_test.py
