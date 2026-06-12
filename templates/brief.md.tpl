@@ -29,6 +29,11 @@
   (principles.md §3.4).>
 - **Citations expected:** Do must cite path:line on the target branch for every change.
 - **Prior-art check (triage cycles):** <searched by file path — merged history / open PRs / closed PRs — result>
+- **Mantis:** <the tracker issue id (e.g. `13418`) — or `none — <why this fix has no
+  tracker ticket>` for a fix that genuinely has none (e.g. it originated from GitHub
+  PR feedback or is internal cleanup). Drives the T4 trailer: an id ⇒ a `Fixes/Bug
+  #id` trailer is required; `none` ⇒ the trailer MUST is waived (the publisher omits
+  it and the PR body states the origin) — never invent or borrow an unrelated id.>
 - **Disposition hint:** <likely-fix | likely-close | POSSIBLY-FIXED → verify first | UPSTREAM | EXTERNAL | NO-NOTES>
 
 ## STOP discipline

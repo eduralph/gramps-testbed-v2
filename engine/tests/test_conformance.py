@@ -329,6 +329,49 @@ class T4Contribution(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# T4 — declared-ticketless path (issue #71): trailer waived, never misattributed
+# ---------------------------------------------------------------------------
+class T4Ticketless(unittest.TestCase):
+    def test_missing_trailer_ok_when_not_required(self) -> None:
+        msg = "Short summary\n\nbody text with no trailer at all\n"
+        self.assertEqual(
+            t4_contribution.check_commit_msg(msg, require_trailer=False), [])
+
+    def test_malformed_trailer_still_flagged_when_not_required(self) -> None:
+        # A present-but-wrong trailer must never slip through, even ticketless.
+        msg = "Short summary\n\nbody text\n\nFixes 13636\n"  # bare number
+        self.assertTrue(
+            t4_contribution.check_commit_msg(msg, require_trailer=False))
+
+    def test_other_must_still_enforced_when_not_required(self) -> None:
+        msg = "x" * 71 + "\n\nbody, no trailer\n"  # summary too long
+        self.assertTrue(any("§Commit messages" in v for v in
+                            t4_contribution.check_commit_msg(msg, require_trailer=False)))
+
+    def test_pr_body_bug_ref_waived_but_sections_required(self) -> None:
+        body = "## Root cause\nx\n## Fix\ny\n## Verified against\nz\n## Test\nt\n"
+        self.assertEqual(
+            t4_contribution.check_pr_body(body, "core", require_trailer=False), [])
+        missing = "## Root cause\nx\n## Fix\ny\n## Test\nt\n"  # no 'Verified against'
+        self.assertTrue(
+            t4_contribution.check_pr_body(missing, "core", require_trailer=False))
+
+    def test_gate_detects_ticketless_brief(self) -> None:
+        import tempfile
+        for decl, expected in [
+            ("- **Mantis:** none — from gramps#2314 PR feedback\n", True),
+            ("- **Mantis:** none\n", True),
+            ("- **Mantis ticket:** N/A\n", True),
+            ("- **Mantis:** 13418\n", False),
+            ("- **Defect:** something\n", False),
+        ]:
+            with tempfile.TemporaryDirectory() as t:
+                b = Path(t)
+                (b / "brief.md").write_text("# Brief\n" + decl, encoding="utf-8")
+                self.assertIs(gate._ticketless(b), expected, decl)
+
+
+# ---------------------------------------------------------------------------
 # T2 — POTFILES registration (doc 16 §Adding and removing Python files), issue #67
 # ---------------------------------------------------------------------------
 class T2Potfiles(unittest.TestCase):
