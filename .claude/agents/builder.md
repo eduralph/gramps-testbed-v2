@@ -48,6 +48,13 @@ Write the patch against the brief's **target branch** and follow
 target, not just apply cleanly (§3); ship the test in the location the target branch
 uses (§3); make the patch commit-ready for the target's own hooks (§4).
 
+**When your patch ADDS or REMOVES a core `.py` file, register it in the same patch**
+(doc 16 §Adding and removing Python files): a new file goes in `po/POTFILES.in` (it
+has translatable strings) or `po/POTFILES.skip` (it has none — e.g. a test or a probe
+helper); a deleted file is removed from **both**. This applies to the regression test
+*and* any helper module you extract. Omitting it is a recurring miss the `T2-potfiles`
+gate now catches — but fix it at the source, in the patch.
+
 **When you reject an alternative on cost, show the cost** — a diff sketch or a concrete
 line count someone can check, never an adjective ("heavier", "larger", "touches every
 reader"). This matters most when your chosen fix *guards a symptom* (adds a probe/guard)

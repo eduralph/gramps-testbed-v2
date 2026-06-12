@@ -28,6 +28,11 @@
   extracted unit the test drives — NOT a parallel copy that mirrors production
   (principles.md §3.4).>
 - **Citations expected:** Do must cite path:line on the target branch for every change.
+- **New/removed files:** <if the fix ADDS or REMOVES a core `.py` (a new test, a probe
+  helper, …), name its `po/POTFILES.{in,skip}` placement — a file with translatable
+  strings → `POTFILES.in`, one without (tests/helpers) → `POTFILES.skip`; a deletion is
+  removed from both (doc 16 §Adding and removing Python files). Do registers it in the
+  same patch; `T2-potfiles` checks it. Omit for a patch that adds/removes no `.py`.>
 - **Prior-art check (triage cycles):** <searched by file path — merged history / open PRs / closed PRs — result>
 - **Disposition hint:** <likely-fix | likely-close | POSSIBLY-FIXED → verify first | UPSTREAM | EXTERNAL | NO-NOTES>
 
