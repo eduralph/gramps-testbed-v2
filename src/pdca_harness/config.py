@@ -81,8 +81,13 @@ class Config:
     lanes: int = 1
 
     def bundle(self, issue_id: str) -> Path:
-        """The per-cycle bundle directory for an issue id."""
-        return self.bundle_root / f"issue_{issue_id}"
+        """The per-cycle bundle directory for an issue id.
+
+        Normalises a leading ``issue_`` so an id passed *with* the prefix (e.g.
+        a bundle dir name fed back in) resolves to the same directory as the
+        bare id — never a doubled ``issue_issue_<id>``.
+        """
+        return self.bundle_root / f"issue_{issue_id.removeprefix('issue_')}"
 
     @classmethod
     def load(cls, root: Path | None = None) -> "Config":
