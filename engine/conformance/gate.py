@@ -55,6 +55,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import t1_structure  # noqa: E402
+import t2_potfiles  # noqa: E402
 import t2_shape  # noqa: E402
 import t4_contribution  # noqa: E402
 
@@ -80,6 +81,21 @@ def _bundle() -> Path:
 
 # A diff path line: 'diff --git a/<p> b/<p>' or '+++ b/<p>'. We take the b-side.
 _DIFF_B = re.compile(r"^(?:diff --git a/\S+ b/|\+\+\+ b/)(\S+)")
+
+# A brief that declares the fix has no Mantis ticket: ``- **Mantis:** none`` (the
+# value 'none' / 'n/a'). The declared-ticketless path (#71) — T4 then waives the
+# trailer MUST instead of forcing a block or an invented/borrowed id.
+_TICKETLESS = re.compile(
+    r"(?im)^\s*-?\s*\**\s*mantis(?:\s+ticket)?\s*\**\s*:\s*\**\s*(?:none|n/a)\b"
+)
+
+
+def _ticketless(bundle: Path) -> bool:
+    """True if the bundle's brief declares it has no Mantis ticket."""
+    b = bundle / "brief.md"
+    if not b.is_file():
+        return False
+    return bool(_TICKETLESS.search(b.read_text(encoding="utf-8", errors="replace")))
 
 
 def _patch_bpaths(patch: Path) -> list[str]:
@@ -172,9 +188,21 @@ def main(argv: list[str] | None = None) -> int:
         # whole addon dir — pre-existing untouched files are out of scope.
         files = (_touched_addon_files(patch, addons_root)
                  + _touched_core_files(patch, addons_root, core_root))
-        if not files:
+        shape_rc = t2_shape.main([str(f) for f in files]) if files else 0
+        # POTFILES registration (§Adding and removing Python files) — a CORE MUST;
+        # read from the patch since a file the patch *adds* isn't on disk yet, so a
+        # new-.py-only patch leaves `files` empty but still needs this check.
+        pot_violations: list[str] = []
+        if target == "core" and patch.is_file():
+            pot_violations = t2_potfiles.check_patch(
+                patch.read_text(encoding="utf-8", errors="replace"),
+                already_listed=t2_potfiles.listed_on_disk(str(core_root)),
+            )
+            for v in pot_violations:
+                print(f"T2 ✗ {v}")
+        if not files and not pot_violations:
             return _na("T2", "no checkable .py path in patch.diff")
-        return t2_shape.main([str(f) for f in files])
+        return 1 if (shape_rc or pot_violations) else 0
 
     # T4 — the contribution wrapper, judged against the target's guideline.
     args: list[str] = []
@@ -186,7 +214,12 @@ def main(argv: list[str] | None = None) -> int:
         args += ["--pr-body", str(pr_body)]
     if not args:
         return _na("T4", "no commit-msg.txt or pr-description.md in the bundle")
-    return t4_contribution.main(args + ["--target", target])
+    args += ["--target", target]
+    # Declared-ticketless brief (#71): waive the Mantis-trailer / #NNNN MUST so a
+    # genuinely ticketless core fix publishes without an invented or borrowed id.
+    if _ticketless(bundle):
+        args.append("--no-trailer")
+    return t4_contribution.main(args)
 
 
 if __name__ == "__main__":

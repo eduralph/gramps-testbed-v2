@@ -36,15 +36,23 @@ push / draft-PR after you finish. **Do not push, branch, or open a PR yourself.*
    - the **last line** is the issue trailer the project configures
      (`[tracker].issue_trailer`, e.g. `Fixes #<id>`) — the T4 gate enforces it as the
      last line, preceded by a blank line, so do **not** append any other trailer
-     (e.g. `Co-Authored-By:`) after it. **If no tracker id is
-     assigned yet** (the bundle id is not a real tracker number), OMIT the trailer rather
-     than invent a placeholder like `#0000` — `pdca publish --no-issue` relaxes T4 to a
-     flag and records the contribution `id_pending` for the human to fill the id in.
+     (e.g. `Co-Authored-By:`) after it. The id comes from the brief's **`Mantis:`**
+     field. **Three cases:**
+     - a real id (`Mantis: 13418`) → end with `Fixes #13418` (or a link keyword
+       `Bug #13418` when the fix doesn't close the ticket);
+     - **`Mantis: none`** (a fix that genuinely has no ticket, e.g. from GitHub PR
+       feedback) → **OMIT the trailer entirely**; T4 waives it for a declared-ticketless
+       brief. **Never** borrow or invent an id (no `#0000`, no unrelated ticket) just to
+       satisfy the gate — that is the misattribution this path exists to prevent (#71);
+     - id not yet *assigned* but expected → omit it and use `pdca publish --no-issue`,
+       which relaxes T4 to a flag and records `id_pending` for the human to fill in.
 
 2. **`pr-description.md`** — the PR body, per doc 16 §Contributor workflow and
    `templates/pr-description.md.tpl`: the sections **Root cause / Fix / Verified
-   against / Test**, citing `path:lines` on the **target branch**, and referencing
-   the bug as `#<id>`.
+   against / Test**, citing `path:lines` on the **target branch**. Reference the bug as
+   `#<id>` when there is one; for a `Mantis: none` fix, state the **origin** instead
+   (e.g. "Reported in gramps#2314; no Mantis ticket") — the section structure is still
+   required, only the `#NNNN` reference is waived.
 
 ## How you work
 
