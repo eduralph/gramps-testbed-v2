@@ -82,8 +82,13 @@ _SUMMARY_MAX = 70
 _BODY_WRAP = 80
 
 
-def check_commit_msg(text: str, target: str = "core") -> list[str]:
-    """Return the commit-message MUST violations (each citing its section)."""
+def check_commit_msg(text: str, target: str = "core", *, require_trailer: bool = True) -> list[str]:
+    """Return the commit-message MUST violations (each citing its section).
+
+    ``require_trailer=False`` is the declared-ticketless path (the brief states
+    ``Mantis: none``): a missing trailer is then **not** a violation, but a trailer
+    that *is* present must still be well-formed — so a borrowed/mis-typed
+    ``Bug #NNNN`` is never silently accepted (issue #71)."""
     cm = doc16.cite(target, "Commit messages")
     tk = doc16.cite(target, "Mantis trailer keywords")
     violations: list[str] = []
@@ -119,18 +124,7 @@ def check_commit_msg(text: str, target: str = "core") -> list[str]:
     # the Mantis trailer is the last non-empty line and uses the Keyword #NNNN form.
     nonempty = [ln for ln in lines if ln.strip()]
     last = nonempty[-1].strip() if nonempty else ""
-    if not _TRAILER.match(last):
-        if _TRAILER_KW_ANY.match(last):
-            violations.append(
-                f"commit: trailer must use the '#NNNN' form, not a bare number "
-                f"or URL ({tk}) — got: {last[:50]!r}"
-            )
-        else:
-            violations.append(
-                f"commit: last line is not a Mantis trailer "
-                f"(e.g. 'Fixes #12345') ({tk}) — got: {last[:50]!r}"
-            )
-    else:
+    if _TRAILER.match(last):
         # The trailer line exists and is well-formed; it MUST follow a blank line.
         idx = len(lines) - 1
         while idx > 0 and not lines[idx].strip():
@@ -140,6 +134,19 @@ def check_commit_msg(text: str, target: str = "core") -> list[str]:
                 f"commit: Mantis trailer is not separated from the body by a "
                 f"blank line ({cm})"
             )
+    elif _TRAILER_KW_ANY.match(last):
+        # A trailer keyword used but mis-formed — always a violation, even ticketless:
+        # a present-but-wrong trailer must never pass.
+        violations.append(
+            f"commit: trailer must use the '#NNNN' form, not a bare number "
+            f"or URL ({tk}) — got: {last[:50]!r}"
+        )
+    elif require_trailer:
+        violations.append(
+            f"commit: last line is not a Mantis trailer "
+            f"(e.g. 'Fixes #12345') ({tk}) — got: {last[:50]!r}"
+        )
+    # else: declared ticketless and no trailer attempted — OK.
     return violations
 
 
@@ -148,11 +155,13 @@ _PR_SECTIONS = ("Root cause", "Fix", "Verified against", "Test")
 _BUG_REF = re.compile(r"#\d+")
 
 
-def check_pr_body(text: str, target: str = "core") -> list[str]:
+def check_pr_body(text: str, target: str = "core", *, require_trailer: bool = True) -> list[str]:
     """Return the PR-body MUST violations for the given target.
 
     The four-section structure (Root cause / Fix / Verified against / Test) is a
     **core-only** MUST; the addon guideline only mandates a Mantis bug reference.
+    ``require_trailer=False`` (declared ticketless) waives the ``#NNNN`` reference —
+    the section structure is still required.
     """
     violations: list[str] = []
     low = text.lower()
@@ -167,7 +176,7 @@ def check_pr_body(text: str, target: str = "core") -> list[str]:
         bug_cite = cite
     else:
         bug_cite = doc16.cite("addon", "addons-source: bug reference in PR body")
-    if not _BUG_REF.search(text):
+    if require_trailer and not _BUG_REF.search(text):
         violations.append(f"pr-body: no Mantis bug reference '#NNNN' ({bug_cite})")
     return violations
 
@@ -185,15 +194,19 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--pr-body", help="PR body file ('-' for stdin)")
     ap.add_argument("--target", choices=("core", "addon"), default="core",
                     help="contribution target — picks the guideline (default: core)")
+    ap.add_argument("--no-trailer", action="store_true",
+                    help="declared-ticketless: don't require a Mantis trailer / #NNNN "
+                         "(a present-but-malformed trailer is still flagged)")
     ns = ap.parse_args(argv)
     if not ns.commit_msg and not ns.pr_body:
         ap.error("give --commit-msg and/or --pr-body")
 
+    require = not ns.no_trailer
     violations: list[str] = []
     if ns.commit_msg:
-        violations += check_commit_msg(_read(ns.commit_msg), ns.target)
+        violations += check_commit_msg(_read(ns.commit_msg), ns.target, require_trailer=require)
     if ns.pr_body:
-        violations += check_pr_body(_read(ns.pr_body), ns.target)
+        violations += check_pr_body(_read(ns.pr_body), ns.target, require_trailer=require)
 
     for line in violations:
         print(f"T4 ✗ {line}")
