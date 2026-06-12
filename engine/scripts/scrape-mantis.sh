@@ -80,9 +80,15 @@ esac
 if [ "$#" -eq 0 ]; then usage; exit 2; fi
 
 # Normalize ids (strip leading zeros) so they match the issue_<id> bundle naming.
+# Safety: validate input is numeric to prevent RCE via arithmetic expansion.
 ids=()
 for raw in "$@"; do
-  ids+=("$((10#$raw))")
+  if [[ "$raw" =~ ^[0-9]+$ ]]; then
+    ids+=("$((10#$raw))")
+  else
+    echo "Invalid ID: $raw" >&2
+    exit 1
+  fi
 done
 csv_ids="$(IFS=,; echo "${ids[*]}")"
 
