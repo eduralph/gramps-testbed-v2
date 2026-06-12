@@ -29,6 +29,78 @@
 - The next Do phases should not recreate <specific issue>. Watch the next K cycles.
 -->
 
+# Act review — 2026-06-12 — cycles considered: glade-setattr (PR #2356 review feedback; cross-ref new-core-`.py` POTFILES omission across all such bundles)
+
+## What the cycles' records exposed
+- **A documented doc-16 MUST with no owner in the cycle — surfaced by a maintainer at
+  review, not by any gate (issue_glade-setattr / gramps PR #2356).** Nick-Hall asked
+  for the new test file to be listed in `po/POTFILES.{in,skip}`. The rule is explicit
+  and sourced: *"When a core PR adds or removes a `.py` file — MUST update
+  `po/POTFILES.in` (translatable strings) or `po/POTFILES.skip` (none)"*
+  (`wiki/pages/05 - Gramps development/16-guidelines.md:97-100`, citing
+  `gramps/AGENTS.md §Translation Files`). It is not exotic — it simply has no encoding
+  in our T1–T4 ladder, no prompt in the brief template, and no builder checklist item.
+- **The omission fell through every beat.** Plan: the brief named the new test file but
+  never stated the POTFILES obligation. Do: the builder reads `brief.md` only and has no
+  independent doc-16 checklist, so the file shipped unregistered. Check/gates: T1 is
+  addon-only; `T2-shape` checks file *shape* (GPL header, `print()`); `T4-contribution`
+  checks the commit/PR *wrapper* (doc 16 §Commit messages / §Contributor workflow) —
+  none implement doc 16 §Translation Files. New-file→manifest registration falls in the
+  gap **between T2 (shape) and T4 (wrapper)**; neither owns it. C4-verify runs only the
+  bundle's one named test.
+- **The one upstream test that touches POTFILES would not have caught it either.**
+  `gramps/po/test/po_test.py` only asserts membership for files that *contain*
+  translatable-string markers; a no-`_()` test file like `glade_test.py` never enters
+  its `found` branch. And it runs inside `T3-unit`, which is advisory and baseline-red
+  (the segfault), so it informs nothing today regardless.
+- **Systemic, not a one-off.** Every prior core bundle that adds a `.py` file has the
+  same missing POTFILES hunk — `13636` (uimanager_test.py), `8653`, `8796`, `11589`,
+  `11786`, `13205`, `headless-ut-segfault`. `issue_glade-setattr` is the *only* bundle
+  whose `patch.diff` now carries a POTFILES hunk, and only because it was added by hand
+  after Nick-Hall's review (see follow-up). The addon bundle
+  (`addon-tests-init-py-gramps60`) is out of scope — addons carry their own translation
+  handling, not core `po/`.
+
+## Process deltas (candidates — routed for engineering, NOT applied here)
+- Gate (candidate, highest-value): add a **bundle-scoped, deterministic** check — for a
+  *core* bundle whose `patch.diff` adds a `.py` file, assert that file appears in
+  `po/POTFILES.in` **or** `po/POTFILES.skip` (and, on a deletion, in neither). Directly
+  implements doc 16:99-100, is **target-aware** (core-only; N/A for addon bundles), and
+  needs **no Docker** so it runs on this host. Natural home: extend `t2_shape.py` (it
+  already walks the patch's touched core `.py` files) or add a sibling
+  `t2`-class file-registration checker.   (`engine/conformance/t2_shape.py` / new
+  `engine/conformance/`; cite doc 16 §Translation Files by section per the anchor rule)
+- Spec template (candidate): the brief's **Test file** / new-file guidance gains a line —
+  *a new core source file MUST name its `POTFILES.{in,skip}` placement* — so the
+  obligation is surfaced at Plan and the builder (which reads only the brief) is told to
+  register it.   (`templates/brief.md.tpl`)
+- Agent skill — builder (candidate): when a fix **adds a new core `.py`**, the builder
+  MUST add the corresponding `POTFILES.{in,skip}` line in the same patch (`.skip` when
+  the file has no translatable strings — e.g. tests).   (`.claude/agents/builder.md`)
+
+## Follow-ups routed (not process deltas — work handed to an owner)
+- **Project under test (core) — already done:** `gramps/gui/test/glade_test.py`
+  registered in `po/POTFILES.skip`; pushed to PR #2356 (commit `fedd265159`,
+  `fix/bug-glade-setattr-glade-setattr-name-mangling`). The bundle's `patch.diff` was
+  synced to match. No open code work; recorded for trace.   (gramps PR #2356)
+- **Back-fill question (open Act item):** the seven prior core bundles above shipped /
+  published without their POTFILES entry. For any whose upstream PR is still open,
+  the same one-line `.skip`/`.in` addition is owed. Owner: human — audit the open PRs
+  (13636, 8653, 8796, 11589, 11786, 13205, headless-ut-segfault) and add where merged
+  state allows. Next step: list which are still open.
+- **Testbed/driver issue:** the file-registration gate + brief/builder lines are
+  **generic** doc-16 conformance (the POTFILES MUST is core gramps, but the *pattern*
+  "new file → repo manifest" recurs) → candidate to feed the `pdca-harness` template
+  per the template-vs-instance boundary. Owner: human (template work).
+
+## How effectiveness will be judged
+- Over the next ~3 cycles that **add a new core `.py`**: the new gate should fail the
+  bundle at Check (not a maintainer at review) when the file is absent from
+  `POTFILES.{in,skip}`, and build-notes should show the registration line in the same
+  patch. No future PR should draw a "list this in POTFILES" review comment. Once the
+  gate runs clean across those cycles, consider promoting it from advisory to gating
+  (it is a hard MUST, deterministic, and Docker-free).
+
 # Act review — 2026-06-09 — cycles considered: 8796 publish (publish-field-parse failure class; cross-ref #23a/#23b)
 
 ## What the cycles' records exposed
