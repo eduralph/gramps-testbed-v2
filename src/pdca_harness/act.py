@@ -92,7 +92,7 @@ def render_index(entries: list[ActEntry], pats: dict[str, list[str]]) -> str:
 
 def scaffold_entry(entries: list[ActEntry], pats: dict[str, list[str]], date: str) -> str:
     """A dated act-log entry with bundles + patterns filled, deltas left to the human."""
-    ids = ", ".join(e.bundle.name.replace("issue_", "") for e in entries) or "—"
+    ids = ", ".join(e.bundle.name.removeprefix("issue_") for e in entries) or "—"
     exposed = [f"- [{label}] {it}" for label, items in pats.items() for it in items] or [
         "- (no recurring signal surfaced — note any single-cycle observation worth a delta)"
     ]

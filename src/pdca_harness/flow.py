@@ -268,7 +268,7 @@ def _drive_and_act(
         if all(state.state(d) == state.COMPLETE for d in bundles):
             break
 
-    results = {d.name.replace("issue_", ""): state.state(d) for d in bundles}
+    results = {d.name.removeprefix("issue_"): state.state(d) for d in bundles}
     if do_publish:
         # Isolated like the other per-bundle loops — one bundle whose publish raises
         # must not abort the batch return / Act for the rest (testbed issue #3).

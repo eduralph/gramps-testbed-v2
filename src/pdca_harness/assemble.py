@@ -30,7 +30,7 @@ def assemble_summary(d: Path, cfg: Config) -> None:
     )
     needs_human = _needs_human(review_text)
 
-    issue = d.name.replace("issue_", "")
+    issue = d.name.removeprefix("issue_")
     out = "\n".join(
         [
             f"# Result — issue {issue} / {fields.get('slug', fields.get('defect', '')[:40])}",
