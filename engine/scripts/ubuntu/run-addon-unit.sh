@@ -108,6 +108,11 @@ TARGET_ADDONS="$*"
 # A hung test must FAIL the run, not block the cycle forever (the no-timeout gap that
 # let a GUI-import test hang the batch flow). Tunable via GRAMPS_TEST_TIMEOUT (seconds).
 TIMEOUT="${GRAMPS_TEST_TIMEOUT:-1200}"
+# Finer granularity: each addon module also gets its OWN per-module wall clock
+# (run_addon_modules.py), so a single hanging module is killed and named without
+# consuming the whole-job budget above — which stays as the backstop. Tunable via
+# GRAMPS_MODULE_TIMEOUT (seconds).
+MODULE_TIMEOUT="${GRAMPS_MODULE_TIMEOUT:-600}"
 CNAME="grampstest-$$"
 trap 'docker rm -f "$CNAME" >/dev/null 2>&1 || true' EXIT
 rc=0
@@ -119,6 +124,7 @@ timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
   -w /workspace \
   -e "TARGET_ADDONS=$TARGET_ADDONS" \
   -e "TESTBED_NAME=$TESTBED_NAME" \
+  -e "MODULE_TIMEOUT=$MODULE_TIMEOUT" \
   "$IMAGE" \
   bash -c '
     set -e
@@ -242,9 +248,10 @@ timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
         GRAMPS_RESOURCES=/workspace/gramps \
           PYTHONPATH="/workspace/$TESTBED_NAME/engine/scripts/lib/gi_bootstrap${PYTHONPATH:+:$PYTHONPATH}" \
           xvfb-run -a --server-args="-screen 0 1920x1080x24" \
-            python3 -m xmlrunner "${modules[@]}" \
+            python3 "/workspace/$TESTBED_NAME/engine/scripts/lib/run_addon_modules.py" \
+              --timeout "$MODULE_TIMEOUT" \
               -o "$out_dir" \
-              -v
+              "${modules[@]}"
       ) 2>&1 | tee "$run_log"
       rc=${PIPESTATUS[0]}
       # Coverage from the JUnit XML, not the exit code: an all-skipped run also
@@ -254,8 +261,17 @@ timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
       ran="${ran:-0}"; skipped="${skipped:-0}"
       if [ "$rc" -ne 0 ]; then
         fail=1
-        detail=$(grep -oE "FAILED \([^)]*\)" "$run_log" | tail -n 1 || true)
-        detail="${detail:-crashed}"
+        if [ "$rc" -eq 124 ]; then
+          # run_addon_modules.py killed at least one module at the per-module
+          # timeout; it prints `module-timeout: <module> …` per culprit. Name them
+          # in the addon summary so the hang is attributable, not anonymous.
+          culprits=$(grep -oE "^module-timeout: [^ ]+" "$run_log" \
+                       | sed 's/^module-timeout: //' | paste -sd, - || true)
+          detail="per-module timeout: ${culprits:-?}"
+        else
+          detail=$(grep -oE "FAILED \([^)]*\)" "$run_log" | tail -n 1 || true)
+          detail="${detail:-crashed}"
+        fi
         # If xmlrunner crashed during collection (e.g. an addon raising at import,
         # like GraphView when GraphViz is absent), it ran 0 tests and wrote no
         # JUnit — t3_baseline would see "no parsed failures". Emit a synthetic
