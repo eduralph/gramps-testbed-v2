@@ -266,8 +266,24 @@ timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
         fi
         summary_lines+=( "$(printf "  %-30s  FAIL  (%s tests, %s)" "$addon" "$ran" "$detail")" )
       elif [ "$ran" -gt 0 ] && [ "$skipped" -eq "$ran" ]; then
-        fail=1
-        summary_lines+=( "$(printf "  %-30s  FAIL  (all %s tests skipped)" "$addon" "$ran")" )
+        # Wholly-skipped suite. Honest iff coverage was actually lost: FAIL only
+        # when the declared system deps for this addon ARE packaged on the
+        # platform (deps available, tests still skipped). When a declared
+        # requires_gi / requires_exe has no package here (e.g. the GeocodeGlib
+        # 1.0 typelib PlaceCoordinateGramplet declares, mapped None on every
+        # platform), the all-skip is an EXPECTED platform skip — tolerate it.
+        # addon_system_deps.py is the single authority on platform
+        # satisfiability (--satisfiable exits 0/1).
+        # NB: keep this comment free of the apostrophe character — the whole loop
+        # body runs inside a single-quoted bash -c string (see the docker run
+        # above), so a literal one would close that string prematurely.
+        if python3 "/workspace/$TESTBED_NAME/engine/scripts/lib/addon_system_deps.py" \
+             --satisfiable "/workspace/addons-source/$addon" --platform ubuntu; then
+          fail=1
+          summary_lines+=( "$(printf "  %-30s  FAIL  (all %s tests skipped)" "$addon" "$ran")" )
+        else
+          summary_lines+=( "$(printf "  %-30s  SKIP  (all %s skipped; deps unsatisfiable on ubuntu)" "$addon" "$ran")" )
+        fi
       elif [ "$skipped" -gt 0 ]; then
         summary_lines+=( "$(printf "  %-30s  PASS  (%s tests, %s skipped)" "$addon" "$ran" "$skipped")" )
       else
