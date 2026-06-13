@@ -283,6 +283,16 @@ line number**, so an edit to a vendored page doesn't invalidate the anchor; the
 - **PR description format:** Root cause / Fix / Verified against / Test (see
   `templates/pr-description.md.tpl`). The PR body MUST reference the Mantis issue
   using upstream's auto-link keywords.
+- **Addon maintainer callout (doc 16 §Contributor workflow, addon):** a PR that
+  modifies an `addons-source` addon adds an `## Affected addon` section that
+  **@-mentions the person responsible for the addon** — a heads-up so they're aware
+  of the change (awareness, not attribution; raised on addons-source PR #946). Who to
+  mention = the addon's `.gpr.py` `maintainers` if declared, else its `authors`;
+  extract with `engine/scripts/lib/addon_authors.py <addon-dir>`. The `.gpr.py` has
+  names/emails, not @-handles — resolve the handle best-effort from the email so the
+  mention notifies, and name the person when none resolves. (gramps-specific
+  concretization of the doc-16 rule; the publisher leaf follows it. Instance-only — the
+  generic publisher agent / `pr-description.md.tpl` are untouched.)
 - **Enforcement mechanism:** human review + the advisory T1/T2/T4 conformance
   gates (`engine/conformance/`, doc-16-founded — §4); fork pre-commit hooks
   (`black` / `ruff` / `ast.parse`, plus `mypy` on the gramps fork) catch
