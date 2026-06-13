@@ -57,10 +57,44 @@ cd "$WORKSPACE"
 # Optional first arg: a unittest discovery -p pattern (default: all test_*.py).
 PATTERN="${1:-test_*.py}"
 
+# Which checkouts to test against. Default: the primary ../gramps + ../addons-source.
+# With CORE_VERSION set (the T3-interface gate passes 6.1), the pinned, realigned
+# per-version worktrees ../gramps-<ver> + ../addons-source-<ver> — the real
+# contribution target, kept current by `make worktrees` / `make preflight` — so the
+# baseline diff runs against a deterministic upstream tree, not the dev clone's
+# branch. The smoke installs QuiltView/CombinedView from addons-source, so it needs
+# the matching addon worktree too. $PDCA_LANE scopes to a lane copy. Mirrors
+# run-addon-unit.sh.
+GRAMPS_DIR="$WORKSPACE/gramps"
+ADDONS_DIR="$WORKSPACE/addons-source"
+LANE_SFX="${PDCA_LANE:+-lane$PDCA_LANE}"
+if [ -n "${CORE_VERSION:-}" ]; then
+  case "$CORE_VERSION" in
+    6.0 | 6.1)
+      GRAMPS_DIR="$WORKSPACE/gramps-$CORE_VERSION$LANE_SFX"
+      ADDONS_DIR="$WORKSPACE/addons-source-$CORE_VERSION$LANE_SFX" ;;
+    *) echo "$(basename "$0"): unknown CORE_VERSION '$CORE_VERSION' (expected 6.0 or 6.1)" >&2; exit 2 ;;
+  esac
+  for wt in "$GRAMPS_DIR" "$ADDONS_DIR"; do
+    [ -d "$wt" ] || { echo "$(basename "$0"): worktree $wt is missing — run 'make worktrees${LANE_SFX:+ LANES=N}'." >&2; exit 1; }
+  done
+fi
+
+# A git worktree's `.git` is a FILE pointing at the primary repo's gitdir, which does
+# not resolve inside the container; bind-mount that gitdir at its own absolute path so
+# the git-aware editable pip build works (mirrors run-addon-unit.sh).
+GIT_MOUNTS=()
+for dir in "$GRAMPS_DIR" "$ADDONS_DIR"; do
+  if [ -f "$dir/.git" ]; then
+    gd="$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir)"
+    GIT_MOUNTS+=( -v "$gd":"$gd" )
+  fi
+done
+
 # Tag the image with platform + Gramps version (read from gramps' source of
 # truth) so multiple versions coexist on one machine.
-GRAMPS_VERSION="$(sed -nE 's/^VERSION_TUPLE *= *\(([0-9]+), *([0-9]+), *([0-9]+)\).*$/\1.\2.\3/p' "$WORKSPACE/gramps/gramps/version.py")"
-: "${GRAMPS_VERSION:?could not detect Gramps version from gramps/version.py}"
+GRAMPS_VERSION="$(sed -nE 's/^VERSION_TUPLE *= *\(([0-9]+), *([0-9]+), *([0-9]+)\).*$/\1.\2.\3/p' "$GRAMPS_DIR/gramps/version.py")"
+: "${GRAMPS_VERSION:?could not detect Gramps version from $GRAMPS_DIR/gramps/version.py}"
 IMAGE="${GRAMPS_TESTBED_IMAGE:-gramps-testbed:ubuntu-$GRAMPS_VERSION}"
 
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
@@ -75,7 +109,10 @@ CNAME="grampstest-$$"
 trap 'docker rm -f "$CNAME" >/dev/null 2>&1 || true' EXIT
 rc=0
 timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
-  -v "$WORKSPACE":/workspace \
+  -v "$GRAMPS_DIR":/workspace/gramps \
+  -v "$ADDONS_DIR":/workspace/addons-source \
+  -v "$REPO_ROOT":/workspace/"$TESTBED_NAME" \
+  "${GIT_MOUNTS[@]}" \
   -w "/workspace/$TESTBED_NAME" \
   -e TESTBED_NAME="$TESTBED_NAME" \
   -e PATTERN="$PATTERN" \

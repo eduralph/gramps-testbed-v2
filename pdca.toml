@@ -176,18 +176,21 @@ cmd = "./engine/scripts/ubuntu/run-verify.sh"
 gating = true
 scope = "bundle"
 
-# T3 runtime — the WHOLE gramps core unit suite, on the UNMODIFIED tree. Advisory
-# (gating = false): on a checkout with any pre-existing failure it is red as a
-# baseline and never sees the bundle's patch, so it cannot gate a single fix —
-# C4-verify above is the per-fix gate. Re-gate this once the suite is green-baseline.
-# Wrapped in t3_baseline.py: it runs the suite, then diffs the result against the
-# recorded baseline (engine/baselines/run-unit.json) — a matching baseline exits 0
-# ("known reds"), only a NEW failure exits 1, so only a delta raises §6 (issue #7).
+# T3 runtime — the WHOLE gramps core unit suite, on the UNMODIFIED tree. CORE_VERSION
+# pins it to the realigned per-version worktree (gramps-6.1), the contribution target,
+# NOT the primary ../gramps dev clone — so the baseline diff is against a deterministic
+# upstream tree kept current by `make preflight` (the recorded baseline_tree SHA stays
+# valid; t3_baseline warns on drift). Advisory (gating = false): on a checkout with any
+# pre-existing failure it is red as a baseline and never sees the bundle's patch, so it
+# cannot gate a single fix — C4-verify above is the per-fix gate. Re-gate this once the
+# suite is green-baseline. Wrapped in t3_baseline.py: it runs the suite, then diffs the
+# result against the recorded baseline (engine/baselines/run-unit.json) — a matching
+# baseline exits 0 ("known reds"), only a NEW failure exits 1, so only a delta raises §6.
 [[gates.checks]]
 id = "T3-unit"
 tier = "T3"
 label = "runtime: gramps core unit suite (whole-suite baseline)"
-cmd = "python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-unit.sh"
+cmd = "CORE_VERSION=6.1 python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-unit.sh"
 gating = false
 scope = "repo"
 target = "core"   # gramps core suite — skip on an addon-only bundle
@@ -226,7 +229,7 @@ target = "addon"   # addon matrix — skip on a core-only bundle
 id = "T3-interface"
 tier = "T3"
 label = "runtime: GUI interface smoke (launch + open tree, headless dogtail)"
-cmd = "python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-interface.sh test_smoke.py"
+cmd = "CORE_VERSION=6.1 python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-interface.sh test_smoke.py"
 gating = false
 scope = "repo"
 target = "frontend"   # runs for any GUI-surfacing change (core OR addon); skips pure-logic

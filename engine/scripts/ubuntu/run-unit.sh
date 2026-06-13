@@ -43,11 +43,36 @@ WORKSPACE="$(cd "$REPO_ROOT/.." && pwd)"
 TESTBED_NAME="$(basename "$REPO_ROOT")"
 cd "$WORKSPACE"
 
+# Which gramps checkout to test. Default: the primary ../gramps. With CORE_VERSION
+# set (the T3-unit gate passes 6.1), the pinned, realigned per-version worktree
+# ../gramps-<ver> — the real contribution target, kept current by `make worktrees`
+# / `make preflight` — so the baseline diff runs against a deterministic upstream
+# tree, not whatever branch the dev clone happens to be on. $PDCA_LANE scopes to a
+# lane copy under the worker pool. Mirrors run-addon-unit.sh.
+GRAMPS_DIR="$WORKSPACE/gramps"
+LANE_SFX="${PDCA_LANE:+-lane$PDCA_LANE}"
+if [ -n "${CORE_VERSION:-}" ]; then
+  case "$CORE_VERSION" in
+    6.0 | 6.1) GRAMPS_DIR="$WORKSPACE/gramps-$CORE_VERSION$LANE_SFX" ;;
+    *) echo "$(basename "$0"): unknown CORE_VERSION '$CORE_VERSION' (expected 6.0 or 6.1)" >&2; exit 2 ;;
+  esac
+  [ -d "$GRAMPS_DIR" ] || { echo "$(basename "$0"): worktree $GRAMPS_DIR is missing — run 'make worktrees${LANE_SFX:+ LANES=N}'." >&2; exit 1; }
+fi
+
+# A git worktree's `.git` is a FILE pointing at the primary repo's gitdir, which does
+# not resolve inside the container; bind-mount that gitdir at its own absolute path so
+# the git-aware editable pip build works (mirrors run-addon-unit.sh).
+GIT_MOUNTS=()
+if [ -f "$GRAMPS_DIR/.git" ]; then
+  gd="$(git -C "$GRAMPS_DIR" rev-parse --path-format=absolute --git-common-dir)"
+  GIT_MOUNTS+=( -v "$gd":"$gd" )
+fi
+
 # Tag the image with platform + Gramps version so multiple versions can
 # coexist on the same machine (e.g. switching branches between 6.0.x and
 # a future 6.1.x). Read VERSION_TUPLE from gramps' own source-of-truth.
-GRAMPS_VERSION="$(sed -nE 's/^VERSION_TUPLE *= *\(([0-9]+), *([0-9]+), *([0-9]+)\).*$/\1.\2.\3/p' "$WORKSPACE/gramps/gramps/version.py")"
-: "${GRAMPS_VERSION:?could not detect Gramps version from gramps/version.py}"
+GRAMPS_VERSION="$(sed -nE 's/^VERSION_TUPLE *= *\(([0-9]+), *([0-9]+), *([0-9]+)\).*$/\1.\2.\3/p' "$GRAMPS_DIR/gramps/version.py")"
+: "${GRAMPS_VERSION:?could not detect Gramps version from $GRAMPS_DIR/gramps/version.py}"
 IMAGE="${GRAMPS_TESTBED_IMAGE:-gramps-testbed:ubuntu-$GRAMPS_VERSION}"
 
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
@@ -62,7 +87,9 @@ CNAME="grampstest-$$"
 trap 'docker rm -f "$CNAME" >/dev/null 2>&1 || true' EXIT
 rc=0
 timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
-  -v "$WORKSPACE":/workspace \
+  -v "$GRAMPS_DIR":/workspace/gramps \
+  -v "$REPO_ROOT":/workspace/"$TESTBED_NAME" \
+  "${GIT_MOUNTS[@]}" \
   -w /workspace/gramps \
   -e TESTBED_NAME="$TESTBED_NAME" \
   "$IMAGE" \
