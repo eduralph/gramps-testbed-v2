@@ -256,6 +256,32 @@ def unmapped(addons_dir: str) -> tuple[set[str], set[str]]:
     return (gi - set(GI_PACKAGES), exe - set(EXE_PACKAGES))
 
 
+def addon_satisfiable_on(addon_dir: str, platform: str) -> bool:
+    """
+    True iff every system dep a single addon declares is packaged on ``platform``.
+
+    Lets the test runner tell an *expected* platform skip — a declared
+    ``requires_gi`` / ``requires_exe`` that simply is not packaged on this lane
+    (e.g. PlaceCoordinateGramplet's ``GeocodeGlib`` 1.0, mapped ``None`` on every
+    platform) — from a suspicious all-skip that should fail (deps available, the
+    suite skipped anyway = real coverage loss). A dep with no map entry, or one
+    whose platform value is ``None`` / ``install: False``, makes the addon
+    unsatisfiable here; ``_installable`` already collapses all three to ``None``.
+
+    An addon that declares no system deps is trivially satisfiable (True).
+    """
+    gi, exe = scan_addon_requirements(addon_dir)
+    for ns in gi:
+        entry = GI_PACKAGES.get(ns)
+        if entry is None or _installable(entry, platform) is None:
+            return False
+    for name in exe:
+        entry = EXE_PACKAGES.get(name)
+        if entry is None or _installable(entry, platform) is None:
+            return False
+    return True
+
+
 # ------------------------------------------------------------
 #
 # CLI
@@ -276,7 +302,19 @@ def main(argv: list[str] | None = None) -> int:
         help="print declared GI/exe deps that have no map entry, then exit "
         "non-zero if any",
     )
+    parser.add_argument(
+        "--satisfiable",
+        metavar="ADDON_DIR",
+        help="with --platform: exit 0 if every system dep this addon declares is "
+        "packaged on the platform, 1 if not (the all-skip tolerance predicate "
+        "consulted by run-addon-unit.sh)",
+    )
     args = parser.parse_args(argv)
+
+    if args.satisfiable:
+        if not args.platform:
+            parser.error("--satisfiable requires --platform")
+        return 0 if addon_satisfiable_on(args.satisfiable, args.platform) else 1
 
     if args.unmapped:
         gi, exe = unmapped(args.unmapped)
