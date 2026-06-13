@@ -9,6 +9,7 @@ run-level signatures match the evidence the act-log recorded.
 
 from __future__ import annotations
 
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -18,6 +19,20 @@ CONF = Path(__file__).resolve().parents[1] / "conformance"
 sys.path.insert(0, str(CONF))
 
 import t3_baseline  # noqa: E402
+
+
+def _git_repo(path: Path) -> None:
+    """A minimal committed git repo at *path* (no network, no user config leak)."""
+    run = lambda *a: subprocess.run(
+        ["git", "-C", str(path), *a], check=True, capture_output=True
+    )
+    run("init", "-q")
+    run("config", "user.email", "t@t")
+    run("config", "user.name", "t")
+    run("config", "commit.gpgsign", "false")
+    (path / "f.txt").write_text("x", encoding="utf-8")
+    run("add", "-A")
+    run("commit", "-q", "-m", "init")
 
 _SUITE = """<?xml version="1.0"?>
 <testsuite name="s" tests="3">
@@ -150,6 +165,68 @@ class UpdateManifest(unittest.TestCase):
         self.assertIn("×", raw)
         self.assertIn("—", raw)
         self.assertNotIn("\\u2014", raw)  # the em-dash must not be escaped
+
+
+class TreeState(unittest.TestCase):
+    def test_reports_ref_sha_and_clean(self) -> None:
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, tmp, True)
+        _git_repo(tmp)
+        st = t3_baseline.tree_state(tmp)
+        self.assertIsNotNone(st)
+        self.assertTrue(st["sha"])
+        self.assertFalse(st["dirty"])
+
+    def test_dirty_when_uncommitted_changes(self) -> None:
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, tmp, True)
+        _git_repo(tmp)
+        (tmp / "f.txt").write_text("changed", encoding="utf-8")
+        self.assertTrue(t3_baseline.tree_state(tmp)["dirty"])
+
+    def test_non_git_dir_is_none(self) -> None:
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, tmp, True)
+        self.assertIsNone(t3_baseline.tree_state(tmp))
+
+
+class TreeDrift(unittest.TestCase):
+    REC = {"ref": "detached", "sha": "abc1234", "dirty": False}
+
+    def test_no_recorded_tree_no_warning(self) -> None:
+        self.assertIsNone(t3_baseline.tree_drift(None, self.REC))
+
+    def test_exact_clean_match_no_warning(self) -> None:
+        self.assertIsNone(t3_baseline.tree_drift(self.REC, dict(self.REC)))
+
+    def test_sha_mismatch_warns(self) -> None:
+        cur = {"ref": "fix/x", "sha": "def5678", "dirty": False}
+        msg = t3_baseline.tree_drift(self.REC, cur)
+        self.assertIn("drift", msg)
+        self.assertIn("abc1234", msg)
+        self.assertIn("def5678", msg)
+
+    def test_dirty_warns_even_if_sha_matches(self) -> None:
+        cur = {"ref": "detached", "sha": "abc1234", "dirty": True}
+        msg = t3_baseline.tree_drift(self.REC, cur)
+        self.assertIn("dirty", msg)
+
+    def test_missing_tested_tree_warns(self) -> None:
+        msg = t3_baseline.tree_drift(self.REC, None)
+        self.assertIn("not a git checkout", msg)
+
+
+class UpdateStampsTree(unittest.TestCase):
+    def test_update_records_baseline_tree(self) -> None:
+        import json
+
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, tmp, True)
+        path = tmp / "m.json"
+        tree = {"ref": "detached", "sha": "abc1234", "dirty": False}
+        t3_baseline._update_manifest(path, "run-x.sh", {}, tree=tree)
+        m = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(m["baseline_tree"], tree)
 
 
 if __name__ == "__main__":

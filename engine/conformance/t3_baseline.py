@@ -169,6 +169,65 @@ def load_manifest(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def tested_tree(runner: str) -> Path:
+    """The gramps checkout a runner tested — to stamp/check the baseline against.
+
+    Mirrors the runners' GRAMPS_DIR resolution: with ``CORE_VERSION`` set (the addon
+    matrix) the pinned per-version worktree ``../gramps-<ver>``; otherwise the primary
+    ``../gramps`` (run-unit / run-interface). Override with ``$PDCA_T3_TREE``.
+    """
+    override = os.environ.get("PDCA_T3_TREE")
+    if override:
+        return Path(override)
+    ver = os.environ.get("CORE_VERSION")
+    return ROOT.parent / (f"gramps-{ver}" if ver else "gramps")
+
+
+def tree_state(tree: Path) -> dict | None:
+    """``{'ref','sha','dirty'}`` for a git checkout, or ``None`` if it is not one.
+
+    ``ref`` is the branch (``'detached'`` for a detached HEAD); ``dirty`` flags
+    uncommitted changes. A baseline only applies to the tree it was recorded on, so
+    this is what lets a run tell whether the diff is still trustworthy.
+    """
+    def _git(*args: str) -> str | None:
+        try:
+            p = subprocess.run(
+                ["git", "-C", str(tree), *args], text=True, capture_output=True
+            )
+        except OSError:
+            return None
+        return p.stdout.strip() if p.returncode == 0 else None
+
+    sha = _git("rev-parse", "--short", "HEAD")
+    if sha is None:
+        return None
+    ref = _git("rev-parse", "--abbrev-ref", "HEAD") or "detached"
+    if ref == "HEAD":
+        ref = "detached"
+    return {"ref": ref, "sha": sha, "dirty": bool(_git("status", "--porcelain"))}
+
+
+def tree_drift(recorded: dict | None, current: dict | None) -> str | None:
+    """A human warning when the tested tree no longer matches the baseline's tree.
+
+    ``None`` when there is nothing to flag (no recorded tree, or an exact clean
+    match). A drift does NOT change the verdict — T3 is advisory — it tells the
+    reviewer the known-red diff may be stale (the baseline was recorded elsewhere).
+    """
+    if not recorded:
+        return None
+    rec = f"{recorded.get('ref')}@{recorded.get('sha')}"
+    if current is None:
+        return f"baseline tree drift: recorded {rec}, but the tested tree is not a git checkout"
+    if current.get("sha") == recorded.get("sha") and not current.get("dirty"):
+        return None
+    cur = f"{current.get('ref')}@{current.get('sha')}"
+    if current.get("dirty"):
+        cur += " (dirty)"
+    return f"baseline tree drift: recorded {rec}, tested {cur} — known-red diff may be stale"
+
+
 # ---------------------------------------------------------------------------
 # Runner + CLI
 # ---------------------------------------------------------------------------
@@ -182,14 +241,22 @@ def _run_runner(runner: str, args: list[str]) -> tuple[int, str]:
     return proc.returncode, proc.stdout
 
 
-def _update_manifest(path: Path, runner: str, observed: dict[str, str]) -> None:
-    """Record the observed per-test reds as the baseline (keeps signatures/notes)."""
+def _update_manifest(
+    path: Path, runner: str, observed: dict[str, str], tree: dict | None = None
+) -> None:
+    """Record the observed per-test reds as the baseline (keeps signatures/notes).
+
+    Also stamps ``baseline_tree`` — the git state of the checkout the run tested — so
+    a later run can warn when the live tree has drifted from the one the reds were
+    recorded on (the baseline only applies to its own tree)."""
     m = load_manifest(path)
     m.setdefault("runner", Path(runner).name)
     m.setdefault("run_level_signatures", [])
     m["known_failures"] = [
         {"id": tid, "type": kind} for tid, kind in sorted(observed.items())
     ]
+    if tree is not None:
+        m["baseline_tree"] = tree
     path.parent.mkdir(parents=True, exist_ok=True)
     # ensure_ascii=False: manifests carry human-readable notes/targets with
     # non-ASCII (em-dashes, ×). The default escapes those to \uXXXX, so each
@@ -216,14 +283,22 @@ def main(argv: list[str] | None = None) -> int:
     path = manifest_path(runner)
     rc, output = _run_runner(runner, runner_args)
     observed = parse_junit(RESULTS_DIR)
+    current_tree = tree_state(tested_tree(runner))
 
     if update:
-        _update_manifest(path, runner, observed)
+        _update_manifest(path, runner, observed, tree=current_tree)
         return 0
 
-    verdict = classify(observed, rc, output, load_manifest(path))
+    manifest = load_manifest(path)
+    verdict = classify(observed, rc, output, manifest)
     for tid in verdict["cleared"]:
         print(f"t3-baseline: recorded red cleared (shrink the manifest?): {tid}")
+    # Advisory: a baseline only applies to the tree it was recorded on. Surface drift
+    # in the evidence line so a stale match cannot read as a clean one.
+    drift = tree_drift(manifest.get("baseline_tree"), current_tree)
+    if drift:
+        print(f"t3-baseline: ⚠ {drift}")
+        verdict["summary"] += f" | ⚠ {drift}"
     # The summary is the LAST line — the gate captures it as the evidence line.
     print(f"T3-baseline [{verdict['verdict']}]: {verdict['summary']}")
     return verdict["exit_code"]
