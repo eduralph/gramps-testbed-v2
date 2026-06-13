@@ -11,6 +11,7 @@ guard) — so the gates can be trusted to cite the doc faithfully (issue #6).
 
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 import tempfile
@@ -369,6 +370,72 @@ class T4Ticketless(unittest.TestCase):
                 b = Path(t)
                 (b / "brief.md").write_text("# Brief\n" + decl, encoding="utf-8")
                 self.assertIs(gate._ticketless(b), expected, decl)
+
+
+# ---------------------------------------------------------------------------
+# T4 dispatch — Mantis trailer/ref is OPTIONAL for an addons-source target (gate.py)
+# ---------------------------------------------------------------------------
+class T4AddonTrailerOptional(unittest.TestCase):
+    """gate.py T4 waives the Mantis-trailer / #NNNN MUST for an addons-source (addon)
+    target: the 'Fixes #NNNN' trailer is a CORE convention (doc16-addon — addon
+    commits don't carry it) and a Mantis reference is optional for addons-source. A
+    core target still requires it; a present-but-malformed trailer is flagged for both.
+    (issue_46: an addon fix could not publish because T4 demanded the trailer.)"""
+
+    NO_TRAILER = "Make graphview import-safe\n\nbody explaining the fix, no trailer\n"
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        # gate derives addons_root as repo_root.parent / "addons-source"; point the
+        # repo root at tmp/repo so the synthetic addon tree below is what it scans.
+        (self.tmp / "repo").mkdir()
+        (self.tmp / "addons-source" / "GraphView").mkdir(parents=True)
+        self._orig_root = gate._repo_root
+        gate._repo_root = lambda: self.tmp / "repo"
+
+    def tearDown(self) -> None:
+        gate._repo_root = self._orig_root
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _bundle(self, *, addon: bool, commit: str, pr: str) -> Path:
+        d = self.tmp / "bundle"
+        d.mkdir(exist_ok=True)
+        top = "GraphView/graphview.py" if addon else "gramps/gui/foo.py"
+        (d / "patch.diff").write_text(
+            f"diff --git a/{top} b/{top}\n--- a/{top}\n+++ b/{top}\n"
+            "@@ -1 +1 @@\n-x = 1\n+x = 2\n", encoding="utf-8")
+        (d / "commit-msg.txt").write_text(commit, encoding="utf-8")
+        (d / "pr-description.md").write_text(pr, encoding="utf-8")
+        return d
+
+    def _run_t4(self, d: Path) -> int:
+        old = os.environ.get("PDCA_BUNDLE")
+        os.environ["PDCA_BUNDLE"] = str(d)
+        try:
+            return gate.main(["T4"])
+        finally:
+            if old is None:
+                os.environ.pop("PDCA_BUNDLE", None)
+            else:
+                os.environ["PDCA_BUNDLE"] = old
+
+    def test_addon_no_trailer_passes(self) -> None:
+        # The issue_46 shape: addon commit with no trailer, PR body with no #ref.
+        d = self._bundle(addon=True, commit=self.NO_TRAILER,
+                         pr="## Summary\nMakes the import safe.\n")
+        self.assertEqual(self._run_t4(d), 0)
+
+    def test_core_no_trailer_still_fails(self) -> None:
+        # A core target with every PR section present but no trailer still fails —
+        # the waiver is addon-only (and ticketless-only, tested in T4Ticketless).
+        d = self._bundle(addon=False, commit=self.NO_TRAILER,
+                         pr="## Root cause\nx\n## Fix\ny\n## Verified against\nz\n## Test\nt\n")
+        self.assertNotEqual(self._run_t4(d), 0)
+
+    def test_addon_malformed_trailer_still_flagged(self) -> None:
+        bad = "Make graphview import-safe\n\nbody\n\nFixes 13636\n"  # bare number, no #
+        d = self._bundle(addon=True, commit=bad, pr="## Summary\nx\n")
+        self.assertNotEqual(self._run_t4(d), 0)
 
 
 # ---------------------------------------------------------------------------
