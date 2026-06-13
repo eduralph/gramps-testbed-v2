@@ -40,7 +40,7 @@ export PYTHONPATH := src
 PDCA := $(PYTHON) -m pdca_harness.cli
 
 .DEFAULT_GOAL := test
-.PHONY: test check flow rehearse status cli install setup worktrees essential-worktrees batch publish
+.PHONY: test check flow rehearse status cli install setup worktrees essential-worktrees preflight batch publish
 
 # --- the cycle -------------------------------------------------------------
 # Live, continuous, Claude-driven. Give ID for one issue, or just CSV for a batch
@@ -147,6 +147,42 @@ essential-worktrees:
 	done; \
 	done; \
 	echo "essential worktrees ready — run-verify falls back here on an upstream failure."
+
+# --- preflight: bring the verification substrate current before a session ----
+# One explicit step to run ONCE before a flow/batch session (issue #79). It (1)
+# realigns the per-version worktrees to current upstream, (2) refreshes the essential
+# C4-fallback line, (3) checks the testbed checkout is current, (4) ensures the image
+# is built, then (5) refreshes the T3 baselines against the freshly-realigned CLEAN
+# tree (`t3_baseline --update`, driven from the pdca.toml T3 gate defs so it stays in
+# sync) — so `known_failures` reflects the current upstream and the baseline_tree SHA
+# (#89) stays valid. Idempotent; NEVER run mid-batch (realigning between bundles would
+# verify later bundles against a different base). LANES=N for the worker pool;
+# NO_CAPTURE=1 does the realign/image legs only (skips the slow suite captures).
+preflight:
+	@$(MAKE) --no-print-directory worktrees
+	@$(MAKE) --no-print-directory essential-worktrees REBUILD=1
+	@echo "→ preflight: testbed checkout"; \
+	br="$$(git rev-parse --abbrev-ref HEAD)"; \
+	[ "$$br" = "main" ] || echo "  warn: testbed is on '$$br', not main"; \
+	git fetch origin --quiet 2>/dev/null || echo "  warn: git fetch origin failed"; \
+	behind="$$(git rev-list --count main..origin/main 2>/dev/null || echo 0)"; \
+	[ "$$behind" = "0" ] || echo "  warn: main is $$behind commit(s) behind origin/main — pull before the session"
+	@gv="$$(sed -nE 's/^VERSION_TUPLE *= *\(([0-9]+), *([0-9]+), *([0-9]+)\).*$$/\1.\2.\3/p' ../gramps-6.1/gramps/version.py 2>/dev/null)"; \
+	img="gramps-testbed:ubuntu-$$gv"; \
+	if [ -z "$$gv" ]; then echo "  warn: could not detect gramps version (is ../gramps-6.1 present?)"; \
+	elif docker image inspect "$$img" >/dev/null 2>&1; then echo "✔ image $$img present"; \
+	else echo "→ building $$img"; docker build -f engine/docker/Dockerfile.ubuntu -t "$$img" engine; fi
+	@if [ -n "$(NO_CAPTURE)" ]; then echo "→ skipping T3 baseline capture (NO_CAPTURE=1)"; else \
+	  echo "→ refreshing T3 baselines on the realigned clean tree (t3_baseline --update)"; \
+	  $(PYTHON) -c "import tomllib; d=tomllib.load(open('pdca.toml','rb')); [print(c['cmd']) for c in d['gates']['checks'] if c.get('tier')=='T3']" \
+	  | while read -r cmd; do \
+	      echo "  → $$cmd --update"; \
+	      bash -c "$$cmd --update" || echo "    warn: capture failed for: $$cmd"; \
+	    done; \
+	  echo "→ T3 baselines refreshed — review & commit engine/baselines/*.json (a contribution's"; \
+	  echo "  patch-introduced red still surfaces as a delta at gate time; #89 warns on tree drift)"; \
+	fi
+	@echo "preflight ready."
 
 # --- optional real install (venv console script) ---------------------------
 install: .venv/bin/pdca
