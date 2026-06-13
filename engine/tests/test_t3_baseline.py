@@ -102,6 +102,20 @@ class Classify(unittest.TestCase):
         self.assertEqual(v["verdict"], "baseline")
         self.assertEqual(v["exit_code"], 0)
 
+    def test_parsed_failure_with_matching_signature_is_baseline(self) -> None:
+        # issue #13: a whole-run crash that surfaces BOTH as a parsed per-test error
+        # AND as a known run-level signature must classify as baseline, not a spurious
+        # delta — the per-test parse must not shadow the run-level signature.
+        v = t3_baseline.classify(
+            {"setUpClass (interface.test_smoke.SmokeTest)": "error"},
+            1,
+            "AttributeError: ... _Glade__dirname ... Trace/breakpoint trap (core dumped)",
+            self.MANIFEST,
+        )
+        self.assertEqual(v["verdict"], "baseline")
+        self.assertEqual(v["exit_code"], 0)
+        self.assertIn("under that failure mode", v["summary"])
+
     def test_unexplained_nonzero_is_delta(self) -> None:
         v = t3_baseline.classify({}, 2, "some other unexpected failure", self.MANIFEST)
         self.assertEqual(v["verdict"], "delta")
