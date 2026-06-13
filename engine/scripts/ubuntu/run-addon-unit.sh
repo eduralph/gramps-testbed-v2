@@ -332,6 +332,23 @@ timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
     run_extra_gate "addon translation catalogs" "tests.test_addon_po_catalogs" "_po-catalogs"
     run_extra_gate "addon system dependencies"  "tests.test_addon_system_deps"  "_system-deps"
 
+    # requires_mod name-resolution gate. The install loop above pip-installs the
+    # union (mapping PIL→Pillow etc); this checks every declared import name
+    # still resolves under find_spec, exactly the check_mod Gramps runs. A name
+    # that installs but does not import (e.g. requires_mod=["Pillow"]) is a wrong
+    # declaration Gramps would silently treat as a missing dependency, so it
+    # must FAIL CI naming the addon. Runs after install so a failure means
+    # un-importable, not merely not-yet-installed.
+    echo
+    echo "=== addon requires_mod resolution ==="
+    if python3 "/workspace/$TESTBED_NAME/engine/scripts/lib/addon_python_deps.py" \
+         --check-resolves /workspace/addons-source; then
+      summary_lines+=( "$(printf "  %-30s  PASS" "addon requires_mod resolution")" )
+    else
+      fail=1
+      summary_lines+=( "$(printf "  %-30s  FAIL  (declared name installs but does not import)" "addon requires_mod resolution")" )
+    fi
+
     echo
     echo "=== Summary ==="
     for line in "${summary_lines[@]}"; do
