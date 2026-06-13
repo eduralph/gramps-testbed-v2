@@ -1,7 +1,7 @@
 {
   "runner": "run-unit.sh",
-  "target": "gramps maintenance/gramps61 (unmodified)",
-  "note": "Known pre-existing reds on the unmodified target tree (testbed issue #7, act-log 2026-06-06). A run that matches this baseline is environmental, not a regression — only a NEW failure raises §6. run_level_signatures are authored from the documented evidence; known_failures (per-test ids) are captured from a real Docker run with `t3_baseline.py ./engine/scripts/ubuntu/run-unit.sh --update`. Re-promote this gate to gating once the suite is green-baseline (pdca.toml).",
+  "target": "gramps-6.1 worktree — upstream/maintenance/gramps61 (unmodified), realigned by `make preflight`",
+  "note": "Known pre-existing reds on the unmodified target tree (testbed issue #7, act-log 2026-06-06). A run that matches this baseline is environmental, not a regression — only a NEW failure raises §6. known_failures are auto-captured by `make preflight` (t3_baseline --update) on the realigned gramps-6.1 worktree; baseline_tree pins the SHA they were recorded against (a tree drift warns — #89). The 7 captured reds are two clusters: (1) the 5 legacy-bsddb import tests `test_imp_*_zip` fail because the bsddb backend (berkeleydb/bsddb3) is not installable in the image, so db_load falls through to make_database('bsddb') and the test fails instead of skipping — fixed upstream-pending by bug #13260 / commit b932443f15 (when that lands upstream, the next preflight realign clears these and t3_baseline prints 'recorded red cleared (shrink the manifest?)'); (2) `reports_test.TestDynamic::test_WebCal` / `::test_navwebpage` are environmental dynamic-report reds on the unmodified tree. run_level_signatures stays as the fallback for the discovery segfault (seen on some runs instead of per-test failures). Re-promote this gate to gating once the suite is green-baseline (pdca.toml).",
   "run_level_signatures": [
     {
       "regex": "Trace/breakpoint trap \\(core dumped\\)",
@@ -10,5 +10,39 @@
       "tracking": "act-log 2026-06-06 open Act item (isolate on an unmodified maintenance/gramps61 checkout, then file as a core bug)"
     }
   ],
-  "known_failures": []
+  "known_failures": [
+    {
+      "id": "gramps.plugins.test.imports_test.TestImports::test_imp_3_4_5_zip",
+      "type": "failure"
+    },
+    {
+      "id": "gramps.plugins.test.imports_test.TestImports::test_imp_4_1_3_zip",
+      "type": "failure"
+    },
+    {
+      "id": "gramps.plugins.test.imports_test.TestImports::test_imp_4_2_8_zip",
+      "type": "failure"
+    },
+    {
+      "id": "gramps.plugins.test.imports_test.TestImports::test_imp_5_0_1bsd_zip",
+      "type": "failure"
+    },
+    {
+      "id": "gramps.plugins.test.imports_test.TestImports::test_imp_5_1_2bsd_zip",
+      "type": "failure"
+    },
+    {
+      "id": "gramps.plugins.test.reports_test.TestDynamic::test_WebCal",
+      "type": "failure"
+    },
+    {
+      "id": "gramps.plugins.test.reports_test.TestDynamic::test_navwebpage",
+      "type": "failure"
+    }
+  ],
+  "baseline_tree": {
+    "ref": "detached",
+    "sha": "674e3be80a",
+    "dirty": false
+  }
 }
