@@ -102,9 +102,9 @@ interactive = true
 # from ~/.claude.json. `--effort xhigh` is the recommended level for agentic/coding work;
 # pin it explicitly because a tier's default effort may be lower than xhigh.
 # Act 2026-06-08 (issue_8653: under-specified brief) pinned a strong model + xhigh.
-# Act 2026-06-10: moved the planner to Fable 5 (`claude-fable-5`, the newest release)
-# from opus-4-8. Mechanical leaves (builder/reviewer) intentionally stay on default.
-argv = ["claude", "--model", "claude-fable-5", "--effort", "xhigh", "--agent", "planner", "--permission-mode", "acceptEdits"]
+# Act 2026-06-10: briefly moved the planner to Fable 5, then reverted to opus-4-8 for
+# planning. Mechanical leaves (builder/reviewer) intentionally stay on default.
+argv = ["claude", "--model", "claude-opus-4-8", "--effort", "xhigh", "--agent", "planner", "--permission-mode", "acceptEdits"]
 
 [leaves.signoff]
 mode = "command"
