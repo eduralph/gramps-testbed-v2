@@ -126,7 +126,7 @@ def classify(observed: dict[str, str], rc: int, output: str, manifest: dict) -> 
     cleared = sorted(t for t in known if t not in observed)
     sig = _signature_matched(output, manifest)
 
-    if new:
+    if new and not sig:
         summary = (f"DELTA: {len(new)} new failure(s) not in baseline: "
                    f"{', '.join(new[:5])}{' …' if len(new) > 5 else ''}")
         verdict, code = "delta", 1
@@ -137,12 +137,18 @@ def classify(observed: dict[str, str], rc: int, output: str, manifest: dict) -> 
             summary += f"; baseline now clear ({len(known)} recorded red(s) gone)"
     elif observed or sig:
         # Non-zero, but every observed failure is known and/or a known run-level
-        # signature explains the red → matches the recorded baseline.
+        # signature explains the red → matches the recorded baseline. A matching
+        # signature takes precedence over the per-test parse: the same whole-run
+        # crash often surfaces as a parsed setUpClass error, which must not shadow
+        # the signature into a spurious delta (issue #13).
         bits = []
-        if observed:
-            bits.append(f"{len(observed)} known test red(s)")
+        n_known = len(observed) - len(new)
+        if n_known:
+            bits.append(f"{n_known} known test red(s)")
         if sig:
             bits.append(f"signature {sig.get('match') or sig.get('regex')!r}")
+            if new:
+                bits.append(f"{len(new)} parsed red(s) under that failure mode")
         verdict, code = "baseline", 0
         summary = "matches recorded baseline: " + "; ".join(bits)
         if cleared:
