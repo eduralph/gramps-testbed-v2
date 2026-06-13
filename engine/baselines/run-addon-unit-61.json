@@ -4,5 +4,10 @@
   "target": "addons-source maintenance/gramps61 (target \"6.1\") against gramps maintenance/gramps61 (6.1.0) — pinned worktrees gramps-6.1 / addons-source-6.1",
   "note": "gramps61 leg of the addon matrix (testbed issue: addon × core version). target_version matches the core, so this leg should be green-baseline. known_failures starts empty; capture any residual per-addon reds with `CORE_VERSION=6.1 t3_baseline.py ./engine/scripts/ubuntu/run-addon-unit.sh --update`. run_level_signatures left empty — add one only for a genuinely environmental red, with its cause + tracking.",
   "run_level_signatures": [],
-  "known_failures": []
+  "known_failures": [],
+  "baseline_tree": {
+    "ref": "detached",
+    "sha": "674e3be80a",
+    "dirty": false
+  }
 }

@@ -1,7 +1,7 @@
 {
   "runner": "run-interface.sh",
-  "target": "gramps maintenance/gramps61 GUI smoke (unmodified)",
-  "note": "Known pre-existing reds on the unmodified target tree (testbed issue #7, act-log 2026-06-06). Matches baseline => environmental, not a regression; only a NEW failure raises §6. Capture per-test ids with `t3_baseline.py './engine/scripts/ubuntu/run-interface.sh test_smoke.py' --update`.",
+  "target": "gramps-6.1 worktree GUI smoke — upstream/maintenance/gramps61 (unmodified), realigned by `make preflight`",
+  "note": "Known pre-existing reds on the unmodified target tree (testbed issue #7, act-log 2026-06-06). Matches baseline => environmental, not a regression; only a NEW failure raises §6. known_failures are auto-captured by `make preflight` (t3_baseline --update) on the realigned gramps-6.1 worktree; baseline_tree pins the SHA (drift warns — #89). The captured `setUpClass (SmokeTest)` error is the per-test form of the _ErrorHolder/_Glade__dirname startup crash below (testbed issue #1) — setUpClass errors because the window never comes up.",
   "run_level_signatures": [
     {
       "regex": "_ErrorHolder|_Glade__dirname",
@@ -10,5 +10,15 @@
       "tracking": "testbed issue #1 (core fix to gramps/gui/glade.py)"
     }
   ],
-  "known_failures": []
+  "known_failures": [
+    {
+      "id": "setUpClass (interface.test_smoke.SmokeTest)",
+      "type": "error"
+    }
+  ],
+  "baseline_tree": {
+    "ref": "detached",
+    "sha": "674e3be80a",
+    "dirty": false
+  }
 }
