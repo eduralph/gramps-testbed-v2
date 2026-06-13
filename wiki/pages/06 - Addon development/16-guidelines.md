@@ -119,7 +119,7 @@ The full how-to (registration setup, `make.py` lifecycle, Glade runtime-override
 - **MUST**: a bug-fix PR includes a regression test, or an explicit "no test because X" rationale plus a manual repro. "Add the test later" is not an option.
 - **MUST**: structure the PR body as **Root cause / Fix / Verified against / Test**, citing `path:lines` on the branch the PR targets.
 - **MUST**: when the PR modifies an addon, **call out its current maintainer** — add an `## Affected addon` section to the PR body that **@-mentions the addon's current maintainer**, a heads-up so they are *aware* of the change and don't miss it. This is awareness, not attribution. "Current maintainer" = the addon's `.gpr.py` `maintainers` field when declared, otherwise its `authors` (an addon with no separate maintainer is maintained by its original author — Doug's "original developer (or contributors)" and Nick's "current maintainer" are the same role). The `.gpr.py` records names/emails, not GitHub handles — resolve a handle best-effort from the declared email so the mention notifies, and name the person when no handle resolves. (Raised on addons-source PR #946 — Doug Blank: *"otherwise I could miss fixes to my addons"*; Nick Hall: *"mention the current maintainer if one exists."*)
-- **MUST**: reference the Mantis bug in the PR body. (addons-source does not use the `Fixes #NNNN` commit-message trailer — that is the core convention; see the [Core Development — Rules](../05%20-%20Gramps%20development/16-guidelines.md) page.)
+- **OPTIONAL**: reference the Mantis bug in the PR body **when one exists** — a Mantis reference is optional for addons-source, since many addon fixes have no Mantis ticket (they're tracked as fork GitHub issues, or are ticketless). addons-source also does not use the `Fixes #NNNN` commit-message trailer at all — that is the core convention; see the [Core Development — Rules](../05%20-%20Gramps%20development/16-guidelines.md) page.
 - **MUST NOT**: merge across branches. Rebase rather than merge — PRs with merge commits are rejected upstream.
 - **MUST NOT**: cosmetically update in-flight upstream PRs. Parity, "rebase is clean," and "branch is behind" are not reasons to force-push. Push only when a specific correctness issue needs fixing.
 - **SHOULD**: before writing any fix, check upstream isn't ahead — merged history on the target branch AND `master`, *plus* closed and rejected PRs on the *affected file* (not just the bug number). Closed PRs are signal: a closed-unmerged PR with the same fix shape is the maintainer's "no."
@@ -171,7 +171,7 @@ For the trailer to wire up on Mantis, the Git **author** or **committer** has to
 
 ### addons-source: bug reference in PR body
 
-addons-source PRs don't use `Fixes #NNNN` in the commit message; reference the Mantis bug in the PR body instead.
+addons-source PRs don't use `Fixes #NNNN` in the commit message — that trailer is the core convention. A Mantis bug reference in the PR body is **optional**: include it when the fix has a Mantis ticket, but many addon fixes have none (fork GitHub issue, or ticketless), and those need no reference. A present-but-malformed reference is still wrong.
 
 ## See also
 

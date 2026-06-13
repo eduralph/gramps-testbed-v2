@@ -215,9 +215,14 @@ def main(argv: list[str] | None = None) -> int:
     if not args:
         return _na("T4", "no commit-msg.txt or pr-description.md in the bundle")
     args += ["--target", target]
-    # Declared-ticketless brief (#71): waive the Mantis-trailer / #NNNN MUST so a
-    # genuinely ticketless core fix publishes without an invented or borrowed id.
-    if _ticketless(bundle):
+    # Waive the Mantis-trailer / #NNNN MUST when it doesn't apply:
+    #   • an addons-source (addon) target — the 'Fixes #NNNN' trailer is a CORE commit
+    #     convention (doc16-addon: addons-source commits don't carry it), and a Mantis
+    #     reference is OPTIONAL for addons-source; or
+    #   • a declared-ticketless brief (#71) — a genuinely ticketless core fix publishes
+    #     without an invented or borrowed id.
+    # A present-but-malformed trailer is still flagged either way (t4_contribution).
+    if target != "core" or _ticketless(bundle):
         args.append("--no-trailer")
     return t4_contribution.main(args)
 
