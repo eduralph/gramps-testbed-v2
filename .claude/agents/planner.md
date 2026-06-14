@@ -64,6 +64,27 @@ human confirms — quantity is theirs to decide, not yours.
 - Name a concrete **test file** the regression will ship at — Do must make it red
   pre-fix, green post-fix.
 
+## Declaring order between bundles (batch / parallel scheduling)
+
+When you brief **several** issues and they are not independent, record the
+relationship so the driver schedules them safely (docs 09 — DAG-gated dispatch).
+Both fields are **optional** and take bare tracker ids (`#36` / `36` / `issue_36`
+all resolve to the same bundle):
+
+- **`- **Depends on:** <id>[, <id>…]`** — this bundle waits until those bundles are
+  **COMPLETE** before it runs. Use it when one fix builds on another: the second
+  imports a helper the first adds, or is **cherry-picked forward** from the bundle it
+  depends on (the gramps60 → gramps61 case). A waiting bundle shows in `pdca status`
+  as `[blocked-by: <id>]`.
+- **`- **Conflicts with:** <id>[, <id>…]`** — these bundles must never run in the
+  **same concurrent wave** (they edit a shared file, so two lanes would collide).
+  Declare it on either side; the driver treats it symmetrically.
+
+Omit both when the issues are independent — absent fields keep today's sort-by-name
+order, unchanged. Only declare a relationship you can **name** (which file, which
+import, which cherry-pick); don't over-constrain the schedule on a guess. In single-issue
+mode there is nothing to order — leave them out.
+
 ## Solution-design discipline (`docs/principles.md`)
 
 The brief states the **invariant to restore**, not a solution — consult
