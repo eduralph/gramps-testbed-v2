@@ -1,0 +1,20 @@
+Let GraphView import when GooCanvas or GraphViz is absent
+
+GraphView's module body raised a bare Exception while being imported when
+the GooCanvas library or the GraphViz `dot` binary was missing. Because the
+raise fired at top level, any code importing the module crashed before
+Gramps had a chance to decide whether the plugin should load — including the
+addon's own test suite, whose collection imports the module at the top level
+and aborted with a traceback (0 tests run) on hosts that have no `dot`.
+
+Gramps already declines to load the view when those dependencies are absent:
+the requires_gi / requires_exe declarations in graphview.gpr.py drive the
+plugin manager's requirement check, which removes the plugin before its
+module is ever imported. The import-time raises duplicated that gate while
+breaking every direct importer, so this removes them. The missing-dependency
+experience for end users is unchanged, because the registration-level gate
+remains the sole arbiter of whether the plugin loads.
+
+A new regression test imports the production GraphView.graphview module in a
+child interpreter with `dot` made unavailable, and fails if the import
+raises, so GraphView/tests/ now collects and runs on a host lacking `dot`.
