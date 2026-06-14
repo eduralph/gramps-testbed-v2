@@ -23,3 +23,11 @@
 Draft only until Check sign-off. Pushing to a feature/draft branch and opening a
 draft PR MAY happen during the cycle (useful for CI feedback). The PR MUST NOT be
 marked ready before sign-off accepts.
+
+## Iteration 1 — carry-forward (from the previous attempt)
+- Sign-off rationale: Reject: the regression test reimplements GTK load/version-pinning (test_graphview_import.py:80-82, top-level `import gi` + gi.require_version("Gtk","3.0")). GTK loading/pinning is already owned by gramps at runtime and by PR 950 in unit testing, so this machinery must not be in the addon test — it is redundant and is the likely cause of the two T3 addon-unit exit-2 collection aborts (6.0 and 6.1). Rebuild the test without any manual gi/Gtk pinning (rely on gramps / PR 950); keep the production change (removal of the two import-time raises) as-is. Re-run T3 addon-unit and E2E; confirm the E2E setUpClass (interface.test_smoke.SmokeTest) delta clears once the pin is gone.
+- Failing gate: T3 runtime: addon suites — addons-source gramps60 × core 6.0 (matrix) (advisory) — T3-baseline [delta]: DELTA: runner exited 2 with no parsed failures and no matching baseline signature (a new failure mo
+- Failing gate: T3 runtime: addon suites — addons-source gramps61 × core 6.1 (matrix) (advisory) — T3-baseline [delta]: DELTA: runner exited 2 with no parsed failures and no matching baseline signature (a new failure mo
+- Failing gate: T3 runtime: addon E2E (addon loaded in headless gramps GUI, dogtail) (advisory) — T3-baseline [delta]: DELTA: 1 new failure(s) not in baseline: setUpClass (interface.test_smoke.SmokeTest)
+- Full previous attempt preserved in `iteration-v1/` (patch.diff, build-notes.md, SUMMARY.md, check-*).
+- Address the above; do NOT re-attempt the rejected approach unchanged. Satisfy the brief's Success criterion (the end result).

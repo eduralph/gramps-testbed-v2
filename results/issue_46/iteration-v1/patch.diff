@@ -1,0 +1,125 @@
+diff --git a/GraphView/graphview.py b/GraphView/graphview.py
+index 07bd876ac..afec53951 100644
+--- a/GraphView/graphview.py
++++ b/GraphView/graphview.py
+@@ -108,19 +108,12 @@ for goo_ver in ('3.0', '2.0'):
+         break
+     except (ImportError, ValueError):
+         _GOO = False
+-if not _GOO:
+-    raise Exception("Goocanvas 2 or 3 (http://live.gnome.org/GooCanvas) is "
+-                    "required for this view to work")
+ 
+ if os.sys.platform == "win32":
+     _DOT_FOUND = search_for("dot.exe")
+ else:
+     _DOT_FOUND = search_for("dot")
+ 
+-if not _DOT_FOUND:
+-    raise Exception("GraphViz (http://www.graphviz.org) is "
+-                    "required for this view to work")
+-
+ SPLINE = {0: 'false', 1: 'true', 2: 'ortho'}
+ 
+ WIKI_PAGE = 'https://gramps-project.org/wiki/index.php?title=Graph_View'
+diff --git a/GraphView/tests/test_graphview_import.py b/GraphView/tests/test_graphview_import.py
+new file mode 100644
+index 000000000..a7cae44ad
+--- /dev/null
++++ b/GraphView/tests/test_graphview_import.py
+@@ -0,0 +1,95 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  Eduard Ralph
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Regression test for issue 46: GraphView/graphview.py raised a bare Exception
++at *module import* when the GraphViz ``dot`` binary (or GooCanvas) was
++unavailable (graphview.py:120-122 / :111-113). The module-level raise
++duplicates the registration-layer gate (requires_exe=["dot"] /
++requires_gi=[("GooCanvas", ...)]) that Gramps' plugin manager already owns,
++and breaks every direct importer -- including this addon's own test
++collection, which crashes during import on a host lacking ``dot``.
++
++The module must instead import without a side-effecting failure when a
++declared dependency is absent; whether the plugin loads stays the sole
++responsibility of the requires_* gate at registration time.
++
++This test imports the *production* ``GraphView.graphview`` module with the
++``dot`` binary simulated absent (PATH emptied) and asserts the import
++completes without raising. To avoid crashing the headless test collector,
++the gi/Gtk-bound production module is imported *inside* the test method,
++never at this test module's top level.
++"""
++
++import os
++import sys
++import unittest
++
++# Pin Gtk 3.0 before anything pulls in gramps.gui (which require_version("Gtk",
++# "3.0") at its own import). This mirrors the sibling GraphView test
++# (test_graphview_dot_handles.py) and is lightweight: `import gi` plus a version
++# pin loads no widgets and needs no display. The Gtk-bound production module is
++# imported only inside the test method, never at this module's load time, so the
++# headless collector never executes a GUI import during collection.
++import gi
++
++gi.require_version("Gtk", "3.0")
++
++
++class GraphViewImportTest(unittest.TestCase):
++    """The plugin module must import even when its external deps are absent."""
++
++    def _reimport_graphview(self):
++        """Force a fresh top-level execution of GraphView.graphview."""
++        # Drop any cached copy so the module body (the lines that read
++        # PATH via search_for("dot")) runs again under the current env.
++        sys.modules.pop("GraphView.graphview", None)
++        import GraphView.graphview as graphview  # noqa: F401 -- import is the assertion
++
++        return graphview
++
++    def test_module_imports_without_dot_on_path(self):
++        # Simulate the GraphViz `dot` binary being unavailable. search_for()
++        # (gramps.gen.utils.file) returns 0 when no PATH entry holds `dot`,
++        # so _DOT_FOUND is falsy -- pre-fix this triggers the module-level
++        # `raise Exception("GraphViz ... required")` during import.
++        orig_path = os.environ.get("PATH", "")
++        saved = sys.modules.pop("GraphView.graphview", None)
++        try:
++            os.environ["PATH"] = ""
++            # Pre-fix: this import raises Exception -> test errors (red).
++            # Post-fix: the import completes cleanly (green).
++            graphview = self._reimport_graphview()
++            # The DOT generator class must be reachable on the imported module,
++            # proving the production path imported, not just "didn't raise".
++            self.assertTrue(hasattr(graphview, "DotSvgGenerator"))
++            from GraphView.graphview import DotSvgGenerator  # noqa: F401
++
++            self.assertIs(graphview.DotSvgGenerator, DotSvgGenerator)
++        finally:
++            os.environ["PATH"] = orig_path
++            # Restore the original cached module so sibling tests are unaffected.
++            if saved is not None:
++                sys.modules["GraphView.graphview"] = saved
++            else:
++                sys.modules.pop("GraphView.graphview", None)
++
++
++if __name__ == "__main__":
++    unittest.main()
