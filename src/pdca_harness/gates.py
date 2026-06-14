@@ -45,6 +45,16 @@ def run_working_tree(cfg: Config) -> dict:
     return _finalize(rows, name="working-tree", write_to=None)
 
 
+def run_gates_dry(d: Path, cfg: Config) -> dict:
+    """Run every gate for bundle ``d`` against the CURRENT engine WITHOUT writing the
+    frozen ``check-gates.json`` — the gate runner behind ``pdca revalidate`` (issue #11).
+
+    Same single-sourced ``_run_checks`` as :func:`run_gates`, but ``write_to=None`` so a
+    re-gate of an already-COMPLETE bundle never mutates its frozen record."""
+    rows = _run_checks(cfg, cwd=cfg.root, bundle=d, scopes=("repo", "bundle"))
+    return _finalize(rows, name=d.name, write_to=None)
+
+
 # ----------------------------------------------------------------------------
 def _bundle_target(
     bundle: Path | None,
@@ -142,7 +152,6 @@ def _run_one(chk: dict, *, cwd: Path, bundle: Path | None) -> dict:
     try:
         # Output is captured for the evidence line; the heartbeat ticks meanwhile so
         # a long, silent gate (e.g. a Docker-backed test suite) doesn't look hung.
-        watch = bundle or cwd
         rc, output = progress.run_with_heartbeat(
             cmd, cwd=cwd, shell=True, env=_merged_env(env), capture=True, label=label,
             status=lambda: progress.bundle_activity(watch),
