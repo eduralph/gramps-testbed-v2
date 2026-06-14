@@ -1,0 +1,13 @@
+# Fork verification bases — fork PR branches the addon matrix may verify a bundle against.
+#
+# Default validation runs an addon bundle against CLEAN upstream/maintenance/gramps<ver>.
+# A bundle whose change lives on a FORK's open PR branch (e.g. .github/ CI infra the
+# clean base does not carry) cannot even `git apply` there. Such a bundle declares
+# `- **Verification base:** <remote>/<branch>` in its brief; `make fork-worktrees` reads
+# this manifest to build a dedicated `addons-source-<ver>-fork` worktree checked out at
+# that branch, and run-verify.sh / run-addon-unit.sh verify against it instead of the
+# shared clean `addons-source-<ver>` (which other batched bundles keep). <remote> names
+# a remote on ../addons-source (origin = the fork, upstream = gramps-project).
+#
+# version\tremote\tbranch\tnote
+6.0	origin	feature/ci-cd-pipeline-upstream	addons-source PR #820 — CI/CD pipeline (.github/ infra) on the eduralph fork, gramps60 line

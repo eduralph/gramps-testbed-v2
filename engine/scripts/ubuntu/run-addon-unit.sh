@@ -62,8 +62,21 @@ if [ -n "${CORE_VERSION:-}" ]; then
     6.1) GRAMPS_DIR="$WORKSPACE/gramps-6.1$LANE_SFX"; ADDONS_DIR="$WORKSPACE/addons-source-6.1$LANE_SFX" ;;
     *) echo "run-addon-unit.sh: unknown CORE_VERSION '$CORE_VERSION' (expected 6.0 or 6.1)" >&2; exit 2 ;;
   esac
+  # Fork verification base (issue #96): verify the addon suite against the fork PR-branch
+  # worktree `make fork-worktrees` built (addons-source-<ver>-fork) instead of the clean
+  # per-version checkout — for a fix that lives on a fork branch the clean base lacks.
+  # The core stays the matching CLEAN gramps-<ver>; only the addons-source base changes.
+  if [ -n "${ADDONS_FORK:-}" ]; then
+    ADDONS_DIR="$WORKSPACE/addons-source-$CORE_VERSION-fork$LANE_SFX"
+  fi
   for wt in "$GRAMPS_DIR" "$ADDONS_DIR"; do
-    [ -d "$wt" ] || { echo "run-addon-unit.sh: worktree $wt is missing — run 'make worktrees${LANE_SFX:+ LANES=N}'." >&2; exit 1; }
+    if [ ! -d "$wt" ]; then
+      case "$wt" in
+        *-fork) echo "run-addon-unit.sh: fork worktree $wt is missing — run 'make fork-worktrees'." >&2 ;;
+        *)      echo "run-addon-unit.sh: worktree $wt is missing — run 'make worktrees${LANE_SFX:+ LANES=N}'." >&2 ;;
+      esac
+      exit 1
+    fi
   done
 fi
 

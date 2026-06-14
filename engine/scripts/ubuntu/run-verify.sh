@@ -82,6 +82,33 @@ if grep -iqE 'repo \+ branch( target)?:.*(gramps60|maintenance/gramps60)' "$BUND
   TARGET_VER=6.0
 fi
 
+# --- fork base selection (issue #96) ---
+# An addon fix whose change lives on a FORK's open PR branch (e.g. .github/ CI infra the
+# clean upstream base does not carry, so the patch can't even apply there) declares a
+# `- **Verification base:** <remote>/<branch>` field. With it set, FORK_REF drives the
+# matrix to verify the single TARGET_VER leg against the DEDICATED addons-source-<ver>-fork
+# worktree `make fork-worktrees` built at that branch; empty ⇒ today's full clean matrix
+# against the shared per-version worktrees, unchanged. Self-contained so the unit test can
+# source + evaluate it without Docker (reads MODE/TARGET_VER/FORK_REF/WORKSPACE/LANE_SFX).
+_parse_fork_ref() {  # $1 = brief.md path → echo the <remote>/<branch> from the Verification base field (empty if none)
+  grep -iE 'verification base:' "$1" 2>/dev/null | head -1 \
+    | sed -E 's/.*[Vv]erification [Bb]ase:[[:space:]]*//; s/[*`]//g; s/^[[:space:]]+//; s/[[:space:]].*//'
+}
+_fork_legs() {  # echo the version legs to verify, space-separated
+  if [ -n "${FORK_REF:-}" ]; then echo "$TARGET_VER"
+  elif [ "$MODE" = addon ]; then echo "6.0 6.1"
+  else echo "$TARGET_VER"; fi
+}
+_addon_repo() {  # $1 = version leg → the addons-source worktree to patch for that leg
+  if [ -n "${FORK_REF:-}" ]; then echo "$WORKSPACE/addons-source-$1-fork$LANE_SFX"
+  else echo "$WORKSPACE/addons-source-$1$LANE_SFX"; fi
+}
+# --- end fork base selection ---
+
+# A fork base applies to addon fixes only (the field formalises the #820 series' prose).
+FORK_REF=""
+[ "$MODE" = addon ] && FORK_REF="$(_parse_fork_ref "$BUNDLE/brief.md")"
+
 # Classify the patched files; the rest is the production change reverted for the red
 # check. Core tests use the *_test.py SUFFIX (gramps/**/test/); addon tests use the
 # test_*.py PREFIX (addons-source/<Addon>/tests/) — see INTEGRATION.md §3.
@@ -118,7 +145,8 @@ done
 # in the pinned worktrees: a gramps60 fix is cherry-picked to gramps61, so the fix must
 # hold red→green on BOTH cores. (Addon mode needs a display via xvfb so a
 # @skipUnless(_HAS_GTK_DISPLAY) RUNS; core mode is plain.)
-if [ "$MODE" = addon ]; then LEGS=(6.0 6.1); else LEGS=("$TARGET_VER"); fi
+read -ra LEGS <<< "$(_fork_legs)"
+[ -n "$FORK_REF" ] && echo "→ fork verification base: $FORK_REF → addons-source-$TARGET_VER-fork (single leg $TARGET_VER)"
 TIMEOUT="${GRAMPS_TEST_TIMEOUT:-900}"
 
 # The container body — install core, apply the patch, assert green-with-fix then
@@ -178,12 +206,18 @@ _verify_leg() {
     # in-container `git apply`/`checkout` resolve.
     if [ -f "$gramps_dir/.git" ]; then gd="$(git -C "$gramps_dir" rev-parse --path-format=absolute --git-common-dir)"; mounts+=( -v "$gd":"$gd" ); fi
   else
-    gramps_dir="$WORKSPACE/gramps-$leg$LANE_SFX"; repo="$WORKSPACE/addons-source-$leg$LANE_SFX"
+    gramps_dir="$WORKSPACE/gramps-$leg$LANE_SFX"; repo="$(_addon_repo "$leg")"
     cwd=/workspace/addons-source
     runenv="GRAMPS_RESOURCES=/workspace/gramps PYTHONPATH=/workspace/$TESTBED_NAME/engine/scripts/lib/gi_bootstrap"
     xvfb="xvfb-run -a"
     for d in "$gramps_dir" "$repo"; do
-      [ -d "$d" ] || { echo "run-verify.sh: worktree $d missing — run 'make worktrees${LANE_SFX:+ LANES=N}'." >&2; return 1; }
+      if [ ! -d "$d" ]; then
+        case "$d" in
+          *-fork) echo "run-verify.sh: fork worktree $d missing — run 'make fork-worktrees' (declared via the brief's 'Verification base')." >&2 ;;
+          *)      echo "run-verify.sh: worktree $d missing — run 'make worktrees${LANE_SFX:+ LANES=N}'." >&2 ;;
+        esac
+        return 1
+      fi
     done
     mounts=( -v "$gramps_dir":/workspace/gramps -v "$repo":/workspace/addons-source \
              -v "$REPO_ROOT":/workspace/"$TESTBED_NAME" )
