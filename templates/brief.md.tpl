@@ -16,6 +16,7 @@
 - **Repo + branch target:** <owner/repo> @ <branch>   (resolve here at Plan — do not leave to Do)
 - **Depends on:** <id>[, <id>…]   (optional — batch/lane scheduling waits until these bundles are COMPLETE before this one runs; docs 09)
 - **Conflicts with:** <id>[, <id>…]   (optional — never co-schedule these in the same concurrent wave, e.g. they edit a shared file; docs 09)
+- **Verification base:** <remote>/<branch>   (optional, addon only — verify C4/T3 against a FORK PR branch instead of clean upstream, e.g. `origin/feature/ci-cd-pipeline-upstream` when the fix lives on the fork; needs `make fork-worktrees` + an engine/fork-bases.tsv row; issue #96)
 - **Surfaces:** <where the change is observable — `gui` (touches the frontend / an E2E
   through the app is needed), `data` (backend/logic only), or `both`. Drives which
   runtime gates apply (e.g. an E2E gate runs only when this is `gui`). Optional.>

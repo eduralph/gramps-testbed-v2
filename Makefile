@@ -40,7 +40,7 @@ export PYTHONPATH := src
 PDCA := $(PYTHON) -m pdca_harness.cli
 
 .DEFAULT_GOAL := test
-.PHONY: test check flow rehearse status revalidate cli install setup worktrees essential-worktrees preflight batch publish
+.PHONY: test check flow rehearse status revalidate cli install setup worktrees essential-worktrees fork-worktrees preflight batch publish
 
 # --- the cycle -------------------------------------------------------------
 # Live, continuous, Claude-driven. Give ID for one issue, or just CSV for a batch
@@ -161,6 +161,31 @@ essential-worktrees:
 	done; \
 	echo "essential worktrees ready — run-verify falls back here on an upstream failure."
 
+# --- fork verification bases: a fork's open PR branch (issue #96) -----------
+# Builds addons-source-<ver>-fork = a DEDICATED detached worktree checked out at a fork
+# PR branch listed in engine/fork-bases.tsv (<ver>\t<remote>\t<branch>). An addon bundle
+# whose brief declares `Verification base: <remote>/<branch>` verifies against this
+# worktree instead of clean addons-source-<ver> (run-verify.sh / run-addon-unit.sh), so a
+# change that lives on the fork (e.g. .github/ CI infra the clean base lacks) can apply +
+# run locally. Idempotent: realigns an existing clean worktree to the branch tip; a dirty
+# one is left as-is. <remote> is a remote on ../addons-source (origin = the fork).
+fork-worktrees:
+	@ws=$$(cd .. && pwd); manifest=engine/fork-bases.tsv; \
+	[ -f "$$manifest" ] || { echo "no $$manifest"; exit 1; }; \
+	repo="$$ws/addons-source"; \
+	for v in $$(awk -F'\t' '!/^#/ && NF>=3 {print $$1}' "$$manifest" | sort -u); do \
+	  remote="$$(awk -F'\t' -v v="$$v" '!/^#/ && $$1==v {print $$2; exit}' "$$manifest")"; \
+	  branch="$$(awk -F'\t' -v v="$$v" '!/^#/ && $$1==v {print $$3; exit}' "$$manifest")"; \
+	  wt="$$ws/addons-source-$$v-fork"; ref="$$remote/$$branch"; \
+	  git -C "$$repo" fetch "$$remote" --prune --quiet || echo "warn: fetch $$remote failed"; \
+	  if [ -d "$$wt" ]; then \
+	    if [ -n "$$(git -C "$$wt" status --porcelain 2>/dev/null)" ]; then echo "✔ $$wt (exists, dirty — left as-is)"; \
+	    else git -C "$$wt" checkout --detach --quiet "$$ref" && echo "↻ $$wt → $$ref ($$(git -C "$$repo" rev-parse --short "$$ref"))"; fi; \
+	  else echo "→ git -C addons-source worktree add --detach addons-source-$$v-fork $$ref"; \
+	    git -C "$$repo" worktree add --detach "$$wt" "$$ref" || exit 1; fi; \
+	done; \
+	echo "fork worktrees ready — an addon bundle declaring a fork Verification base verifies here."
+
 # --- preflight: bring the verification substrate current before a session ----
 # One explicit step to run ONCE before a flow/batch session (issue #79). It (1)
 # realigns the per-version worktrees to current upstream, (2) refreshes the essential
@@ -174,6 +199,7 @@ essential-worktrees:
 preflight:
 	@$(MAKE) --no-print-directory worktrees
 	@$(MAKE) --no-print-directory essential-worktrees REBUILD=1
+	@$(MAKE) --no-print-directory fork-worktrees
 	@echo "→ preflight: testbed checkout"; \
 	br="$$(git rev-parse --abbrev-ref HEAD)"; \
 	[ "$$br" = "main" ] || echo "  warn: testbed is on '$$br', not main"; \
