@@ -40,7 +40,7 @@ export PYTHONPATH := src
 PDCA := $(PYTHON) -m pdca_harness.cli
 
 .DEFAULT_GOAL := test
-.PHONY: test check flow rehearse status cli install setup worktrees essential-worktrees preflight batch publish
+.PHONY: test check flow rehearse status revalidate cli install setup worktrees essential-worktrees preflight batch publish
 
 # --- the cycle -------------------------------------------------------------
 # Live, continuous, Claude-driven. Give ID for one issue, or just CSV for a batch
@@ -71,6 +71,19 @@ rehearse:
 
 status:
 	@$(PDCA) status
+
+# Re-gate FROZEN bundles against the CURRENT engine (docs 09 / `pdca revalidate`). Each
+# run writes an additive results/issue_<id>/revalidation-<date>.json (old→new per row)
+# and NEVER mutates the frozen check-gates.json / SUMMARY.md §9 — Act surfaces the deltas
+# (act-index "revalidation deltas"). ID=<id> revalidates one bundle, else every COMPLETE
+# bundle. Docker-heavy (the full gate suite per bundle); a delta is advisory — a frozen
+# PASS→FAIL is a regression to route, a FAIL→PASS a now-stale recorded red.
+revalidate:
+	@if [ -n "$(ID)" ]; then ids="$(ID)"; \
+	else ids="$$($(PDCA) status | awk '/^COMPLETE /{sub(/^issue_/,"",$$2); print $$2}')"; fi; \
+	[ -n "$$ids" ] || { echo 'no COMPLETE bundles to revalidate'; exit 0; }; \
+	for id in $$ids; do echo "→ revalidate $$id"; $(PDCA) revalidate "$$id" || true; done; \
+	echo 'revalidate: stamps written — review revalidation-*.json deltas (Act surfaces them).'
 
 # Escape hatch for any other subcommand: make cli ARGS="queue"
 cli:

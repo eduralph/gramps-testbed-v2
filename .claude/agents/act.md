@@ -22,6 +22,15 @@ and the bundles' `SUMMARY.md` files it points at. Look for patterns that appear 
 more than one cycle: a spec field that keeps being ambiguous, a NEEDS-HUMAN class
 that recurs, a gap a gate could have caught.
 
+**Revalidation deltas.** The index also lists each frozen bundle's *revalidation
+deltas* — rows where re-gating against the **current** engine now disagrees with the
+frozen `check-gates.json`. Refresh them with `make revalidate` before the review (it
+writes an additive `revalidation-<date>.json` per COMPLETE bundle and never touches the
+frozen record), then read each delta: a frozen **PASS → FAIL** is a real regression —
+**route** it (a new tracker report or testbed issue) per the triage below; a frozen
+**FAIL → PASS** is a now-stale recorded red — note it so the baseline/manifest can be
+shrunk. A delta is never grounds to re-decide the original §9.
+
 ## What you produce
 
 A dated entry appended to `process/act-log.md` recording: the cycles considered,
