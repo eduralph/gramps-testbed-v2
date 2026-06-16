@@ -126,8 +126,13 @@ for f in "${FILES[@]}"; do
   fi
 done
 want_test=$([ "$MODE" = addon ] && echo 'test_*.py' || echo '*_test.py')
-[ -n "$TEST_REL" ] || { echo "run-verify.sh: patch ships no $MODE test ($want_test) to verify" >&2; exit 1; }
-[ "${#PROD[@]}" -gt 0 ] || { echo "run-verify.sh: patch has no production change to revert" >&2; exit 1; }
+# Two cases where C4's red-without-fix / green-with-fix mechanic genuinely CANNOT run
+# (vs. running and failing). Declare them `unverifiable` (pdca-harness #46): emit the
+# PDCA-UNVERIFIABLE marker + exit 77, so the gate routes a `- [ ]` into §6 and the C6
+# accept-guard forces the human to clear it, rather than a hard fail the human silently
+# overrides. The reason tells the human which case it is. (INTEGRATION §3.)
+[ -n "$TEST_REL" ] || { echo "PDCA-UNVERIFIABLE: patch ships no $MODE test ($want_test) — C4 red/green cannot run locally (e.g. a prose / ci.yml / fork-CI-verified change); the human accepts at sign-off, or rejects if a regression test was expected."; exit 77; }
+[ "${#PROD[@]}" -gt 0 ] || { echo "PDCA-UNVERIFIABLE: test-only patch — no non-test production file for the red-without-fix leg to revert; the regression test must still pass, and the human accepts C4 at sign-off."; exit 77; }
 MODULE="$(printf '%s' "${TEST_REL%.py}" | tr '/' '.')"   # core: gramps.gui.test.x_test ; addon: Addon.tests.test_x
 
 # Split the production change for the red pass: a brand-new prod file must be
