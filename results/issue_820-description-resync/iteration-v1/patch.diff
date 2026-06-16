@@ -1,0 +1,104 @@
+--- a/PR-820-description (before)
++++ b/PR-820-description (after, matches HEAD 1466491ab)
+@@ -2,55 +2,80 @@
+ 
+ ## Scope
+ 
+-This PR is **strictly CI infrastructure**. After review feedback from @kulath (2026-04-18) — "too many completely different changes in a single commit" — all per-addon code/lint/structure work that was originally bundled here has been split into one-PR-per-addon submissions; see the [Companion PRs](#companion-prs) section at the bottom. This PR adds only the workflow files, the container image, and a small shared test harness.
++This PR is **strictly CI infrastructure**. After review feedback from @kulath (2026-04-18) — "too many completely different changes in a single commit" — all per-addon code/lint/structure work that was originally bundled here has been split into one-PR-per-addon submissions; see the [Companion PRs](#companion-prs) section at the bottom. This PR adds only the workflow files, the container image, the shared CI scripts, and a small shared test harness.
+ 
+ Thanks also to @GaryGriffin for the early testing feedback on bug 9393 and for asking the questions that led to the standalone per-job reproduction commands below.
+ 
+ ## What's in the PR
+ 
+ ### CI infrastructure
+-- `.github/docker/gramps-ci/Dockerfile` — Python 3.12 + Gramps 6.0 (pip) + PyGObject + GTK typelibs (incl. `gir1.2-gexiv2-0.10` for EditExifMetadata / PhotoTaggingGramplet) + xvfb/xauth + ruff, dbf, intltool, gettext, git. GTK lives in the base image so addon modules that do `from gi.repository import Gtk` at module load are importable; xvfb/xauth are bundled for tests that actually render.
+-- `.github/workflows/docker-build.yml` — rebuilds the image on `.github/docker/**` changes or via `workflow_dispatch`. Default-branch-only; gates on GHCR write access.
+-- `.github/workflows/ci.yml` — seven jobs:
++- `.github/docker/gramps-ci/Dockerfile` — Python 3.12 + Gramps 6.0 + PyGObject + GTK typelibs (incl. `gir1.2-gexiv2-0.10` for EditExifMetadata / PhotoTaggingGramplet) + xvfb/xauth + ruff, intltool, gettext, git. GTK lives in the base image so addon modules that do `from gi.repository import Gtk` at module load are importable; xvfb/xauth are bundled for tests that actually render. Gramps is installed from PyPI for released series, or from a SHA-pinned `gramps-project/gramps@maintenance/grampsNN` snapshot for an unreleased branch (the series is parameterised via the `GRAMPS_SERIES` build arg).
++- `.github/workflows/docker-build.yml` — rebuilds the image on `.github/docker/**` changes or via `workflow_dispatch`, deriving the image tag and Gramps series from the branch ref. Default-branch-only; gates on GHCR write access.
++- `.github/workflows/ci.yml` — eight jobs:
++  - **Setup** — derives the CI image tag and the `make.py` series suffix from the branch ref (`maintenance/grampsNN`), so the rest of the matrix is branch-neutral.
+   - **Lint** — `ruff --select=E9,F63,F7,F82` + trailing-whitespace check (uses `grep -P` so `\t` matches a real tab, not a literal `t` — see commit `205b21c` for the regex bug fix).
+   - **Addon Structure** — every addon has `po/template.pot`.
+   - **Compile Check** — `python3 -m py_compile` on every `.py`.
+-  - **Unit Tests (Linux)** — `<addon>/tests/test_*.py` (skips `test_windows_*` / `test_integration_*`) via dotted-path loading.
++  - **Unit Tests (Linux)** — `<addon>/tests/test_*.py` (skips `test_windows_*` / `test_integration_*`) via `run_addon_tests.py` (GI bootstrap + per-module timeout + honest skip accounting).
+   - **Unit Tests (Windows)** — same matrix on the native Windows runner with a conda+pip env.
+-  - **Integration Tests (Gramps)** — `tests/test_plugin_registration.py` + `<addon>/tests/test_integration_*.py`, Linux-only, container `--init` so `xvfb-run` doesn't hang.
++  - **Integration Tests (Gramps)** — `tests/test_plugin_registration.py` + `tests/test_addon_dependencies.py` + `<addon>/tests/test_integration_*.py`, Linux-only, container `--init` so `xvfb-run` doesn't hang.
+   - **Build** — `make.py gramps60 build all`.
+ - `.github/environment.yml` — hybrid conda+pip environment for Windows. Gramps isn't on conda-forge, so `pygobject`/`gtk3` come from conda; `gramps`/`orjson`/`dbf` come from pip.
+ 
++### Shared CI scripts
++- `.github/scripts/addon_system_deps.py` — single source of truth for addon **system** dependencies. Maps each `requires_gi` typelib / `requires_exe` executable declared in a `.gpr.py` to its package on each CI platform (apt vs conda), and scans the tree so `ci.yml` derives the install list from one place instead of a hand-kept list. Records platform asymmetry (the GTK 3 libs — goocanvas, osm-gps-map, gexiv2 — exist on apt but not conda-forge). Pure stdlib.
++- `.github/scripts/run_addon_tests.py` — per-addon unit/integration runner that replaces a bare `python -m unittest`: it (1) bootstraps the GI versions the Gramps GUI launcher pins (Pango/PangoCairo/Gtk) before any `gramps.gui` import, (2) runs each module in a subprocess with a wall-clock timeout so a hung test can't stall the job, and (3) FAILs a wholly-skipped module *unless* the addon's declared system deps are genuinely unavailable on the platform — so a silent skip can't read as a pass.
++- `.github/scripts/gi_bootstrap/sitecustomize.py` — the same GI version pin as a `sitecustomize` shim, placed on `PYTHONPATH` for the discover-/subprocess-loading steps (e.g. plugin registration) so every spawned interpreter inherits the bootstrap.
++
+ ### Shared test harness
+ - `tests/gramps_test_env.py` — `GrampsTestCase` / `GrampsDbTestCase` base classes (stdlib `unittest`, mirroring upstream Gramps' own test style).
+ - `tests/test_plugin_registration.py` — registers every addon in a subprocess (crash-safe), verifies `gramps_target_version=6.0` plus valid id/name/version, smoke-tests import/export entry functions.
++- `tests/test_addon_dependencies.py` — detects addons that import a sibling addon without declaring it in `depends_on` (the Mantis 13707 bug class: a pack that imported `libwebconnect` at module load without declaring it failed to install standalone).
+ - `tests/__init__.py`.
+ 
+ ### TMGimporter test split
+ The pre-existing `TMGimporter/tests/test_libtmg.py` mixed pure-logic cases with DB-backed cases. Split per the `test_<scope>_*.py` filename convention introduced in commit `715e71d`:
+ - `test_libtmg.py` — empty stub (kept so a future cross-platform expansion has the file to extend).
+-- `test_linux_libtmg.py` — 1218 lines, all DB-backed; Linux-only because in-memory Gramps SQLite hangs on Windows under pip-Gramps + conda-forge GTK.
++- `test_linux_libtmg.py` — all DB-backed; Linux-only because in-memory Gramps SQLite hangs on Windows under pip-Gramps + conda-forge GTK.
++
++### Docs
++- `CONTRIBUTING.md` — a short note that PRs now run automated CI checks, and that a green check on an unreleased `maintenance/grampsNN` branch means the addon works against that *branch tip* (a SHA-pinned snapshot), not against a tagged release.
++- `.github/CI-MAINTAINER.md` — operational runbook for a `gramps-project/addons-source` maintainer: one-time setup when this PR merges, and how to stand up a new maintenance branch. The pipeline is otherwise self-driving.
+ 
+ ## Gate policy
+ 
+ PR-blocking checks should only fire on issues the PR's own diff can cause. Every test here runs gramps or addon code, so the policy is:
+ 
+-- **Blocking gates** (job-level `continue-on-error: false`): Compile Check, Integration Tests, Build.
+-- **Advisory gates** (job-level `continue-on-error: true`): Lint, Addon Structure, Unit Tests (Linux), Unit Tests (Windows).
++- **Blocking gates** (job-level `continue-on-error: false`): Lint, Compile Check, Unit Tests (Linux), Unit Tests (Windows), Integration Tests, Build.
++- **Advisory gate** (job-level `continue-on-error: true`): Addon Structure — the only advisory job.
+ 
+-The four advisory gates are currently red on pre-existing tree state (see Companion PRs). As those companion PRs land, the advisories will converge to green and can be flipped to blocking in a follow-up.
++Lint and both Unit-test jobs were advisory while their pre-existing backlog was being cleared by the companion PRs; that backlog is now cleared on `maintenance/gramps60`, so they were flipped to blocking (lint in `d265612`, both unit-test jobs in `0dd3f1b`). The single remaining advisory is **Addon Structure**, which stays non-blocking until the four addons missing `po/template.pot` are fixed in a follow-up PR — flip it off in that PR.
+ 
+ ## Commits
+ 
+ | SHA       | Date       | Summary |
+ |-----------|------------|---------|
+-| `774a9ac` | 2026-04-19 | Initial CI/CD pipeline (issue 9393). Originally larger; force-pushed to this minimal scope after @kulath's review. |
++| `774a9ac` | 2026-04-19 | Add CI/CD pipeline with container-based testing (issue 9393). Originally larger; force-pushed to this minimal scope after @kulath's review. |
+ | `c6aa10e` | 2026-04-20 | Auto-derive addon pip deps from `requires_mod` in `.gpr.py`. |
+ | `8d2654a` | 2026-04-20 | Remove `dbf` from image/env — installed via auto-derive now. |
+ | `28febdc` | 2026-04-20 | `shell: bash` on unit-test-linux + integration-test steps (fixes Dash `Bad substitution`). |
+ | `715e71d` | 2026-04-20 | OS-split addon tests by filename convention (`test_linux_*` / `test_windows_*` / `test_integration_*`). |
+ | `dd0fd38` | 2026-05-11 | Add `gir1.2-gexiv2-0.10` typelib to image (companion to #878, #880). |
+-| `205b21c` | 2026-05-11 | Lint trailing-whitespace check — switch BRE `[ \t]` to PCRE. The previous BRE pattern was buggy: inside `[...]`, BRE treats `\t` as the literal characters `\` and `t`, so the check matched any line ending in `t`/`\`/`[`/`]`/space — ~3 000 false-positive lines across ~430 files. PCRE (`-P`) correctly recognises `\t` as tab; real count is 597 lines across 21 files. |
++| `205b21c` | 2026-05-11 | Lint trailing-whitespace check — switch BRE `[ \t]` to PCRE. The previous BRE pattern matched any line ending in `t`/`\`/`[`/`]`/space (~3 000 false positives across ~430 files); PCRE (`-P`) recognises `\t` as a tab — real count 597 lines across 21 files. |
++| `f5907af` | 2026-05-15 | Skip addons whose `.gpr.py` declares `include_in_listing=False`. |
++| `ff215ac` | 2026-05-16 | Validate `requires_mod` names against `find_spec` (Pillow/PIL trap). |
++| `d265612` | 2026-05-19 | Make the **lint** job blocking — ruff backlog cleared on `maintenance/gramps60`. |
++| `0dd3f1b` | 2026-05-19 | Make **unit-test-linux** and **unit-test-windows** blocking — backlog cleared. |
++| `9a91d89` | 2026-05-18 | Derive image tag and `make.py` argument from the branch ref. |
++| `abefdbe` | 2026-05-18 | docker-build: derive image tag and Gramps series from the branch ref. |
++| `9927626` | 2026-05-18 | Dockerfile: parameterise Gramps series via `GRAMPS_SERIES` build arg. |
++| `894e484` | 2026-05-18 | CI image: hybrid PyPI / git-clone install for unreleased maintenance branches. |
++| `73d75ed` | 2026-05-18 | docs: note the first-push race and unreleased-branch CI semantics. |
++| `3b2a947` | 2026-05-19 | docs: add CI maintainer runbook (`.github/CI-MAINTAINER.md`). |
++| `ad2815c` | 2026-05-24 | tests: detect addons that import a sibling without `depends_on`. |
++| `bc8df21` | 2026-05-24 | tests: derive expected addon target version from the Gramps install. |
++| `7f8a839` | 2026-05-29 | ci: install addon system deps, run under xvfb, pin GI, fail on silent skips. |
++| `1466491` | 2026-05-30 | ci(windows): document the gramps-vs-branch series caveat. |
+ 
+ ## Local reproduction
+ 
+@@ -86,7 +111,6 @@
+ - **Trailing whitespace (6)** — #881 GeoTimeLines, #882 DNA, #883 GraphView, #884 FamilyTreeDNA, #885 GrampyScript, #886 ToDoReport.
+ - **Gramps core companions (2)** — gramps-project/gramps#2299 (ClipboardGramplet headless-icon fallback), gramps-project/gramps#2302 (`webreport/common.py` no-ICU fallback) — both required to unblock plugin-registration smoke tests in this PR.
+ 
+-Once those land, all four advisory gates here should report green and can be promoted to blocking.
++As of HEAD the lint and unit-test backlogs are cleared and those gates are blocking; once the remaining `po/template.pot` gaps land, Addon Structure can be promoted to blocking too.
+ 
+ 🤖 Generated with [Claude Code](https://claude.com/claude-code)
+-
