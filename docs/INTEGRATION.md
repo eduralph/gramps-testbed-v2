@@ -22,10 +22,25 @@
 - **Full-thread context (optional):** `./engine/scripts/scrape-mantis.sh <id>` writes
   `results/issue_<id>/mantis-notes.json` (the scraped comment thread); the planner
   reads it if present, else offers the command. Host-side, manual — see §9.
-- **Cross-link form (commit/PR → tracker):** gramps core PRs use the `p:gramps:nnnn:`
-  shorthand; addons-source PRs use the full GitHub URL / upstream's auto-link
-  keywords (no shorthand for non-gramps repos). Inside a Mantis note, `#nnnn`
-  refers to **another Mantis ticket**, not a GitHub PR.
+- **Cross-link form (commit/PR → Mantis tracker):** gramps core PRs use the
+  `p:gramps:nnnn:` source-control shorthand MantisBT resolves; addons-source has no such
+  shorthand, so its Mantis reference (when one exists — **optional** for addons-source) goes
+  in the PR body as the bare `#nnnn` MantisBT hook form. Inside a Mantis note, `#nnnn` refers
+  to **another Mantis ticket**, not a GitHub PR.
+- **No upstream-repo links in fork artifacts:** in fork issues (`eduralph/*`), bundle briefs,
+  and PR text, do **not** add URLs or `owner/repo#NNN` cross-references to the upstream
+  repositories (`gramps-project/gramps`, `gramps-project/addons-source`) — a GitHub cross-ref
+  back-links/notifies the upstream thread, which is unwanted. Refer to upstream PRs/issues in
+  **plain text** ("upstream PR 949"). The brief's `Repo + branch target` (e.g.
+  `gramps-project/addons-source @ maintenance/gramps61`) is a target spec, not a link — keep
+  it. (Project rule; this doc is the source of truth.)
+- **Non-Mantis items → fork GitHub issue:** a gramps/addons work item with **no Mantis
+  number** (slug branches like `fix/bug-glade-setattr`, `enhancement/…`,
+  `plugin-improvements/…`, cleanup follow-ups) is tracked as a GitHub issue on the matching
+  fork — `eduralph/gramps` for core, `eduralph/addons-source` for addons; its brief carries
+  `Mantis: none — <why>` (the ticketless path the T4 gate honors). Mantis-numbered items
+  (`fix/bug-<NNNNN>-…`) are tracked in Mantis. The testbed's own work uses gramps-testbed-v2
+  issues; harness/template items go to the pdca-harness repo.
 - **Status → disposition mapping:** Mantis statuses (new / acknowledged / confirmed /
   assigned / feedback / resolved) → cycle Plan-time (`confirmed` → fixable,
   `feedback` → needs-info) and Check-time (`resolved` set on merge). The Mantis
@@ -281,8 +296,10 @@ line number**, so an edit to a vendored page doesn't invalidate the anchor; the
   (no SHA unless cross-branch/historical); the commit that *caused* a bug gets an
   explicitly-labelled line **with** its SHA.
 - **PR description format:** Root cause / Fix / Verified against / Test (see
-  `templates/pr-description.md.tpl`). The PR body MUST reference the Mantis issue
-  using upstream's auto-link keywords.
+  `templates/pr-description.md.tpl`). Reference the Mantis issue when one exists
+  (**optional** for addons-source — doc 16 §Contributor workflow) using the bare `#nnnn`
+  MantisBT hook form; never a GitHub URL or a cross-ref to an upstream repo (see
+  §Cross-link form / No upstream-repo links above).
 - **Addon maintainer callout (doc 16 §Contributor workflow, addon):** a PR that
   modifies an `addons-source` addon adds an `## Affected addon` section that
   **@-mentions the person responsible for the addon** — a heads-up so they're aware

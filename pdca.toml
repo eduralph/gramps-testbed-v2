@@ -77,7 +77,7 @@ addons-source = "gramps-project/addons-source"
 mode = "command"
 family = "claude"
 interactive = false
-argv = ["claude", "-p", "--agent", "builder", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Edit,Bash(git *),Bash(python3 *)"]
+argv = ["claude", "-p", "--model", "claude-opus-4-8", "--effort", "high", "--agent", "builder", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Edit,Bash(git *),Bash(python3 *)"]
 
 # Check reviewer (advisory, build-notes withheld). Cross-vendor decorrelation is
 # the ideal (a DIFFERENT family from the builder); `--agent reviewer` is the
@@ -87,7 +87,7 @@ argv = ["claude", "-p", "--agent", "builder", "--permission-mode", "acceptEdits"
 mode = "command"
 family = "claude"
 interactive = false
-argv = ["claude", "-p", "--agent", "reviewer", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Edit"]
+argv = ["claude", "-p", "--model", "claude-opus-4-8", "--effort", "high", "--agent", "reviewer", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Edit"]
 
 # Interactive leaves — the human-in-the-loop touch points (Plan, Sign-off, Publish,
 # Act) hand the terminal to a seeded Claude REPL. Claude by design (a model+human
@@ -103,14 +103,17 @@ interactive = true
 # pin it explicitly because a tier's default effort may be lower than xhigh.
 # Act 2026-06-08 (issue_8653: under-specified brief) pinned a strong model + xhigh.
 # Act 2026-06-10: briefly moved the planner to Fable 5, then reverted to opus-4-8 for
-# planning. Mechanical leaves (builder/reviewer) intentionally stay on default.
+# planning. 2026-06-14: the prior "mechanical leaves stay on default" stance was reversed —
+# builder/reviewer (and signoff/publisher/act) are now pinned EXPLICITLY to
+# claude-opus-4-8 + `--effort high` too, since an un-versioned ~/.claude default left the
+# implementer leaf weaker than the interactive session. Planner keeps `xhigh` (highest leverage).
 argv = ["claude", "--model", "claude-opus-4-8", "--effort", "xhigh", "--agent", "planner", "--permission-mode", "acceptEdits"]
 
 [leaves.signoff]
 mode = "command"
 family = "claude"
 interactive = true
-argv = ["claude", "--agent", "signoff", "--permission-mode", "acceptEdits"]
+argv = ["claude", "--model", "claude-opus-4-8", "--effort", "high", "--agent", "signoff", "--permission-mode", "acceptEdits"]
 
 # Publisher — the closing work of Check: for an ACCEPTED fix, drafts commit-msg.txt +
 # pr-description.md WITH the human (doc 16). The deterministic `pdca publish` then
@@ -119,13 +122,13 @@ argv = ["claude", "--agent", "signoff", "--permission-mode", "acceptEdits"]
 mode = "command"
 family = "claude"
 interactive = true
-argv = ["claude", "--agent", "publisher", "--permission-mode", "acceptEdits"]
+argv = ["claude", "--model", "claude-opus-4-8", "--effort", "high", "--agent", "publisher", "--permission-mode", "acceptEdits"]
 
 [leaves.act]
 mode = "command"
 family = "claude"
 interactive = true
-argv = ["claude", "--agent", "act", "--permission-mode", "acceptEdits"]
+argv = ["claude", "--model", "claude-opus-4-8", "--effort", "high", "--agent", "act", "--permission-mode", "acceptEdits"]
 
 # Deterministic Check gates (docs 04). Each check runs a shell command; it PASSES
 # iff the command exits 0. `scope = "repo"` runs against the working tree (and is
