@@ -1,0 +1,163 @@
+diff --git a/tests/plugin_load_gate.py b/tests/plugin_load_gate.py
+new file mode 100644
+index 000000000..898326fcf
+--- /dev/null
++++ b/tests/plugin_load_gate.py
+@@ -0,0 +1,62 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  Eduard Ralph
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++#
++
++"""
++Gating policy for the addon plugin-load CI check.
++
++Extracted from :mod:`tests.test_plugin_registration` so the *gating decision*
++— which load outcomes block CI and which are merely advisory — has one
++implementation that both production (``TestPluginLoading.test_load_all_addon_modules``)
++and its regression test exercise, and so the decision can be unit-tested
++without booting the full Gramps plugin environment.
++
++The policy: a **hard failure** (an addon that fails to load with no
++environmental excuse — not a missing declared dependency, not a subprocess
++crash) gates the CI run, exactly as the sibling smoke tests
++(``TestImportPluginSmoke`` / ``TestExportPluginSmoke``) ``self.fail`` on their
++findings. Dependency skips and subprocess crashes (typically a missing display
++server in CI) stay advisory and are reported by the caller as warnings.
++
++This module imports nothing from ``gi`` or ``gramps.gui`` so it stays loadable
++in a headless test runner.
++"""
++
++# ------------------------
++# Python modules
++# ------------------------
++from __future__ import annotations
++
++
++def hard_load_failure_message(hard_failures: list[str]) -> str | None:
++    """Return the CI-gating failure message for a load run, or ``None``.
++
++    :param hard_failures: Descriptions of addons that failed to load with no
++                          environmental excuse (not a missing dependency, not a
++                          crashing subprocess).
++    :type hard_failures: list[str]
++    :returns: A human-readable failure message when ``hard_failures`` is
++              non-empty (so the caller must fail the test), else ``None``.
++    :rtype: str | None
++    """
++    if not hard_failures:
++        return None
++    return f"{len(hard_failures)} addon(s) failed to load:\n  " + "\n  ".join(
++        hard_failures
++    )
+diff --git a/tests/test_plugin_registration.py b/tests/test_plugin_registration.py
+index b2f2f4dde..8defc92bb 100644
+--- a/tests/test_plugin_registration.py
++++ b/tests/test_plugin_registration.py
+@@ -51,6 +51,7 @@ from gramps.version import VERSION_TUPLE
+ # Gramps specific
+ # ------------------------
+ from tests.gramps_test_env import ADDONS_ROOT, GrampsTestCase
++from tests.plugin_load_gate import hard_load_failure_message
+ 
+ LOG = logging.getLogger(__name__)
+ 
+@@ -161,7 +162,17 @@ class TestPluginLoading(GrampsTestCase):
+     """
+ 
+     def test_load_all_addon_modules(self) -> None:
+-        """Try to load every addon plugin; collect failures rather than fail fast."""
++        """Load every addon plugin; gate on non-dependency load failures.
++
++        Failures are collected rather than failing fast, then classified:
++        dependency skips and subprocess crashes (typically a missing display
++        server in CI) are advisory and only logged, while a non-dependency
++        *hard* load failure fails the test through
++        :func:`tests.plugin_load_gate.hard_load_failure_message`. This makes
++        the check a real gate — like the sibling smoke tests
++        (:class:`TestImportPluginSmoke`, :class:`TestExportPluginSmoke`) — not
++        an always-pass that merely warns on the failure class it names.
++        """
+         plugins = _get_addon_plugins(self.plugin_registry)
+         self.assertGreater(len(plugins), 0, "No addon plugins found to test")
+ 
+@@ -221,12 +232,9 @@ class TestPluginLoading(GrampsTestCase):
+                 "\n  ".join(crash_failures),
+             )
+ 
+-        if hard_failures:
+-            LOG.warning(
+-                "%d addon(s) failed to load:\n  %s",
+-                len(hard_failures),
+-                "\n  ".join(hard_failures),
+-            )
++        gating_message = hard_load_failure_message(hard_failures)
++        if gating_message:
++            self.fail(gating_message)
+ 
+ 
+ # ------------------------------------------------------------
+@@ -293,5 +301,47 @@ class TestExportPluginSmoke(GrampsTestCase):
+             )
+ 
+ 
++# ------------------------------------------------------------
++#
++# TestPluginLoadingGate
++#
++# ------------------------------------------------------------
++class TestPluginLoadingGate(unittest.TestCase):
++    """The load check must *gate* on non-dependency failures, not just log them.
++
++    Regression guard for addons-source PR #820 finding R-C:
++    ``TestPluginLoading.test_load_all_addon_modules`` named ``hard_failures``
++    but only ``LOG.warning``-ed them, so a genuine non-dependency load failure
++    passed silently — its sole assertion was ``assertGreater(len(plugins), 0)``.
++
++    The gating verdict now lives in
++    :func:`tests.plugin_load_gate.hard_load_failure_message`, which
++    ``test_load_all_addon_modules`` routes through, so these cases drive the
++    exact decision the production test uses — not a copy of it. This case is
++    import-light (no ``gi`` / ``gramps.gui``) so it runs in a headless runner.
++    """
++
++    def test_hard_failure_gates(self) -> None:
++        """A synthetic non-dependency load failure must produce a fail message.
++
++        With the silent-warning behaviour, no message would be produced and
++        ``test_load_all_addon_modules`` would still pass; the gate must instead
++        yield a message that the production test turns into ``self.fail``.
++        """
++        message = hard_load_failure_message(
++            ["fake_addon (ModuleNotFoundError: No module named 'no_such_module')"]
++        )
++        self.assertIsNotNone(
++            message,
++            "a non-dependency load failure must gate the run, not pass silently",
++        )
++        self.assertIn("fake_addon", message)
++        self.assertIn("failed to load", message)
++
++    def test_clean_run_does_not_gate(self) -> None:
++        """No hard failures → no gating message, so a clean run still passes."""
++        self.assertIsNone(hard_load_failure_message([]))
++
++
+ if __name__ == "__main__":
+     unittest.main()

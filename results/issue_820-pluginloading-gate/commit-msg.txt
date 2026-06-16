@@ -1,0 +1,18 @@
+Gate addon plugin-load test on hard load failures
+
+The addon CI suite has a load check, test_load_all_addon_modules, that
+collects every addon that fails to load into a "hard failures" list but
+then only logs a warning about them. Its only assertion is that at least
+one plugin was found, so a real addon that fails to load lets CI pass
+green while the failure scrolls by unread. The check named a failure
+class it could never fail on.
+
+Make that check gate, the way its two siblings in the same file already
+do: TestImportPluginSmoke and TestExportPluginSmoke both self.fail on
+their findings. A non-dependency hard load failure now fails the test
+directly; dependency skips and subprocess crashes (typically a missing
+display server in CI) stay advisory and are still only logged.
+
+A regression test drives the real production method with a synthetic
+always-failing addon injected at its load seams and asserts the run now
+fails rather than passing silently.

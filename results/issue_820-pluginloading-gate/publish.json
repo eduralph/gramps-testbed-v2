@@ -1,0 +1,11 @@
+{
+  "branch": "feature/ci-cd-pipeline-upstream",
+  "pr_url": "https://github.com/gramps-project/addons-source/pull/820",
+  "base": "maintenance/gramps60",
+  "repo": "gramps-project/addons-source",
+  "commit": "4fc07ba61",
+  "by": "Eduard Ralph",
+  "date": "2026-06-16",
+  "id_pending": false,
+  "note": "Stacked commit onto the existing PR #820 branch (not a new PR): pdca publish branches from upstream/<base> and can't apply a patch that depends on #820's own added files, so this R-C fix was applied directly onto feature/ci-cd-pipeline-upstream and pushed. C4 is unverifiable (test-only patch); enforcement of C4-unverifiable→§6→C6 is tracked at pdca-harness#46."
+}
