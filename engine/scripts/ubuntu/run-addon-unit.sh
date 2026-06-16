@@ -278,8 +278,12 @@ timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
           # run_addon_modules.py killed at least one module at the per-module
           # timeout; it prints `module-timeout: <module> …` per culprit. Name them
           # in the addon summary so the hang is attributable, not anonymous.
+          # NB: double-quote the sed program. A single-quoted sed here would close
+          # the surrounding single-quoted bash -c body (opened at line 142) early,
+          # truncating the script mid command-substitution, so bash exits before any
+          # test runs (testbed #127). Keep this whole body free of bare apostrophes.
           culprits=$(grep -oE "^module-timeout: [^ ]+" "$run_log" \
-                       | sed 's/^module-timeout: //' | paste -sd, - || true)
+                       | sed "s/^module-timeout: //" | paste -sd, - || true)
           detail="per-module timeout: ${culprits:-?}"
         else
           detail=$(grep -oE "FAILED \([^)]*\)" "$run_log" | tail -n 1 || true)
