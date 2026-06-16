@@ -226,5 +226,41 @@ import os  # noqa: E402  (kept low to mirror the std-lib import grouping above)
 _PATH = os.environ.get("PATH", "/usr/bin:/bin")
 
 
+class VerifyUnverifiableTest(unittest.TestCase):
+    """The two 'can't run the mechanic' cases declare C4 `unverifiable` (PDCA-UNVERIFIABLE
+    marker + exit 77, pdca-harness #46), not a hard `exit 1` — so the gate routes a §6
+    NEEDS-HUMAN item under the C6 accept-guard instead of a fail the human overrides."""
+
+    def _guard_line(self, needle: str) -> str:
+        """The real run-verify.sh unverifiable guard line containing `needle`."""
+        for ln in SCRIPT.read_text().splitlines():
+            if needle in ln and "PDCA-UNVERIFIABLE" in ln:
+                return ln
+        self.fail(f"no PDCA-UNVERIFIABLE guard line containing {needle!r}")
+
+    def test_test_only_patch_emits_unverifiable(self) -> None:
+        # No production file to revert (test-only patch) → exit 77 + marker on stdout.
+        res = _run("set -u\nPROD=()\n" + self._guard_line("${#PROD[@]}"))
+        self.assertEqual(res.returncode, 77, res.stderr)
+        self.assertIn("PDCA-UNVERIFIABLE:", res.stdout)
+
+    def test_no_test_patch_emits_unverifiable(self) -> None:
+        # No test to run (prose / ci.yml / fork-CI-verified) → exit 77 + marker on stdout.
+        prog = 'set -u\nTEST_REL=""\nMODE=core\nwant_test="*_test.py"\n' + self._guard_line("TEST_REL")
+        res = _run(prog)
+        self.assertEqual(res.returncode, 77, res.stderr)
+        self.assertIn("PDCA-UNVERIFIABLE:", res.stdout)
+
+    def test_cant_run_cases_are_unverifiable_not_hard_fail(self) -> None:
+        body = SCRIPT.read_text()
+        # the old hard-fail forms for these two guards must be gone
+        self.assertNotIn('to verify" >&2; exit 1', body)
+        self.assertNotIn('to revert" >&2; exit 1', body)
+        # both can't-run guards now declare unverifiable
+        self.assertEqual(body.count("PDCA-UNVERIFIABLE:"), 2,
+                         "exactly the no-test and no-production guards declare unverifiable")
+        self.assertIn("exit 77", body)
+
+
 if __name__ == "__main__":
     unittest.main()

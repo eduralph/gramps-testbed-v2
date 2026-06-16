@@ -158,6 +158,17 @@ vendored ruleset; each target carries its auditable origin per doc 16
     `GRAMPS_RESOURCES` + the `gi_bootstrap` shim (so a `@skipUnless(_HAS_GTK_DISPLAY)`
     test actually runs, not skips); a core fix keeps the `*_test.py` *suffix* path on
     the gramps checkout.
+  - **C4 *unverifiable* (not a manufactured gate).** When the red→green mechanic genuinely
+    can't run, `run-verify` emits `PDCA-UNVERIFIABLE: <reason>` + exit 77 (the v0.17.0
+    gate-result class, pdca-harness #46) instead of a hard fail — the row routes into §6
+    NEEDS-HUMAN and the **C6** accept-guard forces the human to clear it before `--accept`.
+    Two cases: a **test-only** patch (no non-`test_` production file for the red leg to
+    revert — e.g. a test-fixes-test fix), and a patch with **no local test** whose C4 is the
+    fork CI (a prose / `ci.yml` change). The regression test still ships and must pass; only
+    the red→green *mechanic* is waived, and C5/T5 + the human judge the fix. **Never**
+    manufacture a non-`test_` module just to give `run-verify` a file to revert — that ships
+    dead scaffolding (worked example: the dropped `tests/plugin_load_gate.py` in
+    820-pluginloading-gate).
   - Core unit: `./engine/scripts/ubuntu/run-unit.sh` **(ported, advisory baseline)**
   - Addon unit: `./engine/scripts/ubuntu/run-addon-unit.sh [addon ...]` **(ported, advisory)** (empty = all addons
     with `tests/test_*.py`; loaded via dotted path `<Addon>.tests.<module>`)
@@ -287,6 +298,13 @@ line number**, so an edit to a vendored page doesn't invalidate the anchor; the
 - **Act log path:** `process/act-log.md`
 - **Iterate archive:** a rejected attempt is preserved in `iteration-v<N>/` in the
   bundle (the brief is archived with it on iterate-to-Plan) — fixed by the harness
+- **When to `park` (sign-off disposition, v0.16.0 / pdca-harness #42):** `pdca signoff
+  --park` discontinues a bundle that **can't be carried as a contribution `patch.diff`** —
+  e.g. a PR-restructuring / scope-split task, or work superseded by another bundle (the
+  deleted `820-scope-split` would have been a park). It moves the bundle to the terminal
+  `DISCONTINUED` state with **no C6 guard** (a deliberate abandon, independent of §6).
+  Record *why discontinued / where the work goes instead* below the decision token. Don't
+  park to dodge an open §6 — that's what iterate/accept are for.
 
 ## 8. Committing and PR conventions
 - **Commit-message format:** past-tense one-line subject; body explains the *why*,
