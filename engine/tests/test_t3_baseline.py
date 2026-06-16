@@ -243,5 +243,48 @@ class UpdateStampsTree(unittest.TestCase):
         self.assertEqual(m["baseline_tree"], tree)
 
 
+class WriteRunnerLog(unittest.TestCase):
+    """A delta persists the raw runner output into the bundle so an opaque exit is
+    diagnosable (issue #117); green/baseline and no-bundle write nothing."""
+
+    DELTA = {"verdict": "delta", "exit_code": 1, "summary": "DELTA: …"}
+    GREEN = {"verdict": "green", "exit_code": 0, "summary": "green"}
+    OUTPUT = "runner stderr line 1\nTraceback …\nexit 2\n"
+
+    def _bundle(self) -> Path:
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, tmp, True)
+        return tmp
+
+    def test_delta_writes_log_with_exact_output(self) -> None:
+        b = self._bundle()
+        name = t3_baseline.write_runner_log(str(b), "t3-run-addon-unit-60.log",
+                                            self.OUTPUT, self.DELTA)
+        self.assertEqual(name, "t3-run-addon-unit-60.log")
+        self.assertEqual((b / name).read_text(encoding="utf-8"), self.OUTPUT)
+
+    def test_green_writes_nothing(self) -> None:
+        b = self._bundle()
+        self.assertIsNone(
+            t3_baseline.write_runner_log(str(b), "t3-x.log", self.OUTPUT, self.GREEN))
+        self.assertEqual(list(b.iterdir()), [])
+
+    def test_no_bundle_writes_nothing(self) -> None:
+        # $PDCA_BUNDLE unset (CI working-tree re-gate) → nothing to persist.
+        self.assertIsNone(
+            t3_baseline.write_runner_log(None, "t3-x.log", self.OUTPUT, self.DELTA))
+
+    def test_opaque_exit_delta_summary_gets_pointer(self) -> None:
+        # End-to-end shape: the unexplained-nonzero delta summary, with the pointer
+        # the caller appends — the human now has a file to read, not just the signature.
+        v = t3_baseline.classify({}, 2, "weird crash, no JUnit", {})
+        self.assertEqual(v["verdict"], "delta")
+        b = self._bundle()
+        log = t3_baseline.write_runner_log(str(b), "t3-run-addon-unit-60.log",
+                                           "weird crash, no JUnit", v)
+        v["summary"] += f" — raw runner output: {log}"
+        self.assertIn("raw runner output: t3-run-addon-unit-60.log", v["summary"])
+
+
 if __name__ == "__main__":
     unittest.main()
