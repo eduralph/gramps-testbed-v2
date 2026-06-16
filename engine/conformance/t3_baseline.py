@@ -247,6 +247,29 @@ def _run_runner(runner: str, args: list[str]) -> tuple[int, str]:
     return proc.returncode, proc.stdout
 
 
+def write_runner_log(
+    bundle: str | None, log_name: str, output: str, verdict: dict
+) -> str | None:
+    """On a delta, persist the runner's raw output into the bundle for diagnosis.
+
+    The gate captures only the one-line summary (truncated by the driver), so an
+    opaque red — a non-zero exit with no parsed JUnit and no matching signature —
+    is otherwise undiagnosable from the bundle. On a delta (``exit_code != 0``) and
+    when ``$PDCA_BUNDLE`` is set, drop the full combined runner output (which already
+    carries each addon's ``_run.log`` via the runner's ``tee``) next to the other
+    check artifacts so the human can name the cause (testbed issue #117). Returns the
+    filename written (the caller points the summary at it), or ``None`` when there is
+    nothing to persist (no bundle, or not a delta)."""
+    if not bundle or verdict["exit_code"] == 0:
+        return None
+    try:
+        (Path(bundle) / log_name).write_text(output, encoding="utf-8")
+    except OSError as exc:
+        print(f"t3-baseline: could not write {log_name}: {exc}", file=sys.stderr)
+        return None
+    return log_name
+
+
 def _update_manifest(
     path: Path, runner: str, observed: dict[str, str], tree: dict | None = None
 ) -> None:
@@ -297,6 +320,15 @@ def main(argv: list[str] | None = None) -> int:
 
     manifest = load_manifest(path)
     verdict = classify(observed, rc, output, manifest)
+    # Persist the raw runner output into the bundle on a delta, so an otherwise-opaque
+    # exit (non-zero, no parsed JUnit, no signature) is diagnosable from the bundle
+    # itself rather than only the truncated one-line summary (issue #117). The log name
+    # is keyed off the manifest stem, so the addon matrix legs don't clobber each other.
+    log = write_runner_log(
+        os.environ.get("PDCA_BUNDLE"), f"t3-{path.stem}.log", output, verdict
+    )
+    if log:
+        verdict["summary"] += f" — raw runner output: {log}"
     for tid in verdict["cleared"]:
         print(f"t3-baseline: recorded red cleared (shrink the manifest?): {tid}")
     # Advisory: a baseline only applies to the tree it was recorded on. Surface drift
