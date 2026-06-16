@@ -1,0 +1,27 @@
+Move DB-backed TMGimporter tests into a Linux-only test module
+
+On maintenance/gramps61, TMGimporter/tests/test_libtmg.py carried the 13
+real-database import test classes alongside the pure-function tests. Those
+DB-backed tests drive an in-memory Gramps database, and on the Windows CI
+lane the only available Gramps comes from conda-forge (no 6.1 yet, resolving
+to 6.0.8); run against that mismatched core the import path hangs, so the
+file had grown two stopgaps to cope: an inline gi.require_version GTK/Gdk pin
+block at the top and a sys.platform == "win32" SkipTest inside _make_db().
+
+This separates an addon's OS-environment-dependent tests from its portable
+ones by file placement, following the test_<os>_* convention: a test a lane
+cannot run is no longer placed in a file that lane executes. The 13
+DB-backed classes and their shared helpers (_Rec, _table, _make_db,
+_add_person) move verbatim into a new Linux-only TMGimporter/tests/
+test_linux_libtmg.py; test_libtmg.py keeps only the pure-function tests and
+its reduced "from gramps.gen.lib import Date" import. As a result the two
+runtime stopgaps disappear — the Linux lane runs both modules against the
+matching Gramps 6.1, while the Windows lane excludes test_linux_* and no
+longer hangs.
+
+This brings maintenance/gramps61 in line with the equivalent split already
+merged on maintenance/gramps60 by upstream PR 949, which addressed the
+Windows unit-test hang against a mismatched conda-forge Gramps. The
+cherry-pick of that split forward had failed because gramps61's
+test_libtmg.py had independently diverged in the regions the split rewrites.
+gramps60 is untouched. No production code or test logic changes.
