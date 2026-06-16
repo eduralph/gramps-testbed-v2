@@ -27,6 +27,7 @@ DO    ── reads brief, writes ──▶  patch.diff + test + build-notes.md
 │       accept          ──▶ mark PR ready / merge → cycle complete  │
 │       iterate-to-Do   ──▶ rebuild (back to DO with same brief)    │
 │       iterate-to-Plan ──▶ revise brief (back to PLAN, same cycle) │
+│       park            ──▶ discontinue — no transition, bundle out │
 └────────────────────────────────────────────────────────────────────┘
                          │
                          ▼
@@ -103,7 +104,7 @@ Correctness chain + conformance Tiers 1–4:
 | T3 runtime | pass / fail | find_spec / deps-absent run | log |
 | T4 contribution | pass / fail | commit-msg hook / branch-target / version-bump | path:line |
 
-A deterministic FAIL with auto-fixable cause (lint, format, genuinely-red test) may be auto-fixed and re-run; a deterministic FAIL that needs a decision stops and surfaces to NEEDS-HUMAN.
+A deterministic FAIL with auto-fixable cause (lint, format, genuinely-red test) may be auto-fixed and re-run; a deterministic FAIL that needs a decision stops and surfaces to NEEDS-HUMAN. A gate that genuinely *cannot run* its check (vs. running and failing) returns a third result, **`unverifiable`** — it does not fail `overall` but is routed to §6 NEEDS-HUMAN for the human to clear (see [04 - Validation Tooling](04-validation-tooling.md) §Gate result vocabulary and C5a/C6).
 
 ### `check-review.md` — advisory reviewer (decorrelated)
 
@@ -166,9 +167,10 @@ Assembled across Do (spec + claim) and Check (evidence + verdict). Its job: let 
 
 ## 9. Check sign-off                     ← human completes Check here
 - Disposition confirmed / overridden:
-- Outcome: merged-wider | closed-<reason> | iterated-to-Do | iterated-to-Plan
+- Outcome: merged-wider | closed-<reason> | iterated-to-Do | iterated-to-Plan | parked
 - Iteration delta (if iterating): <what the next Do or Plan must change
-  for THIS cycle — distinct from process-level Act deltas, which go to §10>
+  for THIS cycle — distinct from process-level Act deltas, which go to §10;
+  on a park, the rationale for discontinuing / where the work goes instead>
 - By / date:
 
 ## 10. Act candidates (hints for the next Act review)
