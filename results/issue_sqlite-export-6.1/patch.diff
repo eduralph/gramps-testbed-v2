@@ -1,0 +1,62 @@
+diff --git a/Sqlite/ExportSql.py b/Sqlite/ExportSql.py
+index 047bdcd08..5d8286864 100644
+--- a/Sqlite/ExportSql.py
++++ b/Sqlite/ExportSql.py
+@@ -702,6 +702,7 @@ def export_person(db, person):
+      tag_list,            # 18
+      private,             # 19
+      person_ref_list,     # 20
++     *_,                  # 21+ familysearch_sync (core 6.1); absent on core 6.0
+      ) = person
+     db.query("""INSERT INTO person (
+                   handle,
+diff --git a/Sqlite/ImportSql.py b/Sqlite/ImportSql.py
+index 1570f569f..dd92109e6 100644
+--- a/Sqlite/ImportSql.py
++++ b/Sqlite/ImportSql.py
+@@ -724,6 +724,12 @@ class SQLReader(object):
+                 tags,
+                 bool(private),      # 19
+                 person_ref_list,)   # 20
++            # Core 6.1 added a 22nd Person field (familysearch_sync, index 21)
++            # to Person.serialize()/unserialize(); the addon schema does not
++            # persist it, so pad the tuple with the core default for whatever
++            # fields the targeted core version added beyond index 20. No-op on
++            # core 6.0 (21-field Person).
++            data += Person().serialize()[len(data):]
+ 
+             g_pers = Person()
+             g_pers.unserialize(data)
+diff --git a/Sqlite/tests/test_sqlite.py b/Sqlite/tests/test_sqlite.py
+index 90a3866b4..ec0b9485c 100644
+--- a/Sqlite/tests/test_sqlite.py
++++ b/Sqlite/tests/test_sqlite.py
+@@ -35,4 +35,27 @@ class ExportSQLTestCase (unittest.TestCase):
+     def test_export_sql(self):
+         importSQL(self.database2, "/tmp/exported1.sql", User())
+ 
+-
++        # Round-trip regression. Before this assertion the body merely called
++        # importSQL with no check, so the export/import Person-arity break on
++        # core 6.1 (familysearch_sync, the 22nd serialize field) was only
++        # caught by the crash in setUp. Assert the SQL re-import (database2)
++        # reproduces the people exported from the source tree (database1):
++        # the count matches and every source person survives with the same
++        # identity. Holds on both core 6.0 (21-field Person) and 6.1 (22).
++        src_count = self.database1.get_number_of_people()
++        self.assertGreater(src_count, 0)
++        self.assertEqual(self.database2.get_number_of_people(), src_count)
++
++        for handle in self.database1.get_person_handles():
++            src = self.database1.get_person_from_handle(handle)
++            dst = self.database2.get_person_from_handle(handle)
++            self.assertIsNotNone(
++                dst, "person %s missing after round-trip" % handle)
++            self.assertEqual(src.get_gramps_id(), dst.get_gramps_id())
++            self.assertEqual(src.get_gender(), dst.get_gender())
++            src_name = src.get_primary_name()
++            dst_name = dst.get_primary_name()
++            self.assertEqual(
++                src_name.get_first_name(), dst_name.get_first_name())
++            self.assertEqual(
++                src_name.get_surname(), dst_name.get_surname())

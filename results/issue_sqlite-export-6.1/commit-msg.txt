@@ -1,0 +1,21 @@
+Sqlite: tolerate core 6.1's 22-field Person serialization
+
+The Sqlite addon could no longer round-trip a Person against Gramps core
+6.1. Exporting example.gramps raised "ValueError: too many values to
+unpack (expected 21, got 22)" because the addon unpacked a fixed 21-field
+tuple from Person.serialize(), while core 6.1 added a 22nd field
+(familysearch_sync) in commit
+4972a2eb4e746aac511174692967ae4a13621166.
+
+The export unpack now absorbs any fields beyond the ones the addon
+stores, and the import path pads its tuple with the targeted core's own
+Person defaults. The single shared source therefore round-trips
+correctly against both core 6.0 (21 fields) and core 6.1 (22) without
+having to persist fields the addon's SQL schema does not represent. The
+fix stays version-tolerant rather than hardcoding the new field, so it
+remains correct when cherry-picked forward to the gramps61 branch.
+
+The existing round-trip test, which previously made no assertion, now
+verifies that every exported person survives re-import with the same
+identity, so a future arity break fails the test instead of only
+crashing setUp.
