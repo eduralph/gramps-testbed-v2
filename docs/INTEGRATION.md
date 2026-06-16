@@ -158,6 +158,16 @@ vendored ruleset; each target carries its auditable origin per doc 16
     `GRAMPS_RESOURCES` + the `gi_bootstrap` shim (so a `@skipUnless(_HAS_GTK_DISPLAY)`
     test actually runs, not skips); a core fix keeps the `*_test.py` *suffix* path on
     the gramps checkout.
+  - **Test-only patch → flag C4 unverifiable; do NOT manufacture a "production" file.**
+    `run-verify`'s red leg reverts the patch's non-`test_` "production" file and asserts the
+    test goes red. A **test-only** fix — a test-fixes-test change, or a gate whose only
+    production change lives in a `test_*.py` file — gives the red leg nothing to revert, so
+    C4 cannot run red→green. The correct handling is to **flag C4 as unverifiable and have
+    the human accept it at sign-off** (the regression test still ships and must pass; only
+    the red→green *mechanic* is waived). Do **NOT** add a non-`test_` module solely to give
+    `run-verify` a file to revert — that ships dead scaffolding (e.g. the dropped
+    `tests/plugin_load_gate.py` helper, 820-pluginloading-gate). C5/T5 + the human judge the
+    fix on its merits when the mechanic can't.
   - Core unit: `./engine/scripts/ubuntu/run-unit.sh` **(ported, advisory baseline)**
   - Addon unit: `./engine/scripts/ubuntu/run-addon-unit.sh [addon ...]` **(ported, advisory)** (empty = all addons
     with `tests/test_*.py`; loaded via dotted path `<Addon>.tests.<module>`)
