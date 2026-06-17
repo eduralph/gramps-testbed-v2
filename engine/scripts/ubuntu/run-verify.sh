@@ -92,7 +92,8 @@ fi
 # source + evaluate it without Docker (reads MODE/TARGET_VER/FORK_REF/WORKSPACE/LANE_SFX).
 _parse_fork_ref() {  # $1 = brief.md path → echo the <remote>/<branch> from the Verification base field (empty if none)
   grep -iE 'verification base:' "$1" 2>/dev/null | head -1 \
-    | sed -E 's/.*[Vv]erification [Bb]ase:[[:space:]]*//; s/[*`]//g; s/^[[:space:]]+//; s/[[:space:]].*//'
+    | sed -E 's/.*[Vv]erification [Bb]ase:[[:space:]]*//; s/[*`]//g; s/^[[:space:]]+//; s/[[:space:]].*//' \
+    || true   # no Verification base field → empty, but must exit 0 under `set -euo pipefail`
 }
 _fork_legs() {  # echo the version legs to verify, space-separated
   if [ -n "${FORK_REF:-}" ]; then echo "$TARGET_VER"
