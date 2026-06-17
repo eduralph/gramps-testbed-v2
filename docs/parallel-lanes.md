@@ -1,11 +1,15 @@
 # Running PDCA in parallel lanes (gramps-testbed-v2)
 
-> **Status: two mechanisms, one implemented.**
+> **Status: three mechanisms, two implemented.**
 > - **In-driver worker pool — IMPLEMENTED (§0, the primary path).** `PDCA_LANES=N` /
 >   `pdca batch|flow --lanes N` runs N bundles concurrently in **one** workspace; each
 >   worker is pinned to a slot and the gates patch that lane's own per-version worktree
 >   (`gramps-6.1-lane$PDCA_LANE`, built by `make worktrees LANES=N`). The cross-fix merge
 >   re-gate (`pdca gates --working-tree`) already exists.
+> - **Separate-terminal flows — IMPLEMENTED (§0.1, issue #98).** Several standalone
+>   `pdca flow <id>` processes in their own terminals over **one** workspace, each
+>   auto-claiming a free lane (or pinned with `PDCA_LANE=k`). Same lane worktrees as §0;
+>   publish is serialized across the processes by a checkout lock.
 > - **Full-copy lanes — DESIGN, not built (§1–§8 below).** A separate `$WORKSPACE` per
 >   lane with `new-lane.sh` / `scatter-briefs.sh` / `make lane`: the heavier alternative,
 >   kept here as a runbook. Sections that reference scripts "(to add)" describe intended
@@ -63,6 +67,35 @@ ids per §3). The §1–§8 full-copy runbook follows for the heavier, fully-iso
 > core bundle that fails on upstream is retried on the lane's own `gramps-<ver>-essential`
 > worktree (`engine/essential-fixes.tsv`); each cleared leg is `git clean -fdq`-scrubbed,
 > so residue can't tangle a later run in the same lane.
+
+## 0.1 Separate-terminal flows (issue #98)
+
+The worker pool (§0) is one process fanning out across threads. You can also run several
+**independent** `pdca flow <id>` processes, one per terminal, over the **same** workspace —
+handy when you want to watch each cycle's interactive output side by side. The same lane
+worktrees back it; the driver just has to give each *process* its own lane.
+
+- **Set the lanes up once:** `make worktrees LANES=N` (as in §0).
+- **Launch a flow per terminal:** `pdca flow <id-a>` in one, `pdca flow <id-b>` in another.
+  Each standalone, worktree-driving command (`flow <id>`, `run`, `gates`, `publish`)
+  **auto-claims a free lane** via a lockfile under `$WORKSPACE/.pdca-lanes/` and runs on
+  that lane's `gramps-<ver>-lane$k` worktree. The claim is held for the process's lifetime
+  and released on exit, so the next terminal grabs the next free slot. No `--no-publish`
+  dance, no manual env.
+- **Pin a lane by hand** when you want a specific slot (or to debug): `PDCA_LANE=0 pdca
+  flow <id>`. An explicit `PDCA_LANE` always wins over the auto-claim.
+- **Publish is process-safe.** Unlike the verify worktrees, publish targets the single
+  canonical checkout (`../gramps`), so two concurrent publishes can't be lane-separated —
+  instead they **serialize** on a per-checkout `flock` (`<checkout>/.git/pdca-publish.lock`):
+  the second queues until the first finishes its `checkout -B → apply → commit → push`,
+  rather than tripping the refuse-on-dirty guard.
+- **Serial is unchanged.** With no lane worktrees and no `PDCA_LANE`, a lone `pdca flow`
+  claims nothing and runs on the bare worktrees exactly as before.
+
+The width auto-claim draws from is the configured pool size (`PDCA_LANES` / `[driver].lanes`
+/ `--lanes`) when set, else the number of `gramps-*-lane*` worktrees present. The
+in-driver pool (§0) still assigns slots per worker thread itself, so `pdca batch` /
+`flow --from-csv` do **not** auto-claim a process lane — only the standalone commands above.
 
 ## The model in one line
 

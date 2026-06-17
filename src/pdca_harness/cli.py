@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import re
 import shutil
 import sys
 from pathlib import Path
 
-from . import act, brief, driver, flow, gates, publish, queue, revalidate, signoff, state
+from . import act, brief, driver, flow, gates, lane, publish, queue, revalidate, signoff, state
 from .config import Config
 
 # Ordering for the cheap-first sign-off queue (docs 03 §sign-off queue).
@@ -99,6 +100,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     cfg = Config.load()
+    _assign_lane(cfg, args)
 
     if args.cmd == "init-issue":
         return _init_issue(cfg, args.issue_id, args.from_brief)
@@ -126,6 +128,49 @@ def main(argv: list[str] | None = None) -> int:
         return publish.publish(cfg, args.issue_id, dry_run=args.dry_run,
                                open_pr=not args.no_pr, by=args.by, pending_id=args.no_issue)
     return 2
+
+
+# Commands whose main thread drives the shared git worktrees directly (no in-process
+# worker pool) — these must claim a lane so separate-terminal runs don't collide. `batch`
+# and a `--from-csv` `flow` fan out across the pool instead, which assigns each worker its
+# own slot (flow._build_all), so they are not auto-claimed here.
+_LANE_STANDALONE = {"run", "gates", "publish"}
+
+
+def _assign_lane(cfg: Config, args: argparse.Namespace) -> None:
+    """Pin this process to a lane so it patches its own worktree (issue #98).
+
+    An explicit ``$PDCA_LANE`` always wins (a human pinning a terminal by hand). Otherwise
+    a worktree-driving standalone command auto-claims a free lane when the workspace has
+    lane worktrees / a configured pool width, so two ``pdca flow <id>`` terminals land on
+    distinct ``gramps-<ver>-lane*`` checkouts with no manual env. With neither, nothing is
+    set — serial, the bare worktree, exactly as before."""
+    explicit = lane.from_env()
+    if explicit is not None:
+        lane.set_current(explicit)
+        return
+    standalone = args.cmd in _LANE_STANDALONE or (
+        args.cmd == "flow" and getattr(args, "issue_id", None))
+    if not standalone:
+        return
+    width = _lane_width(cfg, args)
+    if width > 1:
+        lane.claim(width, lanes_dir=cfg.root.parent / ".pdca-lanes")
+
+
+def _lane_width(cfg: Config, args: argparse.Namespace) -> int:
+    """How many lanes this workspace offers: an explicit ``--lanes`` / ``PDCA_LANES`` /
+    ``[driver].lanes`` pool width, else inferred from the ``gramps-*-lane*`` worktrees a
+    human created with ``make worktrees LANES=N``. ``1`` means no lanes (serial)."""
+    configured = getattr(args, "lanes", None) or cfg.lanes
+    if configured and configured > 1:
+        return configured
+    slots = set()
+    for p in cfg.root.parent.glob("gramps-*-lane*"):
+        m = re.search(r"-lane(\d+)$", p.name)
+        if m:
+            slots.add(int(m.group(1)))
+    return max(slots) + 1 if slots else 1
 
 
 def _init_issue(cfg: Config, issue_id: str, from_brief: Path | None) -> int:
