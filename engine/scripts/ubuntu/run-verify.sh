@@ -245,7 +245,12 @@ _verify_leg() {
   cname="grampstest-$$-$leg-$(basename "$gramps_dir")"
   label="$MODE, core $gv"; [ -n "$gramps_override" ] && label="$label, ESSENTIAL line"
   echo "→ C4-verify ($label): $MODULE  (test: $TEST_REL ; reverting: ${PROD_MOD[*]:-—} ; removing: ${PROD_NEW[*]:-—})"
+  # Persistent pip cache (issue #68): reuse downloaded/built wheels for the per-run
+  # `pip install -e ./gramps[testing]` across gate runs instead of re-resolving every
+  # container start. Shared across lanes/versions (content-addressed, so safe); override
+  # the volume name with $GRAMPS_TESTBED_PIPCACHE.
   timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$cname" \
+    -v "${GRAMPS_TESTBED_PIPCACHE:-gramps-testbed-pipcache}":/home/runner/.cache/pip \
     "${mounts[@]}" -w "$cwd" \
     -e PATCH="/workspace/${BUNDLE#"$WORKSPACE"/}/patch.diff" \
     -e MODULE="$MODULE" -e PROD_MOD="${PROD_MOD[*]}" -e PROD_NEW="${PROD_NEW[*]}" \

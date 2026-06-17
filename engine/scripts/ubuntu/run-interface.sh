@@ -108,7 +108,10 @@ TIMEOUT="${GRAMPS_TEST_TIMEOUT:-1200}"
 CNAME="grampstest-$$"
 trap 'docker rm -f "$CNAME" >/dev/null 2>&1 || true' EXIT
 rc=0
+# Persistent pip cache (issue #68): reuse wheels for the per-run gramps install across
+# gate runs instead of re-resolving every container start. Override with $GRAMPS_TESTBED_PIPCACHE.
 timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
+  -v "${GRAMPS_TESTBED_PIPCACHE:-gramps-testbed-pipcache}":/home/runner/.cache/pip \
   -v "$GRAMPS_DIR":/workspace/gramps \
   -v "$ADDONS_DIR":/workspace/addons-source \
   -v "$REPO_ROOT":/workspace/"$TESTBED_NAME" \
