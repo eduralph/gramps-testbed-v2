@@ -126,6 +126,39 @@ class Classify(unittest.TestCase):
         self.assertEqual(v["cleared"], ["pkg.Mod::test_bad"])
 
 
+class RunRunnerClearsResults(unittest.TestCase):
+    """``_run_runner`` clears ``test-results/`` before invoking the runner, so a runner
+    that writes no XML (or bails early without clearing) can never have a previous
+    capture's reds attributed to it (#94). Without the clear, the stale XML survives and
+    ``parse_junit`` reports the prior gate's failures against this one."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, self.tmp, True)
+        # Point the module's RESULTS_DIR at our scratch dir for the duration of the test.
+        self._orig = t3_baseline.RESULTS_DIR
+        t3_baseline.RESULTS_DIR = self.tmp / "test-results"
+        self.addCleanup(setattr, t3_baseline, "RESULTS_DIR", self._orig)
+        t3_baseline.RESULTS_DIR.mkdir(parents=True)
+        # A previous capture's JUnit, left behind by a runner that bailed early.
+        (t3_baseline.RESULTS_DIR / "stale.xml").write_text(_SUITE, encoding="utf-8")
+
+    def _runner_that_writes_nothing(self) -> str:
+        # A trivial runner that produces NO JUnit (mimics the early-bail "nothing to run").
+        path = self.tmp / "noop-runner.sh"
+        path.write_text("#!/bin/sh\necho 'nothing to run'\nexit 0\n", encoding="utf-8")
+        path.chmod(0o755)
+        return str(path)
+
+    def test_stale_results_cleared_before_runner(self) -> None:
+        self.assertTrue((t3_baseline.RESULTS_DIR / "stale.xml").exists())
+        rc, _ = t3_baseline._run_runner(self._runner_that_writes_nothing(), [])
+        self.assertEqual(rc, 0)
+        # The stale XML is gone, so this runner's parse can only be its own (empty).
+        self.assertFalse((t3_baseline.RESULTS_DIR / "stale.xml").exists())
+        self.assertEqual(t3_baseline.parse_junit(t3_baseline.RESULTS_DIR), {})
+
+
 class ShippedManifests(unittest.TestCase):
     """Seeded baselines load and recognise their documented evidence."""
 

@@ -53,6 +53,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -238,7 +239,15 @@ def tree_drift(recorded: dict | None, current: dict | None) -> str | None:
 # Runner + CLI
 # ---------------------------------------------------------------------------
 def _run_runner(runner: str, args: list[str]) -> tuple[int, str]:
-    """Run the underlying T3 runner, echoing and capturing its combined output."""
+    """Run the underlying T3 runner, echoing and capturing its combined output.
+
+    Clear ``test-results/`` first so a runner's parsed JUnit can only ever be its own.
+    The runners normally clear it on start, but one that **bails early without clearing**
+    (e.g. ``run-addon-interface.sh`` exits "nothing to run" before doing so) would leave
+    the previous capture's XML, which ``parse_junit(RESULTS_DIR)`` then misattributes to
+    this gate — observed in sequential ``make preflight`` captures (#88/PR #93, #94).
+    Clearing here fixes it for any caller, not just the preflight loop."""
+    shutil.rmtree(RESULTS_DIR, ignore_errors=True)
     proc = subprocess.run(
         [runner, *args], cwd=ROOT, text=True,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
