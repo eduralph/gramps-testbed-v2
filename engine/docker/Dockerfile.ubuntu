@@ -85,10 +85,15 @@ RUN pip3 install --break-system-packages --no-cache-dir \
 
 WORKDIR /workspace
 
-# Tests run as a non-root user so AT-SPI behaves normally
+# Tests run as a non-root user so AT-SPI behaves normally.
+# Pre-create the pip cache dir owned by `runner`: the runners mount a persistent named
+# volume here (`gramps-testbed-pipcache`) so the per-run `pip install -e ./gramps[testing]`
+# reuses downloaded/built wheels across gate runs instead of re-resolving every container
+# start (issue #68). A fresh named volume inherits this dir's ownership on first mount, so
+# pre-creating it owned by `runner` is what lets the non-root user write the cache.
 RUN userdel -r ubuntu 2>/dev/null || true \
  && useradd -m -u 1000 runner \
- && mkdir -p /workspace /home/runner/.gramps \
+ && mkdir -p /workspace /home/runner/.gramps /home/runner/.cache/pip \
  && chown -R runner:runner /workspace /home/runner
 USER runner
 
