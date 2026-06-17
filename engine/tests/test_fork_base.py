@@ -38,6 +38,16 @@ def _run(env_setup: str, call: str) -> str:
     return proc.stdout.strip()
 
 
+def _run_strict(env_setup: str, call: str) -> tuple[int, str]:
+    """Like `_run`, but under the REAL `set -euo pipefail` run-verify.sh context and
+    WITHOUT check=True — returns (exit_code, stripped stdout) so a test can assert the
+    block doesn't abort (issue #131: a no-match grep in `_parse_fork_ref` exits non-zero,
+    which under pipefail+`set -e` killed run-verify before any C4 leg)."""
+    script = f"set -euo pipefail\n{env_setup}\n{_block()}\n{call}\n"
+    proc = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+    return proc.returncode, proc.stdout.strip()
+
+
 class ForkLegs(unittest.TestCase):
     def test_fork_bundle_runs_its_single_version_leg(self) -> None:
         self.assertEqual(_run("MODE=addon; TARGET_VER=6.0; FORK_REF=origin/feature/x", "_fork_legs"), "6.0")
@@ -91,6 +101,32 @@ class ParseForkRef(unittest.TestCase):
             self._parse("- **Repo + branch target:** gramps-project/addons-source @ maintenance/gramps60\n"),
             "",
         )
+
+
+class ParseForkRefUnderPipefail(unittest.TestCase):
+    """`_parse_fork_ref` must EXIT 0 under `set -euo pipefail` whether or not the brief
+    carries a "Verification base" field — the field is optional, so the no-match grep is
+    the normal case and must not abort run-verify (issue #131)."""
+
+    def _parse_strict(self, brief_body: str) -> tuple[int, str]:
+        with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as f:
+            f.write(brief_body)
+            path = f.name
+        self.addCleanup(os.unlink, path)
+        return _run_strict("", f"_parse_fork_ref {path}")
+
+    def test_field_present_exits_zero(self) -> None:
+        code, out = self._parse_strict("- **Verification base:** origin/feature/x\n")
+        self.assertEqual(code, 0)
+        self.assertEqual(out, "origin/feature/x")
+
+    def test_field_absent_exits_zero(self) -> None:
+        # The bug: a brief with no "Verification base" → grep exits 1 → pipefail+set -e
+        # aborts. This is the common addon-bundle case; it must yield "" and exit 0.
+        code, out = self._parse_strict(
+            "- **Repo + branch target:** gramps-project/addons-source @ maintenance/gramps60\n")
+        self.assertEqual(code, 0, "no-match _parse_fork_ref must exit 0 under set -euo pipefail")
+        self.assertEqual(out, "")
 
 
 if __name__ == "__main__":
