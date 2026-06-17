@@ -26,6 +26,11 @@ templates_dir = "templates"
 # checkout. Bundles in the same lane reuse that lane's resources serially, so you need
 # only N copies, not one per bundle. Leave at 1 unless per-lane disk / sign-off
 # ergonomics actually bite (then prefer this over N separate workspaces).
+#
+# Separate terminals instead of one pool: several standalone `pdca flow <id>` processes
+# can share this workspace too — each auto-claims a free lane (lockfile under
+# `$WORKSPACE/.pdca-lanes/`) or is pinned with `PDCA_LANE=k`, and publish serializes
+# across them on a checkout lock. See docs/parallel-lanes.md §0.1 (issue #98).
 [driver]
 lanes = 4
 

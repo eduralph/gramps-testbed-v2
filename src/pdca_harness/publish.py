@@ -22,6 +22,7 @@ fallback). The issue trailer the T4 gate enforces is ``[tracker].issue_trailer``
 
 from __future__ import annotations
 
+import contextlib
 import datetime
 import json
 import os
@@ -36,6 +37,42 @@ from .config import Config
 
 COMMIT_MSG = "commit-msg.txt"
 PR_BODY = "pr-description.md"
+
+
+@contextlib.contextmanager
+def _checkout_lock(repo: Path):
+    """Serialize checkout mutation across processes (issue #98).
+
+    Publish always targets the single canonical checkout (``_checkout_path`` → ``../gramps``),
+    NOT the lane-scoped verify worktrees — so unlike the verify gate it cannot be made
+    lane-safe by suffixing a path. Two concurrent ``pdca publish`` / ``flow`` processes
+    would race ``git checkout -B`` → ``apply`` → ``commit``, and whichever observed the
+    other's applied-but-uncommitted tree would trip ``_check_repo``'s dirty guard. An
+    exclusive flock on a per-checkout lockfile makes them queue instead (publish pushes to
+    one fork/branch namespace and is fast, so serializing is cheaper than N checkouts).
+
+    Best-effort: on a platform without ``fcntl`` (Windows runners aren't ported yet) we
+    proceed unlocked rather than block publish entirely — concurrent publishes are the
+    new case this guards, not the existing serial one."""
+    try:
+        import fcntl
+    except ImportError:
+        yield
+        return
+    lock_path = repo / ".git" / "pdca-publish.lock"
+    handle = None
+    try:
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        handle = open(lock_path, "w", encoding="utf-8")
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)  # blocks until the prior publish frees it
+        yield
+    finally:
+        if handle is not None:
+            try:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+            handle.close()
 
 
 def publish(
@@ -140,29 +177,33 @@ def publish(
             print("  " + " ".join(shlex.quote(x) for x in c))
         return 0
 
-    # Real run: mutate the local checkout — guard it is present and clean first.
-    rc = _check_repo(repo, repo_spec)
-    if rc != 0:
-        return rc
+    # Real run: mutate the local checkout — guard it is present and clean first. Hold the
+    # per-checkout lock across the whole check→push window so a concurrent publish queues
+    # rather than racing the dirty guard (issue #98). `commit` leaves the tree clean and
+    # `push` only touches origin, so the lock can release once the steps finish.
+    with _checkout_lock(repo):
+        rc = _check_repo(repo, repo_spec)
+        if rc != 0:
+            return rc
 
-    # Fetch, then PREFLIGHT the parsed target before any mutation — a mis-parsed brief
-    # field fails here with a clear message, not as a cryptic git/gh error mid-run.
-    print("→ " + " ".join(fetch[3:]))
-    if subprocess.run(fetch).returncode != 0:
-        print("publish: `git fetch upstream` failed — check the 'upstream' remote",
-              file=sys.stderr)
-        return 1
-    rc = _preflight(repo, repo_spec, base, check_repo=open_pr)
-    if rc != 0:
-        return rc
-
-    for c in steps:
-        print("→ " + " ".join(c[3:]))  # drop the `git -C <repo>` prefix in the echo
-        if subprocess.run(c).returncode != 0:
-            hint = " (patch may not apply against upstream/%s — rebase the fix)" % base \
-                if c[3] == "apply" else ""
-            print(f"publish: step failed: {' '.join(c)}{hint}", file=sys.stderr)
+        # Fetch, then PREFLIGHT the parsed target before any mutation — a mis-parsed brief
+        # field fails here with a clear message, not as a cryptic git/gh error mid-run.
+        print("→ " + " ".join(fetch[3:]))
+        if subprocess.run(fetch).returncode != 0:
+            print("publish: `git fetch upstream` failed — check the 'upstream' remote",
+                  file=sys.stderr)
             return 1
+        rc = _preflight(repo, repo_spec, base, check_repo=open_pr)
+        if rc != 0:
+            return rc
+
+        for c in steps:
+            print("→ " + " ".join(c[3:]))  # drop the `git -C <repo>` prefix in the echo
+            if subprocess.run(c).returncode != 0:
+                hint = " (patch may not apply against upstream/%s — rebase the fix)" % base \
+                    if c[3] == "apply" else ""
+                print(f"publish: step failed: {' '.join(c)}{hint}", file=sys.stderr)
+                return 1
 
     pr_url = ""
     pr_failed = False
