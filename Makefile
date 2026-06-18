@@ -169,22 +169,31 @@ essential-worktrees:
 # change that lives on the fork (e.g. .github/ CI infra the clean base lacks) can apply +
 # run locally. Idempotent: realigns an existing clean worktree to the branch tip; a dirty
 # one is left as-is. <remote> is a remote on ../addons-source (origin = the fork).
+# LANES=N also creates per-lane copies (addons-source-<ver>-fork-lane0 … -lane{N-1}), so a
+# fork-based bundle running under the worker pool / a separate-terminal lane patches its OWN
+# fork worktree (run-verify.sh derives addons-source-<ver>-fork$LANE_SFX). All lane copies
+# detach at the same fork ref — no branch contention (issue #137). Without LANES only the
+# bare worktree is built, unchanged.
 fork-worktrees:
 	@ws=$$(cd .. && pwd); manifest=engine/fork-bases.tsv; \
 	[ -f "$$manifest" ] || { echo "no $$manifest"; exit 1; }; \
 	repo="$$ws/addons-source"; \
+	sfxs=""; if [ -n "$(LANES)" ]; then k=0; while [ "$$k" -lt "$(LANES)" ]; do sfxs="$$sfxs -lane$$k"; k=$$((k+1)); done; fi; \
 	for v in $$(awk -F'\t' '!/^#/ && NF>=3 {print $$1}' "$$manifest" | sort -u); do \
 	  remote="$$(awk -F'\t' -v v="$$v" '!/^#/ && $$1==v {print $$2; exit}' "$$manifest")"; \
 	  branch="$$(awk -F'\t' -v v="$$v" '!/^#/ && $$1==v {print $$3; exit}' "$$manifest")"; \
-	  wt="$$ws/addons-source-$$v-fork"; ref="$$remote/$$branch"; \
+	  ref="$$remote/$$branch"; \
 	  git -C "$$repo" fetch "$$remote" --prune --quiet || echo "warn: fetch $$remote failed"; \
-	  if [ -d "$$wt" ]; then \
-	    if [ -n "$$(git -C "$$wt" status --porcelain 2>/dev/null)" ]; then echo "✔ $$wt (exists, dirty — left as-is)"; \
-	    else git -C "$$wt" checkout --detach --quiet "$$ref" && echo "↻ $$wt → $$ref ($$(git -C "$$repo" rev-parse --short "$$ref"))"; fi; \
-	  else echo "→ git -C addons-source worktree add --detach addons-source-$$v-fork $$ref"; \
-	    git -C "$$repo" worktree add --detach "$$wt" "$$ref" || exit 1; fi; \
+	  for sfx in "" $$sfxs; do \
+	    wt="$$ws/addons-source-$$v-fork$$sfx"; \
+	    if [ -d "$$wt" ]; then \
+	      if [ -n "$$(git -C "$$wt" status --porcelain 2>/dev/null)" ]; then echo "✔ $$wt (exists, dirty — left as-is)"; \
+	      else git -C "$$wt" checkout --detach --quiet "$$ref" && echo "↻ $$wt → $$ref ($$(git -C "$$repo" rev-parse --short "$$ref"))"; fi; \
+	    else echo "→ git -C addons-source worktree add --detach addons-source-$$v-fork$$sfx $$ref"; \
+	      git -C "$$repo" worktree add --detach "$$wt" "$$ref" || exit 1; fi; \
+	  done; \
 	done; \
-	echo "fork worktrees ready — an addon bundle declaring a fork Verification base verifies here."
+	echo "fork worktrees ready$${sfxs:+; lanes:$$sfxs} — an addon bundle declaring a fork Verification base verifies here."
 
 # --- preflight: bring the verification substrate current before a session ----
 # One explicit step to run ONCE before a flow/batch session (issue #79). It (1)

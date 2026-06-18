@@ -219,7 +219,9 @@ _verify_leg() {
     for d in "$gramps_dir" "$repo"; do
       if [ ! -d "$d" ]; then
         case "$d" in
-          *-fork) echo "run-verify.sh: fork worktree $d missing — run 'make fork-worktrees' (declared via the brief's 'Verification base')." >&2 ;;
+          # A lane appends $LANE_SFX, so the fork path is `…-fork` or `…-fork-lane$K` —
+          # match both so the remediation names `make fork-worktrees`, not the generic one.
+          *-fork | *-fork-lane*) echo "run-verify.sh: fork worktree $d missing — run 'make fork-worktrees${LANE_SFX:+ LANES=N}' (declared via the brief's 'Verification base')." >&2 ;;
           *)      echo "run-verify.sh: worktree $d missing — run 'make worktrees${LANE_SFX:+ LANES=N}'." >&2 ;;
         esac
         return 1
