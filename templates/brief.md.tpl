@@ -14,6 +14,7 @@
   satisfy this by guarding a single module? If yes, it's the narrow symptom-sentence —
   widen it. Omit only for non-structural behavioural bug fixes (principles.md §1.1).>
 - **Repo + branch target:** <owner/repo> @ <branch>   (resolve here at Plan — do not leave to Do)
+- **Onto branch:** <remote>/<existing-pr-branch>   (optional — stack the fix as a commit onto an existing open PR's branch instead of opening a new PR; the fix is tested, committed, and pushed against THIS branch; docs 03)
 - **Depends on:** <id>[, <id>…]   (optional — batch/lane scheduling waits until these bundles are COMPLETE before this one runs; docs 09)
 - **Conflicts with:** <id>[, <id>…]   (optional — never co-schedule these in the same concurrent wave, e.g. they edit a shared file; docs 09)
 - **Verification base:** <remote>/<branch>   (optional, addon only — verify C4/T3 against a FORK PR branch instead of clean upstream, e.g. `origin/feature/ci-cd-pipeline-upstream` when the fix lives on the fork; needs `make fork-worktrees` + an engine/fork-bases.tsv row; issue #96)

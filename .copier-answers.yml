@@ -1,6 +1,6 @@
 # Records the template version and your answers so `copier update` can re-apply
 # harness updates. Managed by Copier — do not edit by hand; commit it to your repo.
-_commit: v0.17.0
+_commit: v0.19.0-2-gf58f44a
 _src_path: ../pdca-harness
 author_email: eduard@ralphovi.net
 author_name: Eduard Ralph

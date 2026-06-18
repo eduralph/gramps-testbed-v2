@@ -129,5 +129,40 @@ class ParseForkRefUnderPipefail(unittest.TestCase):
         self.assertEqual(out, "")
 
 
+class ResolveBase(unittest.TestCase):
+    """`_resolve_base` folds the two sources that name the addon verify base — the brief's
+    `Verification base` field (#96) and the `PDCA_BASE` env the harness sets from the brief's
+    stack-mode `Onto branch` (#54) — into one ref, erroring only when they disagree."""
+
+    def _brief(self, body: str) -> str:
+        with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as f:
+            f.write(body)
+            path = f.name
+        self.addCleanup(os.unlink, path)
+        return path
+
+    def test_field_only(self) -> None:
+        p = self._brief("- **Verification base:** origin/feature/x\n")
+        self.assertEqual(_run("", f"_resolve_base {p}"), "origin/feature/x")
+
+    def test_pdca_base_only(self) -> None:
+        p = self._brief("- **Repo + branch target:** o/r @ maintenance/gramps60\n")
+        self.assertEqual(_run("PDCA_BASE=origin/feature/y", f"_resolve_base {p}"), "origin/feature/y")
+
+    def test_both_equal_resolves(self) -> None:
+        p = self._brief("- **Verification base:** origin/feature/x\n")
+        self.assertEqual(_run("PDCA_BASE=origin/feature/x", f"_resolve_base {p}"), "origin/feature/x")
+
+    def test_neither_is_empty(self) -> None:
+        p = self._brief("- **Repo + branch target:** o/r @ maintenance/gramps60\n")
+        self.assertEqual(_run("", f"_resolve_base {p}"), "")
+
+    def test_conflict_fails_loudly(self) -> None:
+        # Both set to DIFFERENT refs → ambiguous verify base → exit non-zero, no silent pick.
+        p = self._brief("- **Verification base:** origin/feature/x\n")
+        code, _ = _run_strict("PDCA_BASE=origin/feature/z", f"_resolve_base {p}")
+        self.assertNotEqual(code, 0, "divergent Verification base / PDCA_BASE must fail loudly")
+
+
 if __name__ == "__main__":
     unittest.main()

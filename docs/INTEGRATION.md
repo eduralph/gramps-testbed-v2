@@ -169,6 +169,19 @@ vendored ruleset; each target carries its auditable origin per doc 16
     manufacture a non-`test_` module just to give `run-verify` a file to revert — that ships
     dead scaffolding (worked example: the dropped `tests/plugin_load_gate.py` in
     820-pluginloading-gate).
+  - **Fork / stack verification base (addon only).** By default C4 verifies against the
+    clean per-version worktrees. Two brief fields redirect it to a fork's open PR branch
+    instead — both resolve to the dedicated `addons-source-<ver>-fork` worktree that `make
+    fork-worktrees` pre-builds (from `engine/fork-bases.tsv`):
+    - `- **Verification base:** <remote>/<branch>` (issue #96) — verify against a fork PR
+      branch the clean upstream base doesn't carry (the #820 series).
+    - `- **Onto branch:** <remote>/<branch>` (stack mode, pdca-harness #54) — the harness
+      exports it as `PDCA_BASE`; `run-verify` folds it into the same fork-base selection, so
+      the branch the fix is **tested** against is the same one `pdca publish` **commits and
+      pushes** onto. The branch must have a `fork-bases.tsv` row + a built fork worktree.
+    Set to the same ref, the two fields agree; set to **different** refs, `run-verify` fails
+    loudly (ambiguous base). Stack mode for a **core** fix is unsupported here (no core fork
+    worktree) — a core `Onto branch` is a hard error, not a silent clean-upstream verify.
   - Core unit: `./engine/scripts/ubuntu/run-unit.sh` **(ported, advisory baseline)**
   - Addon unit: `./engine/scripts/ubuntu/run-addon-unit.sh [addon ...]` **(ported, advisory)** (empty = all addons
     with `tests/test_*.py`; loaded via dotted path `<Addon>.tests.<module>`)
@@ -298,13 +311,14 @@ line number**, so an edit to a vendored page doesn't invalidate the anchor; the
 - **Act log path:** `process/act-log.md`
 - **Iterate archive:** a rejected attempt is preserved in `iteration-v<N>/` in the
   bundle (the brief is archived with it on iterate-to-Plan) — fixed by the harness
-- **When to `park` (sign-off disposition, v0.16.0 / pdca-harness #42):** `pdca signoff
-  --park` discontinues a bundle that **can't be carried as a contribution `patch.diff`** —
-  e.g. a PR-restructuring / scope-split task, or work superseded by another bundle (the
-  deleted `820-scope-split` would have been a park). It moves the bundle to the terminal
-  `DISCONTINUED` state with **no C6 guard** (a deliberate abandon, independent of §6).
-  Record *why discontinued / where the work goes instead* below the decision token. Don't
-  park to dodge an open §6 — that's what iterate/accept are for.
+- **When to `discontinue` (sign-off disposition, v0.16.0 / pdca-harness #42, renamed
+  from `park` in v0.19.0):** `pdca signoff --discontinue` abandons a bundle that **can't
+  be carried as a contribution `patch.diff`** — e.g. a PR-restructuring / scope-split
+  task, or work superseded by another bundle (the deleted `820-scope-split` would have
+  been a discontinue). It moves the bundle to the terminal `DISCONTINUED` state with **no
+  C6 guard** (a deliberate abandon, independent of §6). Record *why discontinued / where
+  the work goes instead* below the decision token. Don't discontinue to dodge an open §6 —
+  that's what iterate/accept are for.
 
 ## 8. Committing and PR conventions
 - **Commit-message format:** past-tense one-line subject; body explains the *why*,
