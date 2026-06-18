@@ -27,7 +27,7 @@ DO    ── reads brief, writes ──▶  patch.diff + test + build-notes.md
 │       accept          ──▶ mark PR ready / merge → cycle complete  │
 │       iterate-to-Do   ──▶ rebuild (back to DO with same brief)    │
 │       iterate-to-Plan ──▶ revise brief (back to PLAN, same cycle) │
-│       park            ──▶ discontinue — no transition, bundle out │
+│       discontinue     ──▶ no transition — bundle dropped from set │
 └────────────────────────────────────────────────────────────────────┘
                          │
                          ▼
@@ -62,6 +62,7 @@ Act — without modification; only the Plan-side artifact differs.
 
 - **Spec — the defect and the success criterion.** What is wrong, and the observable condition that means it is fixed. This is the thing Check verifies against; if it is vague, Check cannot adjudicate.
 - **Repo + branch target, resolved.** Decided here, not left to Do. (Resolve cross-repo ambiguity by reproducing if the traceback location is unclear.)
+- **Onto branch** *(optional)*. `<remote>/<branch>` of an existing open PR's head. When set, the fix is a commit **stacked onto that PR** rather than a new PR: Check tests against that branch (`$PDCA_BASE`) and publish commits onto and pushes to it (issue #54). Use it for a series of fixes each contributing to one already-open PR.
 - **Scope — one logical fix.** State it, and state what is explicitly out of scope, so Check can flag scope creep against a written boundary.
 - **Repro instruction.** Which fixture, exact steps, on the target branch. Repro-or-close is the first action.
 - **Test requirement.** Where the test ships and that it must fail pre-fix, pass post-fix.
@@ -167,10 +168,10 @@ Assembled across Do (spec + claim) and Check (evidence + verdict). Its job: let 
 
 ## 9. Check sign-off                     ← human completes Check here
 - Disposition confirmed / overridden:
-- Outcome: merged-wider | closed-<reason> | iterated-to-Do | iterated-to-Plan | parked
+- Outcome: merged-wider | closed-<reason> | iterated-to-Do | iterated-to-Plan | discontinued
 - Iteration delta (if iterating): <what the next Do or Plan must change
   for THIS cycle — distinct from process-level Act deltas, which go to §10;
-  on a park, the rationale for discontinuing / where the work goes instead>
+  on a discontinue, the rationale for discontinuing / where the work goes instead>
 - By / date:
 
 ## 10. Act candidates (hints for the next Act review)
