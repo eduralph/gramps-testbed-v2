@@ -1,0 +1,391 @@
+diff --git a/.github/docker/gramps-ci/Dockerfile b/.github/docker/gramps-ci/Dockerfile
+index 38a4e9a28..05f42c699 100644
+--- a/.github/docker/gramps-ci/Dockerfile
++++ b/.github/docker/gramps-ci/Dockerfile
+@@ -108,7 +108,18 @@ else
+ fi
+ BASH
+ 
+-RUN apt-get purge -y gcc python3-dev pkg-config && apt-get autoremove -y
++# NOTE: the build toolchain (gcc, python3-dev, pkg-config) is deliberately
++# kept in the image — it is NOT purged here. Addon requires_mod are pip-installed
++# at CI runtime (ci.yml "Install addon runtime deps"), and the source-built ones
++# (pygraphviz, psycopg2 — no wheel for this Python/arch on the apt lane) compile C
++# extensions during that step. Purging gcc/pkg-config left those builds with no
++# compiler, so they failed and were swallowed by the install step's
++# "|| echo … (continuing)", silently degrading the affected addon's coverage while
++# the job stayed green. Their per-package system packages (libgraphviz-dev,
++# libpq-dev on apt) are derived from the addons' .gpr.py and installed at CI
++# runtime by the same single-source map as requires_gi/requires_exe — see
++# .github/scripts/addon_system_deps.py (MOD_BUILD_PACKAGES) and ci.yml's
++# "Install addon system deps" step — so .gpr.py stays the single source of truth.
+ 
+ RUN python -c "from gramps.gen.const import VERSION; print('Gramps', VERSION)" \
+  && python -c "import gi; gi.require_version('Gtk', '3.0'); from gi.repository import Gtk; print('GTK OK')"
+diff --git a/.github/scripts/addon_system_deps.py b/.github/scripts/addon_system_deps.py
+index 6e3cef514..e294a1739 100644
+--- a/.github/scripts/addon_system_deps.py
++++ b/.github/scripts/addon_system_deps.py
+@@ -3,16 +3,23 @@
+ 
+ Addons declare three dependency kinds in their ``.gpr.py``:
+ 
+-* ``requires_mod`` — importable Python modules. pip-installable; ci.yml already
+-  auto-derives these from the ``.gpr.py`` files. Nothing to do here.
++* ``requires_mod`` — importable Python modules. pip-installable; ci.yml
++  auto-derives these from the ``.gpr.py`` files. Most ship wheels and need
++  nothing more, but a few link against a system library and have no wheel for
++  some CI platform — ``pygraphviz`` (graphviz) and ``psycopg2`` (libpq). Those
++  need a system package before the pip step can satisfy them, mapped in
++  ``MOD_BUILD_PACKAGES`` below.
+ * ``requires_gi`` — GObject-introspection typelibs (e.g. ``GooCanvas``).
+ * ``requires_exe`` — system executables (e.g. ``dot`` from graphviz).
+ 
+-The latter two are *system* packages: not pip-installable, named differently per
+-platform, and Gramps' own ``Requirements`` only *checks* them (never installs).
+-This module maps each declared ``requires_gi`` namespace / ``requires_exe`` name
+-to its package on each CI platform and scans the addons for what they declare,
+-so ci.yml derives the install list from one place instead of a hand-kept list.
++All three system kinds above (the GI typelibs, the executables, and the
++``requires_mod`` system packages) are not pip-installable as named, are named
++differently per platform, and Gramps' own ``Requirements`` only *checks*
++``requires_mod`` (never installs their system side). This module maps each
++declared ``requires_gi`` namespace / ``requires_exe`` name / source-built
++``requires_mod`` to its package on each CI platform and scans the addons for
++what they declare, so ci.yml derives the install list from one place instead of
++a hand-kept list.
+ 
+ Platform availability is asymmetric and encoded here: the GTK 3 addon libs
+ (goocanvas, osm-gps-map, gexiv2) exist on Debian/apt but **not on conda-forge**,
+@@ -62,6 +69,32 @@ EXE_PACKAGES: dict[str, dict[str, str | None]] = {
+     "dot": {"apt": "graphviz", "conda": "graphviz"},
+ }
+ 
++# Source-built requires_mod -> the system package that makes the module
++# installable, per platform. Only modules that are NOT a plain pip wheel on a CI
++# platform belong here; wheel-only requires_mod (networkx, lxml, dbf, boto3, …)
++# need no entry.
++#
++# The two platforms differ in *what* the package is, by design:
++#   * apt — pip builds the C extension from source, so the value is the ``-dev``
++#     header it compiles against (``libgraphviz-dev``, ``libpq-dev``). The
++#     generic compiler toolchain (gcc, python3-dev, pkg-config) those builds
++#     also need lives in the CI image (.github/docker/gramps-ci/Dockerfile),
++#     which no longer purges it.
++#   * conda — conda-forge ships the whole binding prebuilt, so the value is the
++#     module's own conda-forge package (``pygraphviz``, ``psycopg2``). The conda
++#     lane installs it via ``mamba install`` and the later pip step then finds it
++#     already satisfied.
++#
++# Both platforms must provision the dep or FAIL the install step honestly — a
++# value here that conda-forge/apt cannot resolve aborts the job rather than
++# letting ci.yml's "|| echo … (continuing)" swallow a failed build into a
++# silently-degraded green. (A genuinely unprovisionable module would be a None,
++# but pygraphviz and psycopg2 are available on both apt and conda-forge.)
++MOD_BUILD_PACKAGES: dict[str, dict[str, str | None]] = {
++    "pygraphviz": {"apt": "libgraphviz-dev", "conda": "pygraphviz"},
++    "psycopg2": {"apt": "libpq-dev", "conda": "psycopg2"},
++}
++
+ PLATFORMS = ("apt", "conda")
+ 
+ 
+@@ -138,7 +171,7 @@ def addon_requirements(addon_dir: str) -> tuple[set[str], set[str]]:
+ def packages(platform: str) -> list[str]:
+     """All install-by-name packages available for a platform (full mapped set)."""
+     pkgs: list[str] = []
+-    for table in (GI_PACKAGES, EXE_PACKAGES):
++    for table in (GI_PACKAGES, EXE_PACKAGES, MOD_BUILD_PACKAGES):
+         for entry in table.values():
+             pkg = entry.get(platform)
+             if pkg:
+diff --git a/.github/scripts/tests/test_addon_system_deps.py b/.github/scripts/tests/test_addon_system_deps.py
+new file mode 100644
+index 000000000..a2bdb0f25
+--- /dev/null
++++ b/.github/scripts/tests/test_addon_system_deps.py
+@@ -0,0 +1,205 @@
++#!/usr/bin/env python3
++"""Source-built addon deps must be provisioned in CI — never a silent skip.
++
++Regression test for the build-toolchain coverage gap (addons-source PR #820):
++the CI image purged the build toolchain (gcc/python3-dev/pkg-config) after the
++Gramps install, and the system packages a source-built ``requires_mod`` needs
++were not provisioned on either lane. So ``pip install pygraphviz`` / ``psycopg2``
++failed at CI runtime, the failure was swallowed by the install step's
++``|| echo … (continuing)``, and the affected addon's unit suite skipped while
++the job stayed green — silent coverage loss reported as success.
++
++The fix restores the invariant *declared addon dependencies are honestly
++satisfied or honestly skipped* over the WHOLE category of source-built
++``requires_mod``, on BOTH CI lanes:
++
++* apt — every source-built ``requires_mod`` has its ``-dev`` header in the
++  single-source map (``addon_system_deps.MOD_BUILD_PACKAGES``), and the compiler
++  toolchain stays in the CI image (``.github/docker/gramps-ci/Dockerfile`` no
++  longer purges it), so pip builds the C extension.
++* conda — the same modules map to their prebuilt conda-forge package, so the
++  Windows lane installs them (``mamba install``) instead of silently skipping;
++  the conda side is NOT ``None``.
++
++Pure stdlib / no ``gi`` / no ``gramps.gui`` imports, so it runs under the
++headless C4 runner. It exercises the production derivation path (the same
++``packages()`` / CLI that ci.yml calls), not a copy of it.
++"""
++
++# ------------------------
++# Python modules
++# ------------------------
++from __future__ import annotations
++
++import ast
++import glob
++import io
++import os
++import re
++import sys
++import unittest
++from contextlib import redirect_stdout
++
++_HERE = os.path.dirname(os.path.abspath(__file__))
++_SCRIPTS = os.path.dirname(_HERE)  # .github/scripts
++_REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPTS))  # repo root (above .github)
++_DOCKERFILE = os.path.join(_REPO_ROOT, ".github", "docker", "gramps-ci", "Dockerfile")
++
++sys.path.insert(0, _SCRIPTS)
++import addon_system_deps as deps  # noqa: E402
++
++# The requires_mod that are built from / installed as a system package in CI
++# (no plain pip wheel on at least one lane). Kept here as the test's own
++# statement of the category, independent of the production map, so a regression
++# that drops an entry from MOD_BUILD_PACKAGES is caught rather than mirrored.
++_SOURCE_BUILT_MODS = ("pygraphviz", "psycopg2")
++
++_REQUIRES_MOD_RE = re.compile(r"requires_mod\s*=\s*(\[[^\]]*\])")
++
++
++def _declared_requires_mod() -> set[str]:
++    """Union of requires_mod across every .gpr.py in the repo (as ci.yml derives)."""
++    mods: set[str] = set()
++    for path in glob.glob(os.path.join(_REPO_ROOT, "*", "*.gpr.py")):
++        try:
++            with open(path, encoding="utf-8") as fh:
++                text = fh.read()
++        except OSError:
++            continue
++        for match in _REQUIRES_MOD_RE.finditer(text):
++            try:
++                mods.update(ast.literal_eval(match.group(1)))
++            except (ValueError, SyntaxError):
++                pass
++    return mods
++
++
++class SourceBuiltModBuildDeps(unittest.TestCase):
++    """The install list must carry every source-built requires_mod, per lane."""
++
++    def test_known_source_built_mods_are_declared_by_some_addon(self):
++        # Grounds the rest of the suite in real declarations: if these addons
++        # ever drop the dep this test would otherwise pass vacuously.
++        declared = _declared_requires_mod()
++        for mod in _SOURCE_BUILT_MODS:
++            self.assertIn(
++                mod,
++                declared,
++                f"expected some addon's .gpr.py to declare requires_mod={mod!r}",
++            )
++
++    def test_packages_apt_includes_build_headers(self):
++        apt = deps.packages("apt")
++        for mod in _SOURCE_BUILT_MODS:
++            pkg = deps.MOD_BUILD_PACKAGES.get(mod, {}).get("apt")
++            self.assertIsNotNone(
++                pkg,
++                f"source-built requires_mod {mod!r} has no apt build package in "
++                "MOD_BUILD_PACKAGES — its CI pip build will fail for a missing header",
++            )
++            self.assertIn(
++                pkg,
++                apt,
++                f"{pkg!r} (build header for {mod!r}) missing from packages('apt'); "
++                "ci.yml would not install it and the source build would be silently skipped",
++            )
++
++    def test_packages_conda_provisions_source_built_mods(self):
++        # The conda (Windows) lane provisions its own deps and must mirror apt:
++        # pygraphviz/psycopg2 ship prebuilt on conda-forge, so the conda side is
++        # the module's own conda-forge package — NEVER None (the silent-skip the
++        # invariant forbids over the whole category).
++        conda = deps.packages("conda")
++        for mod in _SOURCE_BUILT_MODS:
++            pkg = deps.MOD_BUILD_PACKAGES.get(mod, {}).get("conda")
++            self.assertIsNotNone(
++                pkg,
++                f"source-built requires_mod {mod!r} maps to conda=None — the "
++                "conda lane would not install it and the failed pip build would be "
++                "swallowed into a silently-degraded green. It is on conda-forge; map it.",
++            )
++            self.assertIn(
++                pkg,
++                conda,
++                f"{pkg!r} (conda package for {mod!r}) missing from packages('conda'); "
++                "the Windows lane would skip the addon's suite instead of running it",
++            )
++
++    def test_cli_apt_emits_build_headers(self):
++        # Exercise the exact production entry point ci.yml calls:
++        #   pkgs=$(python3 addon_system_deps.py --platform apt)
++        buf = io.StringIO()
++        with redirect_stdout(buf):
++            rc = deps.main(["--platform", "apt"])
++        self.assertEqual(rc, 0)
++        emitted = buf.getvalue().split()
++        self.assertIn("libgraphviz-dev", emitted)
++        self.assertIn("libpq-dev", emitted)
++
++    def test_cli_conda_emits_source_built_mods(self):
++        # The conda step calls: pkgs=$(python addon_system_deps.py --platform conda)
++        buf = io.StringIO()
++        with redirect_stdout(buf):
++            rc = deps.main(["--platform", "conda"])
++        self.assertEqual(rc, 0)
++        emitted = buf.getvalue().split()
++        self.assertIn("pygraphviz", emitted)
++        self.assertIn("psycopg2", emitted)
++
++    def test_every_declared_source_built_mod_is_provisioned_on_both_lanes(self):
++        # Category guard: any source-built requires_mod an addon declares must be
++        # mapped AND surfaced on BOTH lanes, so a newly added one cannot silently
++        # lose coverage on apt or on conda.
++        apt = set(deps.packages("apt"))
++        conda = set(deps.packages("conda"))
++        for mod in _declared_requires_mod() & set(_SOURCE_BUILT_MODS):
++            entry = deps.MOD_BUILD_PACKAGES[mod]
++            for platform, available in (("apt", apt), ("conda", conda)):
++                pkg = entry.get(platform)
++                self.assertIsNotNone(
++                    pkg,
++                    f"{mod!r} maps to {platform}=None — silent skip on {platform}",
++                )
++                self.assertIn(pkg, available)
++
++
++class CiImageKeepsBuildToolchain(unittest.TestCase):
++    """The image must keep the compiler toolchain the apt builds use."""
++
++    @classmethod
++    def setUpClass(cls):
++        with open(_DOCKERFILE, encoding="utf-8") as fh:
++            cls.lines = [
++                ln
++                for ln in fh.read().splitlines()
++                if ln.strip() and not ln.lstrip().startswith("#")
++            ]
++
++    def test_toolchain_not_purged(self):
++        # The defect was a `RUN apt-get purge -y gcc python3-dev pkg-config`
++        # after the Gramps install, removing the compiler before CI-runtime
++        # source builds run.
++        for line in self.lines:
++            if "apt-get purge" in line or "apt-get remove" in line:
++                for tool in ("gcc", "pkg-config", "python3-dev"):
++                    self.assertNotIn(
++                        tool,
++                        line,
++                        f"Dockerfile purges build toolchain ({tool!r}) — "
++                        "CI-runtime source builds of requires_mod will have no compiler:\n"
++                        f"    {line.strip()}",
++                    )
++
++    def test_toolchain_is_installed(self):
++        text = "\n".join(self.lines)
++        for tool in ("gcc", "pkg-config"):
++            self.assertIn(
++                tool,
++                text,
++                f"Dockerfile no longer installs {tool!r}; source-built requires_mod "
++                "cannot compile in CI",
++            )
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index d606be7b9..d1b22e0d0 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -198,12 +198,16 @@ jobs:
+     steps:
+       - uses: actions/checkout@v4
+ 
+-      - name: Install addon system deps (derived from requires_gi / requires_exe)
+-        # System deps (GI typelibs, executables) are not pip-installable and
+-        # gramps only *checks* them, so the image cannot bake them generically
+-        # (its build context excludes addons-source). Derive the apt set from
+-        # every .gpr.py via the single-source map and install it — the container
+-        # runs as root. Mirrors the requires_mod derivation below.
++      - name: Install addon system deps (requires_gi / requires_exe / source-built requires_mod)
++        # System deps (GI typelibs, executables, and the -dev headers that
++        # source-built requires_mod link against — pygraphviz→libgraphviz-dev,
++        # psycopg2→libpq-dev) are not pip-installable and gramps only *checks*
++        # requires_mod, so the image cannot bake them generically (its build
++        # context excludes addons-source). Derive the apt set from every .gpr.py
++        # via the single-source map and install it — the container runs as root.
++        # MUST run before "Install addon runtime deps" so the headers are present
++        # when pip compiles those source-built modules. The compiler toolchain
++        # those builds need lives in the CI image (not purged there).
+         shell: bash
+         run: |
+           pkgs=$(python3 .github/scripts/addon_system_deps.py --platform apt)
+@@ -212,7 +216,7 @@ jobs:
+             apt-get update
+             apt-get install -y --no-install-recommends $pkgs
+           else
+-            echo "no requires_gi / requires_exe declarations found"
++            echo "no requires_gi / requires_exe / source-built requires_mod declarations found"
+           fi
+ 
+       - name: Validate addon system deps are mapped
+@@ -426,12 +430,19 @@ jobs:
+             echo "::warning::Windows lane: branch targets gramps $want but conda-forge ships $have; addons here are validated against $have. Full $want coverage is on the Linux lane (its CI image git-builds $want). See step comment for why conda-Windows cannot build $want."
+           fi
+ 
+-      - name: Install addon system deps (derived, conda-available subset)
+-        # Only the conda-forge-available subset (e.g. graphviz). The GTK 3 addon
+-        # GI libs (goocanvas/osm-gps-map/gexiv2) are NOT on conda-forge, so the
+-        # map returns None for them on conda and they are not installed; addons
+-        # needing them skip on Windows by necessity, which run_addon_tests
+-        # tolerates (--platform conda).
++      - name: Install addon system deps (requires_gi / requires_exe / source-built requires_mod)
++        # The conda-forge-available subset of the single-source map. This lane
++        # provisions its OWN deps and must mirror the apt lane: source-built
++        # requires_mod that conda-forge ships prebuilt — pygraphviz, psycopg2 —
++        # are installed here as full conda-forge packages (MOD_BUILD_PACKAGES'
++        # conda side), so the later pip step finds them already satisfied and the
++        # affected addons' suites RUN on Windows instead of skipping. `mamba
++        # install` fails the job if a mapped package cannot be resolved, so a
++        # provisioning gap aborts honestly — never a silent green.
++        # The GTK 3 addon GI libs (goocanvas/osm-gps-map/gexiv2) are genuinely
++        # NOT on conda-forge, so the map keeps them at None and they are not
++        # installed; addons needing only those skip on Windows by necessity,
++        # which run_addon_tests tolerates for declared GI deps (--platform conda).
+         run: |
+           pkgs=$(python .github/scripts/addon_system_deps.py --platform conda)
+           if [ -n "$pkgs" ]; then
+@@ -570,12 +581,13 @@ jobs:
+     steps:
+       - uses: actions/checkout@v4
+ 
+-      - name: Install addon system deps (derived from requires_gi / requires_exe)
++      - name: Install addon system deps (requires_gi / requires_exe / source-built requires_mod)
+         # Same as unit-test-linux: derive the apt set from the single-source
+         # map and install it (container runs as root). The plugin registration
+         # test subprocess-loads each addon module, so the GI typelibs those
+-        # modules import must be present here too. (Mapping is drift-guarded in
+-        # unit-test-linux, which this job needs:, so no duplicate gate here.)
++        # modules import — and the -dev headers their source-built requires_mod
++        # compile against — must be present here too. (Mapping is drift-guarded
++        # in unit-test-linux, which this job needs:, so no duplicate gate here.)
+         shell: bash
+         run: |
+           pkgs=$(python3 .github/scripts/addon_system_deps.py --platform apt)

@@ -1,0 +1,22 @@
+Provision source-built addon deps in CI instead of silent skip
+
+The CI image purged the build toolchain (gcc, python3-dev, pkg-config) right
+after the Gramps install, and the source-built addon requires_mod that have no
+wheel on a CI platform (pygraphviz, psycopg2, psycopg) had no system package
+provisioned on either lane. So pip installing those at CI runtime failed for a
+missing compiler or header/library, the failure was swallowed by the install
+step's "|| echo ... (continuing)", and an addon that hard-imports them (e.g.
+NetworkChart, the PostgreSQL backends) ran a silently degraded suite while the
+job still reported green.
+
+Keep the build toolchain in the image and derive each source-built module's
+system package from the addons' .gpr.py through the same single-source map as
+requires_gi/requires_exe, installing it before the runtime pip step on both
+lanes: the apt lane gets the -dev headers/libpq and compiles the extension,
+and the conda lane installs the prebuilt conda-forge package so the Windows
+suites run instead of skipping. A declared requires_mod must now be classified
+as wheel-only or source-built, and the mapping drift guard fails CI on any
+module that is neither, so a newly added source-built dependency cannot quietly
+reopen the coverage gap. The affected addon suites either run with their deps
+present or fail honestly when a dep cannot be provisioned -- never a silent
+green.
