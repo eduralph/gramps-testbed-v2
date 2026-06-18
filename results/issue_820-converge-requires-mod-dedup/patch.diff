@@ -1,0 +1,727 @@
+diff --git a/.github/scripts/active_addons.sh b/.github/scripts/active_addons.sh
+new file mode 100644
+index 000000000..f68c8f147
+--- /dev/null
++++ b/.github/scripts/active_addons.sh
+@@ -0,0 +1,21 @@
++# Single source of truth for the is_active() addon filter, sourced by every
++# ci.yml job step that gates on include_in_listing.
++#
++# An addon is "active" (built and released by make.py, so CI gates on it) unless
++# EVERY register() in its .gpr.py sets include_in_listing=False. Those inactive
++# addons are skipped by lint, the structure check, compile, and the unit /
++# integration test runners. Previously each of those ~6 job steps inlined an
++# identical copy of this function; this file is the one place it now lives, so a
++# change to the active-addon rule is a one-site edit (per PR #820; Gary Griffin).
++#
++# Source it from a `shell: bash` step (the function uses `local`, a bashism):
++#     source .github/scripts/active_addons.sh
++is_active() {
++  local addon="$1" g
++  for g in "$addon"/*.gpr.py; do
++    [ -f "$g" ] || continue
++    grep -qE 'include_in_listing[[:space:]]*=[[:space:]]*True' "$g" && return 0
++    grep -qE 'include_in_listing[[:space:]]*=' "$g" || return 0
++  done
++  return 1
++}
+diff --git a/.github/scripts/addon_python_deps.py b/.github/scripts/addon_python_deps.py
+new file mode 100644
+index 000000000..73db1519b
+--- /dev/null
++++ b/.github/scripts/addon_python_deps.py
+@@ -0,0 +1,199 @@
++#!/usr/bin/env python3
++"""Single source of truth for addon *Python* dependencies (``requires_mod``).
++
++Sibling to ``addon_system_deps.py`` (which covers the *system* deps —
++``requires_gi`` typelibs and ``requires_exe`` executables). This module covers
++the third dependency kind a Gramps addon declares in its ``.gpr.py``:
++
++* ``requires_mod`` — importable Python module names (e.g. ``["psycopg2"]``,
++  ``["life_line_chart", "svgwrite"]``). pip-installable.
++
++ci.yml previously inlined an *identical* ``requires_mod`` derivation heredoc in
++three jobs (``unit-test-linux``, ``unit-test-windows``, ``integration-test``)
++to build the install union, plus a near-identical ``find_spec`` validator
++heredoc in each. That copy-paste is the drift this module removes: the
++``.gpr.py`` files stay the single source of truth and every job derives the
++list from one place. A one-line change is now a one-site edit.
++
++Self-contained on purpose: pure stdlib, no Gramps import and no third-party
++import, so it runs at image-build time before Gramps is installed and on the
++bare Windows conda runner. It does NOT depend on any external project.
++
++Scanning mirrors ``addon_system_deps.py`` deliberately: a regex finds each
++``requires_mod = [...]`` assignment and ``ast.literal_eval`` parses the
++bracketed list (no executing the ``.gpr.py``). Every real ``requires_mod`` in
++addons-source is a flat list of string literals, so a literal-eval parse covers
++them all; a non-literal or unreadable declaration is skipped tolerantly (with a
++note to stderr) rather than aborting the batch — mirroring the old inline
++behaviour.
++
++``requires_mod`` is the *importable module* name Gramps verifies at runtime via
++``importlib.util.find_spec`` (``gramps/gen/utils/requirements.py``
++``Requirements.check_mod``). ``pip install`` wants the *distribution* name,
++which differs for a few packages, so the install union maps the known
++import→distribution cases (``PIL`` → ``Pillow``) via
++``_IMPORT_TO_DISTRIBUTION``. The map is INSTALL-ONLY: ``--check-resolves``
++validates the *raw* declared import name, exactly as Gramps does, so an addon
++that declares the PyPI distribution name by mistake (``requires_mod=["Pillow"]``
++when the import name is ``"PIL"``) is still caught.
++
++CLI::
++
++    addon_python_deps.py --install-list ROOT     # space-separated sorted union
++    addon_python_deps.py --check-resolves ROOT   # fail if a declared import name
++                                                 # pip-installs but does not import
++"""
++
++from __future__ import annotations
++
++import argparse
++import ast
++import glob
++import os
++import re
++import sys
++
++# Matches a single-line ``requires_mod = ["a", "b"]`` assignment — the same
++# shape addon_system_deps.py's _GI_RE/_EXE_RE assume, and the only shape that
++# occurs in addons-source.
++_MOD_RE = re.compile(r"requires_mod\s*=\s*(\[[^\]]*\])")
++
++# ``requires_mod`` holds the *importable module* name (declare "PIL", the import
++# name, NOT "Pillow", the PyPI distribution — Gramps verifies it with
++# ``importlib.util.find_spec``). But ``pip install`` wants the *distribution*
++# name, which differs for some packages, so installing the raw import name fails
++# (``pip install PIL`` → no such distribution; the package is ``Pillow``). Map
++# the known import→distribution cases so the derived install list resolves on
++# PyPI. Addons stay correct (import name); only the install side translates.
++_IMPORT_TO_DISTRIBUTION = {
++    "PIL": "Pillow",
++}
++
++
++def _gpr_files(root: str) -> list[str]:
++    return sorted(glob.glob(os.path.join(root, "*", "*.gpr.py")))
++
++
++def _declared_mods(text: str, path: str) -> list[str]:
++    """The *raw* (un-mapped) ``requires_mod`` import names declared in one
++    ``.gpr.py`` body. Tolerant: a non-literal value is skipped with a note to
++    stderr, mirroring the old inline behaviour."""
++    out: list[str] = []
++    for m in _MOD_RE.finditer(text):
++        try:
++            value = ast.literal_eval(m.group(1))
++        except (ValueError, SyntaxError):
++            print(
++                f"addon_python_deps: skipping non-literal requires_mod "
++                f"in {path}: {m.group(1)!r}",
++                file=sys.stderr,
++            )
++            continue
++        for mod in value:
++            if mod:
++                out.append(mod)
++    return out
++
++
++def declared_mods(root: str) -> set[str]:
++    """The sorted-by-caller set of *raw* ``requires_mod`` import names declared
++    across every addon's ``.gpr.py`` under *root* — the names Gramps verifies
++    via ``find_spec`` (NOT the install-mapped distribution names). Unreadable
++    files are skipped with a note to stderr."""
++    names: set[str] = set()
++    for path in _gpr_files(root):
++        try:
++            with open(path, encoding="utf-8") as fh:
++                text = fh.read()
++        except OSError as exc:
++            print(
++                f"addon_python_deps: skipping unreadable {path}: {exc}",
++                file=sys.stderr,
++            )
++            continue
++        names.update(_declared_mods(text, path))
++    return names
++
++
++def install_list(root: str) -> list[str]:
++    """Return the sorted union of ``requires_mod`` across every addon's
++    ``.gpr.py`` under *root*, mapped to pip *distribution* names. This is the
++    list the ci.yml "Install addon runtime deps" steps pip-install. Best-effort
++    and tolerant — a file that cannot be read, or a non-literal value, is
++    skipped (not fatal), so the step installs what it can resolve."""
++    return sorted(_IMPORT_TO_DISTRIBUTION.get(mod, mod) for mod in declared_mods(root))
++
++
++def check_resolves(root: str) -> int:
++    """Validate that every declared ``requires_mod`` import name which actually
++    pip-installed also resolves under ``importlib.util.find_spec`` — the same
++    check Gramps' ``Requirements.check_mod`` performs at runtime. The *raw*
++    declared name is checked (NOT the install-mapped distribution name), because
++    that is what Gramps imports.
++
++    Run this *after* the install union has been pip-installed: a name that pip
++    never installed (an exotic system-dep / image gap, not a PR bug) is skipped;
++    a name that pip-installed yet still fails ``find_spec`` is a wrong
++    declaration (e.g. the PyPI distribution ``"Pillow"`` instead of the import
++    name ``"PIL"``) and fails the gate. Returns 1 if any bad name, else 0.
++    Preserves the behaviour of the old inline validator heredoc verbatim."""
++    import subprocess
++    from importlib.util import find_spec
++
++    bad: list[str] = []
++    for name in sorted(declared_mods(root)):
++        installed = (
++            subprocess.run(
++                [sys.executable, "-m", "pip", "show", name],
++                capture_output=True,
++            ).returncode
++            == 0
++        )
++        if not installed:
++            print(f"~  {name} (pip-install failed earlier, skipping)")
++            continue
++        if find_spec(name) is None:
++            bad.append(name)
++            print(f"x  {name} (pip-installed but find_spec returned None)")
++        else:
++            print(f"ok {name}")
++
++    if bad:
++        print()
++        print(f"::error::Wrong requires_mod names: {bad}")
++        print("These pip-install but are not importable. requires_mod is")
++        print("consumed by gramps' check_mod() via find_spec(), so the")
++        print("importable module name is required (e.g. 'PIL', not 'Pillow').")
++        return 1
++    return 0
++
++
++def main(argv: list[str] | None = None) -> int:
++    parser = argparse.ArgumentParser(
++        description=__doc__,
++        formatter_class=argparse.RawDescriptionHelpFormatter,
++    )
++    group = parser.add_mutually_exclusive_group(required=True)
++    group.add_argument(
++        "--install-list",
++        metavar="ROOT",
++        help="print the sorted, pip-installable union of requires_mod across "
++        "ROOT/*/*.gpr.py (import names mapped to distribution names)",
++    )
++    group.add_argument(
++        "--check-resolves",
++        metavar="ROOT",
++        help="verify every declared requires_mod import name that pip-installed "
++        "also resolves under importlib.util.find_spec (Gramps' check_mod); "
++        "exit 1 if any installs but does not import",
++    )
++    args = parser.parse_args(argv)
++
++    if args.install_list is not None:
++        print(" ".join(install_list(args.install_list)))
++        return 0
++    return check_resolves(args.check_resolves)
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index d606be7b9..c7d1aad03 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -73,15 +73,7 @@ jobs:
+         # step stays self-contained.
+         shell: bash
+         run: |
+-          is_active() {
+-            local addon="$1" g
+-            for g in "$addon"/*.gpr.py; do
+-              [ -f "$g" ] || continue
+-              grep -qE 'include_in_listing[[:space:]]*=[[:space:]]*True' "$g" && return 0
+-              grep -qE 'include_in_listing[[:space:]]*=' "$g" || return 0
+-            done
+-            return 1
+-          }
++          source .github/scripts/active_addons.sh
+           excludes=""
+           for d in */; do
+             d="${d%/}"
+@@ -116,15 +108,7 @@ jobs:
+         # Skip include_in_listing=False addons (see lint job for rationale).
+         shell: bash
+         run: |
+-          is_active() {
+-            local addon="$1" g
+-            for g in "$addon"/*.gpr.py; do
+-              [ -f "$g" ] || continue
+-              grep -qE 'include_in_listing[[:space:]]*=[[:space:]]*True' "$g" && return 0
+-              grep -qE 'include_in_listing[[:space:]]*=' "$g" || return 0
+-            done
+-            return 1
+-          }
++          source .github/scripts/active_addons.sh
+           failed=0
+           for gpr in */*.gpr.py; do
+             addon_dir="$(dirname "$gpr")"
+@@ -158,15 +142,7 @@ jobs:
+         # Skip include_in_listing=False addons (see lint job for rationale).
+         shell: bash
+         run: |
+-          is_active() {
+-            local addon="$1" g
+-            for g in "$addon"/*.gpr.py; do
+-              [ -f "$g" ] || continue
+-              grep -qE 'include_in_listing[[:space:]]*=[[:space:]]*True' "$g" && return 0
+-              grep -qE 'include_in_listing[[:space:]]*=' "$g" || return 0
+-            done
+-            return 1
+-          }
++          source .github/scripts/active_addons.sh
+           skipped=""
+           for d in */; do
+             d="${d%/}"
+@@ -239,23 +215,7 @@ jobs:
+         # isolation without blocking the rest.
+         shell: bash
+         run: |
+-          addon_mods=$(python3 - <<'PY'
+-          import ast, glob, re
+-          pat = re.compile(r"requires_mod\s*=\s*(\[[^\]]*\])")
+-          mods = set()
+-          for f in glob.glob("*/*.gpr.py"):
+-              try:
+-                  text = open(f, encoding="utf-8").read()
+-              except OSError:
+-                  continue
+-              for m in pat.finditer(text):
+-                  try:
+-                      mods.update(ast.literal_eval(m.group(1)))
+-                  except (ValueError, SyntaxError):
+-                      pass
+-          print(" ".join(sorted(mods)))
+-          PY
+-          )
++          addon_mods=$(python3 .github/scripts/addon_python_deps.py --install-list .)
+           if [ -n "$addon_mods" ]; then
+             echo "→ addon deps: $addon_mods"
+             for mod in $addon_mods; do
+@@ -276,46 +236,7 @@ jobs:
+         # system-dep / image gaps, not PR-caused.
+         shell: bash
+         run: |
+-          python3 - <<'PY'
+-          import ast, glob, re, subprocess, sys
+-          from importlib.util import find_spec
+-
+-          pat = re.compile(r"requires_mod\s*=\s*(\[[^\]]*\])")
+-          names = set()
+-          for f in glob.glob("*/*.gpr.py"):
+-              try:
+-                  text = open(f, encoding="utf-8").read()
+-              except OSError:
+-                  continue
+-              for m in pat.finditer(text):
+-                  try:
+-                      names.update(ast.literal_eval(m.group(1)))
+-                  except (ValueError, SyntaxError):
+-                      pass
+-
+-          bad = []
+-          for name in sorted(names):
+-              installed = subprocess.run(
+-                  [sys.executable, "-m", "pip", "show", name],
+-                  capture_output=True,
+-              ).returncode == 0
+-              if not installed:
+-                  print(f"~  {name} (pip-install failed earlier, skipping)")
+-                  continue
+-              if find_spec(name) is None:
+-                  bad.append(name)
+-                  print(f"x  {name} (pip-installed but find_spec returned None)")
+-              else:
+-                  print(f"ok {name}")
+-
+-          if bad:
+-              print()
+-              print(f"::error::Wrong requires_mod names: {bad}")
+-              print("These pip-install but are not importable. requires_mod is")
+-              print("consumed by gramps' check_mod() via find_spec(), so the")
+-              print("importable module name is required (e.g. 'PIL', not 'Pillow').")
+-              sys.exit(1)
+-          PY
++          python3 .github/scripts/addon_python_deps.py --check-resolves .
+ 
+       - name: Run per-addon unit tests
+         # Filename convention (all OSes):
+@@ -334,15 +255,7 @@ jobs:
+         env:
+           PYTHONPATH: .
+         run: |
+-          is_active() {
+-            local addon="$1" g
+-            for g in "$addon"/*.gpr.py; do
+-              [ -f "$g" ] || continue
+-              grep -qE 'include_in_listing[[:space:]]*=[[:space:]]*True' "$g" && return 0
+-              grep -qE 'include_in_listing[[:space:]]*=' "$g" || return 0
+-            done
+-            return 1
+-          }
++          source .github/scripts/active_addons.sh
+           modules=""
+           for f in */tests/test_*.py; do
+             [ -f "$f" ] || continue
+@@ -445,23 +358,7 @@ jobs:
+         # See unit-test-linux for rationale. Uses `python` (conda-forge
+         # env) to match the surrounding Windows job style.
+         run: |
+-          addon_mods=$(python - <<'PY'
+-          import ast, glob, re
+-          pat = re.compile(r"requires_mod\s*=\s*(\[[^\]]*\])")
+-          mods = set()
+-          for f in glob.glob("*/*.gpr.py"):
+-              try:
+-                  text = open(f, encoding="utf-8").read()
+-              except OSError:
+-                  continue
+-              for m in pat.finditer(text):
+-                  try:
+-                      mods.update(ast.literal_eval(m.group(1)))
+-                  except (ValueError, SyntaxError):
+-                      pass
+-          print(" ".join(sorted(mods)))
+-          PY
+-          )
++          addon_mods=$(python .github/scripts/addon_python_deps.py --install-list .)
+           if [ -n "$addon_mods" ]; then
+             echo "→ addon deps: $addon_mods"
+             for mod in $addon_mods; do
+@@ -475,46 +372,7 @@ jobs:
+         # See unit-test-linux for rationale. Uses `python` (conda-forge
+         # env) to match the surrounding Windows job style.
+         run: |
+-          python - <<'PY'
+-          import ast, glob, re, subprocess, sys
+-          from importlib.util import find_spec
+-
+-          pat = re.compile(r"requires_mod\s*=\s*(\[[^\]]*\])")
+-          names = set()
+-          for f in glob.glob("*/*.gpr.py"):
+-              try:
+-                  text = open(f, encoding="utf-8").read()
+-              except OSError:
+-                  continue
+-              for m in pat.finditer(text):
+-                  try:
+-                      names.update(ast.literal_eval(m.group(1)))
+-                  except (ValueError, SyntaxError):
+-                      pass
+-
+-          bad = []
+-          for name in sorted(names):
+-              installed = subprocess.run(
+-                  [sys.executable, "-m", "pip", "show", name],
+-                  capture_output=True,
+-              ).returncode == 0
+-              if not installed:
+-                  print(f"~  {name} (pip-install failed earlier, skipping)")
+-                  continue
+-              if find_spec(name) is None:
+-                  bad.append(name)
+-                  print(f"x  {name} (pip-installed but find_spec returned None)")
+-              else:
+-                  print(f"ok {name}")
+-
+-          if bad:
+-              print()
+-              print(f"::error::Wrong requires_mod names: {bad}")
+-              print("These pip-install but are not importable. requires_mod is")
+-              print("consumed by gramps' check_mod() via find_spec(), so the")
+-              print("importable module name is required (e.g. 'PIL', not 'Pillow').")
+-              sys.exit(1)
+-          PY
++          python .github/scripts/addon_python_deps.py --check-resolves .
+ 
+       - name: Run per-addon unit tests
+         # See filename-convention note in unit-test-linux. The Windows
+@@ -522,15 +380,7 @@ jobs:
+         env:
+           PYTHONPATH: .
+         run: |
+-          is_active() {
+-            local addon="$1" g
+-            for g in "$addon"/*.gpr.py; do
+-              [ -f "$g" ] || continue
+-              grep -qE 'include_in_listing[[:space:]]*=[[:space:]]*True' "$g" && return 0
+-              grep -qE 'include_in_listing[[:space:]]*=' "$g" || return 0
+-            done
+-            return 1
+-          }
++          source .github/scripts/active_addons.sh
+           modules=""
+           for f in */tests/test_*.py; do
+             [ -f "$f" ] || continue
+@@ -591,23 +441,7 @@ jobs:
+         # requires_mod packages.
+         shell: bash
+         run: |
+-          addon_mods=$(python3 - <<'PY'
+-          import ast, glob, re
+-          pat = re.compile(r"requires_mod\s*=\s*(\[[^\]]*\])")
+-          mods = set()
+-          for f in glob.glob("*/*.gpr.py"):
+-              try:
+-                  text = open(f, encoding="utf-8").read()
+-              except OSError:
+-                  continue
+-              for m in pat.finditer(text):
+-                  try:
+-                      mods.update(ast.literal_eval(m.group(1)))
+-                  except (ValueError, SyntaxError):
+-                      pass
+-          print(" ".join(sorted(mods)))
+-          PY
+-          )
++          addon_mods=$(python3 .github/scripts/addon_python_deps.py --install-list .)
+           if [ -n "$addon_mods" ]; then
+             echo "→ addon deps: $addon_mods"
+             for mod in $addon_mods; do
+@@ -621,46 +455,7 @@ jobs:
+         # See unit-test-linux for rationale.
+         shell: bash
+         run: |
+-          python3 - <<'PY'
+-          import ast, glob, re, subprocess, sys
+-          from importlib.util import find_spec
+-
+-          pat = re.compile(r"requires_mod\s*=\s*(\[[^\]]*\])")
+-          names = set()
+-          for f in glob.glob("*/*.gpr.py"):
+-              try:
+-                  text = open(f, encoding="utf-8").read()
+-              except OSError:
+-                  continue
+-              for m in pat.finditer(text):
+-                  try:
+-                      names.update(ast.literal_eval(m.group(1)))
+-                  except (ValueError, SyntaxError):
+-                      pass
+-
+-          bad = []
+-          for name in sorted(names):
+-              installed = subprocess.run(
+-                  [sys.executable, "-m", "pip", "show", name],
+-                  capture_output=True,
+-              ).returncode == 0
+-              if not installed:
+-                  print(f"~  {name} (pip-install failed earlier, skipping)")
+-                  continue
+-              if find_spec(name) is None:
+-                  bad.append(name)
+-                  print(f"x  {name} (pip-installed but find_spec returned None)")
+-              else:
+-                  print(f"ok {name}")
+-
+-          if bad:
+-              print()
+-              print(f"::error::Wrong requires_mod names: {bad}")
+-              print("These pip-install but are not importable. requires_mod is")
+-              print("consumed by gramps' check_mod() via find_spec(), so the")
+-              print("importable module name is required (e.g. 'PIL', not 'Pillow').")
+-              sys.exit(1)
+-          PY
++          python3 .github/scripts/addon_python_deps.py --check-resolves .
+ 
+       - name: Run plugin registration tests
+         # shell: bash for consistency with the surrounding steps; the
+@@ -690,15 +485,7 @@ jobs:
+         env:
+           PYTHONPATH: .
+         run: |
+-          is_active() {
+-            local addon="$1" g
+-            for g in "$addon"/*.gpr.py; do
+-              [ -f "$g" ] || continue
+-              grep -qE 'include_in_listing[[:space:]]*=[[:space:]]*True' "$g" && return 0
+-              grep -qE 'include_in_listing[[:space:]]*=' "$g" || return 0
+-            done
+-            return 1
+-          }
++          source .github/scripts/active_addons.sh
+           modules=""
+           for f in */tests/test_integration*.py; do
+             [ -f "$f" ] || continue
+diff --git a/tests/test_requires_mod_dedup.py b/tests/test_requires_mod_dedup.py
+new file mode 100644
+index 000000000..8490911a2
+--- /dev/null
++++ b/tests/test_requires_mod_dedup.py
+@@ -0,0 +1,164 @@
++"""Regression test for the requires_mod / is_active CI de-duplication.
++
++ci.yml used to inline an identical ``requires_mod`` derivation heredoc in three
++jobs and an identical ``is_active()`` bash helper in ~six job steps. The fix
++moves the derivation into ``.github/scripts/addon_python_deps.py`` and the
++helper into ``.github/scripts/active_addons.sh``, each consumed from one place.
++
++This test pins two things, so the duplication cannot silently come back and the
++refactor is proven behaviour-preserving:
++
++1. Behaviour preservation — the single ``addon_python_deps`` module derives the
++   *same* install union and the *same* raw declared-name set the old inline
++   heredoc did (computed here by an independent oracle over the real tree).
++
++2. The DRY invariant, stated per-category — NO inline ``is_active()`` definition
++   and NO ``requires_mod`` heredoc survive in ci.yml, and EVERY job step that
++   *calls* ``is_active`` sources the shared helper (a missed step is caught, not
++   masked by an "at least one source" check).
++
++Pure stdlib / GUI-import-free on purpose: it imports the production module the
++ci.yml jobs call (not a copy), runs headless, and needs no gi / gramps.gui.
++"""
++
++from __future__ import annotations
++
++import ast
++import glob
++import os
++import re
++import sys
++import unittest
++
++# Repo layout is fixed relative to this file: tests/ sits at the addons-source
++# root, and the CI scripts live under .github/scripts/ — resolve both from
++# __file__ so the test is cwd-independent (the C4 runner cd's into the repo, CI
++# discover runs from the root).
++_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
++_SCRIPTS = os.path.join(_REPO_ROOT, ".github", "scripts")
++_CI_YML = os.path.join(_REPO_ROOT, ".github", "workflows", "ci.yml")
++_HELPER = os.path.join(_SCRIPTS, "active_addons.sh")
++
++if _SCRIPTS not in sys.path:
++    sys.path.insert(0, _SCRIPTS)
++
++# Imported at module load: the production module the three ci.yml jobs invoke.
++# With the fix reverted (module file removed) this import fails and every test
++# below errors — the red half of the red->green contract.
++import addon_python_deps  # noqa: E402
++
++# --- independent oracle: the OLD inline heredoc algorithm, verbatim ----------
++_OLD_RE = re.compile(r"requires_mod\s*=\s*(\[[^\]]*\])")
++# Install-name map the heredoc lacked; install-only (find_spec gate stays raw).
++_INSTALL_MAP = {"PIL": "Pillow"}
++
++
++def _read(path):
++    with open(path, encoding="utf-8") as fh:
++        return fh.read()
++
++
++def _old_raw_union(root):
++    mods = set()
++    for fn in sorted(glob.glob(os.path.join(root, "*", "*.gpr.py"))):
++        try:
++            text = _read(fn)
++        except OSError:
++            continue
++        for m in _OLD_RE.finditer(text):
++            try:
++                mods.update(ast.literal_eval(m.group(1)))
++            except (ValueError, SyntaxError):
++                pass
++    return {m for m in mods if m}
++
++
++def _ci_steps():
++    """Yield each ci.yml step body as a string. A step starts at a 6-space
++    `- ` line and runs until the next one (no YAML dependency needed)."""
++    lines = _read(_CI_YML).splitlines(keepends=True)
++    steps, cur = [], None
++    for line in lines:
++        if re.match(r"^      - ", line):
++            if cur is not None:
++                steps.append("".join(cur))
++            cur = [line]
++        elif cur is not None:
++            cur.append(line)
++    if cur is not None:
++        steps.append("".join(cur))
++    return steps
++
++
++class RequiresModDerivationDedup(unittest.TestCase):
++    """The derivation is single-sourced AND behaviour-preserving."""
++
++    def test_install_list_matches_old_heredoc(self):
++        old = _old_raw_union(_REPO_ROOT)
++        expected = sorted(_INSTALL_MAP.get(m, m) for m in old)
++        self.assertEqual(addon_python_deps.install_list(_REPO_ROOT), expected)
++
++    def test_declared_raw_names_match_old_heredoc(self):
++        # The find_spec gate consumes RAW import names — these must equal the
++        # old union exactly (the install map must NOT leak into them).
++        self.assertEqual(
++            addon_python_deps.declared_mods(_REPO_ROOT), _old_raw_union(_REPO_ROOT)
++        )
++
++    def test_install_map_is_install_only(self):
++        # PIL maps to Pillow on the install side, but the raw declared-name set
++        # never contains the distribution name (so Gramps' find_spec gate, which
++        # the module's --check-resolves mirrors, keeps checking the import name).
++        self.assertNotIn("Pillow", addon_python_deps.declared_mods(_REPO_ROOT))
++
++    def test_no_requires_mod_heredoc_remains(self):
++        text = _read(_CI_YML)
++        self.assertEqual(
++            re.findall(r"requires_mod\s*=\s*\(\[", text),
++            [],
++            "a requires_mod derivation heredoc still lives inline in ci.yml",
++        )
++
++    def test_three_jobs_consume_the_module(self):
++        text = _read(_CI_YML)
++        self.assertEqual(
++            len(re.findall(r"addon_python_deps\.py --install-list", text)), 3
++        )
++        self.assertEqual(
++            len(re.findall(r"addon_python_deps\.py --check-resolves", text)), 3
++        )
++
++
++class IsActiveHelperDedup(unittest.TestCase):
++    """is_active() lives in one sourced helper, consumed by EVERY filtering step."""
++
++    def test_helper_file_defines_is_active(self):
++        self.assertTrue(os.path.isfile(_HELPER))
++        self.assertIn("is_active()", _read(_HELPER))
++
++    def test_no_inline_is_active_definition_remains(self):
++        text = _read(_CI_YML)
++        self.assertEqual(
++            re.findall(r"is_active\(\)\s*\{", text),
++            [],
++            "an inline is_active() definition still lives in ci.yml",
++        )
++
++    def test_every_is_active_call_site_sources_the_helper(self):
++        # Per-category invariant: every job step that CALLS is_active must also
++        # source the shared helper. Asserting "sourced at least once" would miss
++        # a step that calls a now-undefined is_active; this checks each site.
++        calling = [s for s in _ci_steps() if re.search(r'is_active\s+"', s)]
++        self.assertGreaterEqual(
++            len(calling), 6, "expected >=6 active-addon filtering steps"
++        )
++        for step in calling:
++            self.assertIn(
++                "source .github/scripts/active_addons.sh",
++                step,
++                "a step calls is_active without sourcing active_addons.sh:\n" + step,
++            )
++
++
++if __name__ == "__main__":
++    unittest.main()
