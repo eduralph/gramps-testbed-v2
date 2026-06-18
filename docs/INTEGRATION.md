@@ -169,6 +169,19 @@ vendored ruleset; each target carries its auditable origin per doc 16
     manufacture a non-`test_` module just to give `run-verify` a file to revert — that ships
     dead scaffolding (worked example: the dropped `tests/plugin_load_gate.py` in
     820-pluginloading-gate).
+  - **Fork / stack verification base (addon only).** By default C4 verifies against the
+    clean per-version worktrees. Two brief fields redirect it to a fork's open PR branch
+    instead — both resolve to the dedicated `addons-source-<ver>-fork` worktree that `make
+    fork-worktrees` pre-builds (from `engine/fork-bases.tsv`):
+    - `- **Verification base:** <remote>/<branch>` (issue #96) — verify against a fork PR
+      branch the clean upstream base doesn't carry (the #820 series).
+    - `- **Onto branch:** <remote>/<branch>` (stack mode, pdca-harness #54) — the harness
+      exports it as `PDCA_BASE`; `run-verify` folds it into the same fork-base selection, so
+      the branch the fix is **tested** against is the same one `pdca publish` **commits and
+      pushes** onto. The branch must have a `fork-bases.tsv` row + a built fork worktree.
+    Set to the same ref, the two fields agree; set to **different** refs, `run-verify` fails
+    loudly (ambiguous base). Stack mode for a **core** fix is unsupported here (no core fork
+    worktree) — a core `Onto branch` is a hard error, not a silent clean-upstream verify.
   - Core unit: `./engine/scripts/ubuntu/run-unit.sh` **(ported, advisory baseline)**
   - Addon unit: `./engine/scripts/ubuntu/run-addon-unit.sh [addon ...]` **(ported, advisory)** (empty = all addons
     with `tests/test_*.py`; loaded via dotted path `<Addon>.tests.<module>`)

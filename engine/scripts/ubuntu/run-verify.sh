@@ -82,18 +82,35 @@ if grep -iqE 'repo \+ branch( target)?:.*(gramps60|maintenance/gramps60)' "$BUND
   TARGET_VER=6.0
 fi
 
-# --- fork base selection (issue #96) ---
+# --- fork base selection (issues #96, #54) ---
 # An addon fix whose change lives on a FORK's open PR branch (e.g. .github/ CI infra the
-# clean upstream base does not carry, so the patch can't even apply there) declares a
-# `- **Verification base:** <remote>/<branch>` field. With it set, FORK_REF drives the
-# matrix to verify the single TARGET_VER leg against the DEDICATED addons-source-<ver>-fork
-# worktree `make fork-worktrees` built at that branch; empty ⇒ today's full clean matrix
-# against the shared per-version worktrees, unchanged. Self-contained so the unit test can
-# source + evaluate it without Docker (reads MODE/TARGET_VER/FORK_REF/WORKSPACE/LANE_SFX).
+# clean upstream base does not carry, so the patch can't even apply there) names that
+# branch two interchangeable ways: the `- **Verification base:** <remote>/<branch>` brief
+# field (#96), or — in stack mode — the `- **Onto branch:**` field the harness resolves to
+# the `PDCA_BASE` env (#54), so the branch the fix is TESTED against is the same one publish
+# commits/pushes onto. Either way FORK_REF drives the matrix to verify the single TARGET_VER
+# leg against the DEDICATED addons-source-<ver>-fork worktree `make fork-worktrees` built at
+# that branch; empty ⇒ today's full clean matrix against the shared per-version worktrees,
+# unchanged. Self-contained so the unit test can source + evaluate it without Docker (reads
+# MODE/TARGET_VER/FORK_REF/WORKSPACE/LANE_SFX and the PDCA_BASE env).
 _parse_fork_ref() {  # $1 = brief.md path → echo the <remote>/<branch> from the Verification base field (empty if none)
   grep -iE 'verification base:' "$1" 2>/dev/null | head -1 \
     | sed -E 's/.*[Vv]erification [Bb]ase:[[:space:]]*//; s/[*`]//g; s/^[[:space:]]+//; s/[[:space:]].*//' \
     || true   # no Verification base field → empty, but must exit 0 under `set -euo pipefail`
+}
+_resolve_base() {  # $1 = brief.md path → echo the fork/stack verify base <remote>/<branch>, or "" (exit 1 on conflict)
+  # Fold the two sources that name the verify base into one ref. `PDCA_BASE` (stack mode,
+  # #54) and the `Verification base` field (#96) mean the same thing; if BOTH are set to
+  # DIFFERENT refs the base is ambiguous → fail loudly rather than silently pick one. Either
+  # alone, or both equal, → that ref; neither → "".
+  local field stack
+  field="$(_parse_fork_ref "$1")"
+  stack="${PDCA_BASE:-}"
+  if [ -n "$field" ] && [ -n "$stack" ] && [ "$field" != "$stack" ]; then
+    echo "run-verify.sh: brief 'Verification base' ($field) and 'Onto branch'/PDCA_BASE ($stack) name different refs — ambiguous verify base; make them equal or drop one." >&2
+    return 1
+  fi
+  echo "${field:-$stack}"
 }
 _fork_legs() {  # echo the version legs to verify, space-separated
   if [ -n "${FORK_REF:-}" ]; then echo "$TARGET_VER"
@@ -106,9 +123,18 @@ _addon_repo() {  # $1 = version leg → the addons-source worktree to patch for 
 }
 # --- end fork base selection ---
 
-# A fork base applies to addon fixes only (the field formalises the #820 series' prose).
+# A fork/stack verify base applies to addon fixes only here: an addon's #96 Verification
+# base or #54 Onto-branch (PDCA_BASE) both resolve to the dedicated `-fork` worktree. A core
+# fix carries no such worktree, so a core PDCA_BASE would silently fall back to clean
+# upstream — breaking stack mode's test==commit==push guarantee. Fail loudly instead
+# (stack-mode verification for core fixes is not supported in this testbed).
 FORK_REF=""
-[ "$MODE" = addon ] && FORK_REF="$(_parse_fork_ref "$BUNDLE/brief.md")"
+if [ "$MODE" = addon ]; then
+  FORK_REF="$(_resolve_base "$BUNDLE/brief.md")"
+elif [ -n "${PDCA_BASE:-}" ]; then
+  echo "run-verify.sh: PDCA_BASE=$PDCA_BASE (brief 'Onto branch') set on a core fix — stack-mode verification against an onto-branch is addon-only here (it reuses the fork worktrees). Drop the brief's 'Onto branch' for a core fix, or verify against clean upstream." >&2
+  exit 1
+fi
 
 # Classify the patched files; the rest is the production change reverted for the red
 # check. Core tests use the *_test.py SUFFIX (gramps/**/test/); addon tests use the
@@ -221,7 +247,7 @@ _verify_leg() {
         case "$d" in
           # A lane appends $LANE_SFX, so the fork path is `…-fork` or `…-fork-lane$K` —
           # match both so the remediation names `make fork-worktrees`, not the generic one.
-          *-fork | *-fork-lane*) echo "run-verify.sh: fork worktree $d missing — run 'make fork-worktrees${LANE_SFX:+ LANES=N}' (declared via the brief's 'Verification base')." >&2 ;;
+          *-fork | *-fork-lane*) echo "run-verify.sh: fork worktree $d missing — run 'make fork-worktrees${LANE_SFX:+ LANES=N}' (declared via the brief's 'Verification base' or 'Onto branch')." >&2 ;;
           *)      echo "run-verify.sh: worktree $d missing — run 'make worktrees${LANE_SFX:+ LANES=N}'." >&2 ;;
         esac
         return 1
