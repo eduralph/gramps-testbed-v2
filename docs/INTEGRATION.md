@@ -298,13 +298,14 @@ line number**, so an edit to a vendored page doesn't invalidate the anchor; the
 - **Act log path:** `process/act-log.md`
 - **Iterate archive:** a rejected attempt is preserved in `iteration-v<N>/` in the
   bundle (the brief is archived with it on iterate-to-Plan) — fixed by the harness
-- **When to `park` (sign-off disposition, v0.16.0 / pdca-harness #42):** `pdca signoff
-  --park` discontinues a bundle that **can't be carried as a contribution `patch.diff`** —
-  e.g. a PR-restructuring / scope-split task, or work superseded by another bundle (the
-  deleted `820-scope-split` would have been a park). It moves the bundle to the terminal
-  `DISCONTINUED` state with **no C6 guard** (a deliberate abandon, independent of §6).
-  Record *why discontinued / where the work goes instead* below the decision token. Don't
-  park to dodge an open §6 — that's what iterate/accept are for.
+- **When to `discontinue` (sign-off disposition, v0.16.0 / pdca-harness #42, renamed
+  from `park` in v0.19.0):** `pdca signoff --discontinue` abandons a bundle that **can't
+  be carried as a contribution `patch.diff`** — e.g. a PR-restructuring / scope-split
+  task, or work superseded by another bundle (the deleted `820-scope-split` would have
+  been a discontinue). It moves the bundle to the terminal `DISCONTINUED` state with **no
+  C6 guard** (a deliberate abandon, independent of §6). Record *why discontinued / where
+  the work goes instead* below the decision token. Don't discontinue to dodge an open §6 —
+  that's what iterate/accept are for.
 
 ## 8. Committing and PR conventions
 - **Commit-message format:** past-tense one-line subject; body explains the *why*,
