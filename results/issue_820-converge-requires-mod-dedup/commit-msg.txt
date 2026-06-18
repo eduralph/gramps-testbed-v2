@@ -1,0 +1,24 @@
+ci: single-source requires_mod derivation and is_active helper
+
+The addon CI workflow inlined the same requires_mod derivation as an
+identical Python heredoc in three jobs (unit-test-linux,
+unit-test-windows, integration-test) and the is_active() bash filter
+verbatim across six job steps, with the find_spec name-gate triplicated
+alongside. A one-line change to any of them meant a three- to six-site
+edit, and the copies could silently diverge.
+
+Move the requires_mod derivation and the find_spec validator into a
+single .github/scripts/addon_python_deps.py that every job calls
+(--install-list / --check-resolves), and the is_active() filter into
+.github/scripts/active_addons.sh that each filtering step sources. The
+.gpr.py files stay the single source of truth, so the derived module
+list and the active-addon set are unchanged.
+
+The module also centralises the import-to-distribution install map
+(PIL -> Pillow) on the install side only; the find_spec gate keeps
+validating the raw declared import name, exactly as Gramps does at
+runtime via check_mod(). No requires_mod=["PIL"] exists in the tree
+today, so the derived install list is byte-identical to the old heredoc
+output and the change is behaviour-preserving.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
