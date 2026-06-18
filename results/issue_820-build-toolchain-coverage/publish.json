@@ -1,0 +1,10 @@
+{
+  "mode": "stacked",
+  "branch": "feature/ci-cd-pipeline-upstream",
+  "pr_url": "https://github.com/gramps-project/addons-source/pull/820",
+  "base": "origin/feature/ci-cd-pipeline-upstream",
+  "repo": "gramps-project/addons-source",
+  "by": "Eduard Ralph",
+  "date": "2026-06-19",
+  "id_pending": false
+}
