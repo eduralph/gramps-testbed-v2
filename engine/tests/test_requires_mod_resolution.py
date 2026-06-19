@@ -88,6 +88,21 @@ class RequiresModResolution(unittest.TestCase):
         self._addon("Good", f'requires_mod = ["{_IMPORTABLE}"]\n')
         self.assertEqual(addon_python_deps.unresolved_requires_mod(str(self.tmp)), [])
 
+    def test_install_union_maps_known_import_names_to_pypi_distributions(self) -> None:
+        # The import→distribution table is kept in step with gramps #2308's
+        # _IMPORT_TO_PYPI so CI installs the same distribution Gramps does. A few
+        # representative entries: the install union must carry the *distribution*
+        # name, never the bare import name pip cannot resolve.
+        self._addon("Vision", 'requires_mod = ["cv2"]\n')
+        self._addon("Conf", 'requires_mod = ["yaml"]\n')
+        self._addon("Soup", 'requires_mod = ["bs4"]\n')
+        union = addon_python_deps.requires_mod_union(str(self.tmp))
+        self.assertIn("opencv-python", union)
+        self.assertIn("PyYAML", union)
+        self.assertIn("beautifulsoup4", union)
+        for bare in ("cv2", "yaml", "bs4"):
+            self.assertNotIn(bare, union)
+
     def test_checks_raw_import_name_not_the_install_mapped_one(self) -> None:
         # PIL maps to Pillow for *install*, but the gate verifies the RAW
         # declared name ("PIL"), which is what Gramps imports — so a correct
