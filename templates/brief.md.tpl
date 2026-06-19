@@ -43,7 +43,14 @@
   PR feedback or is internal cleanup). Drives the T4 trailer: an id ⇒ a `Fixes/Bug
   #id` trailer is required; `none` ⇒ the trailer MUST is waived (the publisher omits
   it and the PR body states the origin) — never invent or borrow an unrelated id.>
-- **Disposition hint:** <likely-fix | likely-close | POSSIBLY-FIXED → verify first | UPSTREAM | EXTERNAL | NO-NOTES>
+- **Disposition hint:** <one triage flag — drives the driver's Do path. FIX (full
+  Do+Check band): `likely-fix`, `POSSIBLY-FIXED → verify first` (needs verification, so
+  NOT close). CLOSE / no-fix (FAST-PATHED — builder + reviewer leaves skipped, routed
+  straight to sign-off; docs 04 §close-disposition fast path): `likely-close`, `wontfix`,
+  `by-design`, `duplicate`, `not-reproducible`, `manual-verification`, `upstream` (not this
+  repo's defect), `external` (not a defect in scope). `NO-NOTES` is a low-triage-signal
+  flag, not an outcome. The close set is configurable per instance in `pdca.toml`
+  `[driver].close_dispositions` — keep this list in step with it.>
 
 ## STOP discipline
 
