@@ -96,11 +96,15 @@ argv = ["claude", "-p", "--model", "claude-opus-4-8", "--effort", "high", "--age
 # the ideal (a DIFFERENT family from the builder); `--agent reviewer` is the
 # documented same-vendor fallback when codex isn't available — switch family/argv
 # to codex to restore independence (INTEGRATION §4).
+# Act 2026-06-19 (testbed #149, token-cost tiering): codex is still not on PATH, so the
+# reviewer stays Claude but drops to Sonnet + `--effort medium` — the advisory review's
+# cost did not justify opus/high while same-vendor. Restore codex (the decorrelation
+# ideal) over this Sonnet fallback the moment it is available.
 [leaves.reviewer]
 mode = "command"
 family = "claude"
 interactive = false
-argv = ["claude", "-p", "--model", "claude-opus-4-8", "--effort", "high", "--agent", "reviewer", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Edit"]
+argv = ["claude", "-p", "--model", "claude-sonnet-4-6", "--effort", "medium", "--agent", "reviewer", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Edit"]
 
 # Interactive leaves — the human-in-the-loop touch points (Plan, Sign-off, Publish,
 # Act) hand the terminal to a seeded Claude REPL. Claude by design (a model+human
@@ -120,28 +124,36 @@ interactive = true
 # builder/reviewer (and signoff/publisher/act) are now pinned EXPLICITLY to
 # claude-opus-4-8 + `--effort high` too, since an un-versioned ~/.claude default left the
 # implementer leaf weaker than the interactive session. Planner keeps `xhigh` (highest leverage).
+# Act 2026-06-19 (testbed #149, token-cost tiering): the leaves are the engine's ONLY
+# token spend, and uniform opus/high over-provisioned the human-in-the-loop leaves.
+# Retiered by leverage: planner stays opus `xhigh` (a thin brief poisons Do+Check) and
+# builder stays opus `high` (writes the patch) — UNCHANGED. reviewer→Sonnet/medium,
+# signoff→Sonnet/medium, publisher→Haiku/low (mechanical commit-msg+PR prose),
+# act→Sonnet/medium. See process/act-log.md 2026-06-19. Reverse if sign-off/review
+# quality regresses over the next K cycles.
 argv = ["claude", "--model", "claude-opus-4-8", "--effort", "xhigh", "--agent", "planner", "--permission-mode", "acceptEdits"]
 
 [leaves.signoff]
 mode = "command"
 family = "claude"
 interactive = true
-argv = ["claude", "--model", "claude-opus-4-8", "--effort", "high", "--agent", "signoff", "--permission-mode", "acceptEdits"]
+argv = ["claude", "--model", "claude-sonnet-4-6", "--effort", "medium", "--agent", "signoff", "--permission-mode", "acceptEdits"]
 
 # Publisher — the closing work of Check: for an ACCEPTED fix, drafts commit-msg.txt +
 # pr-description.md WITH the human (doc 16). The deterministic `pdca publish` then
 # branches/applies/commits/pushes and opens the DRAFT PR; this leaf writes prose only.
+# Haiku/low (testbed #149): the leaf drafts prose only; the mechanics stay deterministic.
 [leaves.publisher]
 mode = "command"
 family = "claude"
 interactive = true
-argv = ["claude", "--model", "claude-opus-4-8", "--effort", "high", "--agent", "publisher", "--permission-mode", "acceptEdits"]
+argv = ["claude", "--model", "claude-haiku-4-5-20251001", "--effort", "low", "--agent", "publisher", "--permission-mode", "acceptEdits"]
 
 [leaves.act]
 mode = "command"
 family = "claude"
 interactive = true
-argv = ["claude", "--model", "claude-opus-4-8", "--effort", "high", "--agent", "act", "--permission-mode", "acceptEdits"]
+argv = ["claude", "--model", "claude-sonnet-4-6", "--effort", "medium", "--agent", "act", "--permission-mode", "acceptEdits"]
 
 # Deterministic Check gates (docs 04). Each check runs a shell command; it PASSES
 # iff the command exits 0. `scope = "repo"` runs against the working tree (and is
