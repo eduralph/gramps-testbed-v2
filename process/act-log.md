@@ -29,6 +29,39 @@
 - The next Do phases should not recreate <specific issue>. Watch the next K cycles.
 -->
 
+# Act review — 2026-06-19 — cycles considered: cross-cycle token-cost review (no single bundle re-decided; triggered by testbed GH #149)
+
+## What the cycles' records exposed
+- **The six model leaves are the engine's only token spend, yet every leaf was pinned
+  uniformly to `claude-opus-4-8 --effort high` (planner `xhigh`)** — see the leaf history
+  in `pdca.toml` (the 2026-06-14 note that pinned builder/reviewer/signoff/publisher/act
+  to opus/high). That decision fixed a real problem (an un-versioned `~/.claude` default
+  left the implementer weaker than the interactive session) but over-corrected: it set the
+  *strongest* tier everywhere, including the human-in-the-loop leaves whose model output is
+  only an assist (sign-off, publisher, act) and the advisory reviewer. `--effort` in
+  particular is a direct thinking-token multiplier applied on every leaf call across a batch.
+
+## Process deltas
+- Leaf config: retier `[leaves.*]` by leverage, not uniformly.            (`pdca.toml:91-136`)
+  - planner — opus `xhigh`  — UNCHANGED (a thin brief poisons Do + Check; highest leverage).
+  - builder — opus `high`   — UNCHANGED (writes the patch; correctness-critical).
+  - reviewer — opus/high → **Sonnet/medium** (codex still not on PATH, so the documented
+    same-vendor fallback; restore codex when available — the decorrelation ideal).
+  - signoff  — opus/high → **Sonnet/medium** (interactive; the model only assists §6 clearing).
+  - publisher — opus/high → **Haiku/low** (drafts commit-msg + PR prose; mechanics stay deterministic).
+  - act       — opus/high → **Sonnet/medium** (cross-cycle prose synthesis).
+
+## Follow-ups routed (not process deltas — work handed to an owner)
+- Testbed/driver issue: testbed GH #149 (this delta implements it) ·
+  close-disposition fast path integrated from pdca-harness #60 (v0.21.0) ·
+  pdca-harness GH #62 (brief Disposition-hint vocabulary alignment, open).
+
+## How effectiveness will be judged
+- Watch the next K cycles for a quality regression traceable to the downgrade: a Check
+  sign-off that misses something the advisory review should have caught, or a publisher
+  draft (commit-msg / pr-description) that needs heavier human rework than before. If one
+  appears, raise that specific leaf back a tier — do not blanket-revert to uniform opus.
+
 # Act review — 2026-06-12 — cycles considered: glade-setattr (PR #2356 review feedback; cross-ref new-core-`.py` POTFILES omission across all such bundles)
 
 ## What the cycles' records exposed
