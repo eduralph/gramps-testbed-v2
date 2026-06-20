@@ -36,7 +36,7 @@
       "WebFetch(domain:gitlab.gnome.org)",
       "WebFetch(domain:github.com)",
       "Bash(PDCA_BUNDLE=\"$\\(pwd\\)/results/issue_glade-setattr\" python3 ./engine/conformance/gate.py T4)",
-      "Bash(PDCA_BUNDLE=\"$\\(pwd\\)/results/issue_headless-ut-segfault\" python3 ./engine/conformance/gate.py T4)",
+      "Bash(PDCA_BUNDLE=\"$\\(pwd\\)/results/completed/issue_headless-ut-segfault\" python3 ./engine/conformance/gate.py T4)",
       "Bash(git clean *)",
       "Bash(PYTHONPATH=src python3 -m unittest tests.test_publish_slice -v)",
       "Bash(PYTHONPATH=src python3 -m unittest tests.test_publish_slice)",

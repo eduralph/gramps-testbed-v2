@@ -54,7 +54,7 @@ Frozen at `6ad140c` (2026-06-06 12:53). Process deltas after that commit:
 upstream, and only because its test's import chain hits the pre-fix `LinkTag` widget
 (`issue_headless-ut-segfault`). The other five are independently valid against current
 upstream; all six apply cleanly (no rebase needed). `11786`'s dependency is recorded in
-`results/issue_11786/VALIDATION.md`.
+`results/completed/issue_11786/VALIDATION.md`.
 
 ## Result — all six HOLD (fork-based first pass, superseded by the upstream section above)
 
@@ -90,7 +90,7 @@ the frozen result exactly (`green-with-fix=FAIL`, same `Gtk-ERROR` core dump). S
 flip is the **dependency fix in the tree**, not the gate change. **Caveat:** that fix is
 **unmerged** — it is not in clean `maintenance/gramps61` (11786's target), so 11786's
 test only runs once `issue_headless-ut-segfault` lands there (a merge-order dependency;
-see `results/issue_11786/VALIDATION.md`). All the raw T3 reds across the bundles are
+see `results/completed/issue_11786/VALIDATION.md`). All the raw T3 reds across the bundles are
 likewise environmental (now baseline-diffed and matrix-split).
 
 ## Per-bundle notes (open items for the human; advisory)
