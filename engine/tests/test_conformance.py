@@ -597,6 +597,95 @@ class T2Potfiles(unittest.TestCase):
         self.assertEqual(t2_potfiles.check_patch(delete, already_listed=already), [])
 
 
+class T2PotfilesGate(unittest.TestCase):
+    """The gate-dispatch path: `gate.py T2-potfiles` is the GATING POTFILES check, and the
+    T2 (shape) tier no longer folds it in (the gating promotion split them). A core bundle
+    that adds a .py without registration → exit 1 (blocks); registered, no new .py, or an
+    addon bundle → 0."""
+
+    _NEWFILE = (
+        "diff --git a/gramps/gui/foo.py b/gramps/gui/foo.py\n"
+        "new file mode 100644\n--- /dev/null\n+++ b/gramps/gui/foo.py\n"
+        "@@ -0,0 +1 @@\n+VALUE = 1\n"
+    )
+    _POT_SKIP = (
+        "diff --git a/po/POTFILES.skip b/po/POTFILES.skip\n"
+        "--- a/po/POTFILES.skip\n+++ b/po/POTFILES.skip\n"
+        "@@ -1 +1,2 @@\n keep.py\n+gramps/gui/foo.py\n"
+    )
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        (self.tmp / "repo").mkdir()
+        # An addon dir (with .gpr.py) so a patch touching it classifies as target=addon.
+        gv = self.tmp / "addons-source" / "GraphView"
+        gv.mkdir(parents=True)
+        (gv / "GraphView.gpr.py").write_text("register(VIEW, id='graphview')\n", encoding="utf-8")
+        self._orig_root = gate._repo_root
+        gate._repo_root = lambda: self.tmp / "repo"   # core_root = tmp/gramps (need not exist)
+
+    def tearDown(self) -> None:
+        gate._repo_root = self._orig_root
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _run(self, tier: str, patch_text: str) -> int:
+        d = self.tmp / "bundle"
+        d.mkdir(exist_ok=True)
+        (d / "patch.diff").write_text(patch_text, encoding="utf-8")
+        old = os.environ.get("PDCA_BUNDLE")
+        os.environ["PDCA_BUNDLE"] = str(d)
+        try:
+            return gate.main([tier])
+        finally:
+            if old is None:
+                os.environ.pop("PDCA_BUNDLE", None)
+            else:
+                os.environ["PDCA_BUNDLE"] = old
+
+    def test_core_new_py_unregistered_fails(self) -> None:
+        self.assertEqual(self._run("T2-potfiles", self._NEWFILE), 1)
+
+    def test_core_new_py_registered_passes(self) -> None:
+        self.assertEqual(self._run("T2-potfiles", self._NEWFILE + self._POT_SKIP), 0)
+
+    def test_addon_bundle_is_na(self) -> None:
+        addon_patch = (
+            "diff --git a/GraphView/graphview.py b/GraphView/graphview.py\n"
+            "--- a/GraphView/graphview.py\n+++ b/GraphView/graphview.py\n"
+            "@@ -1 +1 @@\n-x = 1\n+x = 2\n"
+        )
+        self.assertEqual(self._run("T2-potfiles", addon_patch), 0)
+
+    def test_core_no_new_py_is_na(self) -> None:
+        modify = (
+            "diff --git a/gramps/gui/bar.py b/gramps/gui/bar.py\n"
+            "--- a/gramps/gui/bar.py\n+++ b/gramps/gui/bar.py\n"
+            "@@ -1 +1 @@\n-x = 1\n+x = 2\n"
+        )
+        self.assertEqual(self._run("T2-potfiles", modify), 0)
+
+    def test_shape_tier_no_longer_flags_potfiles(self) -> None:
+        # Same unregistered-new-.py bundle: T2 (shape) must NOT fail on it (the POTFILES
+        # check was split out); only T2-potfiles does. Proves the fold was removed.
+        self.assertEqual(self._run("T2", self._NEWFILE), 0)
+        self.assertEqual(self._run("T2-potfiles", self._NEWFILE), 1)
+
+
+class T2PotfilesGateWiring(unittest.TestCase):
+    """pdca.toml wires T2-potfiles as a GATING bundle gate — a future edit can't silently
+    flip it advisory or drop it without this turning red."""
+
+    def test_potfiles_row_is_gating(self) -> None:
+        import tomllib
+        toml_path = Path(__file__).resolve().parents[2] / "pdca.toml"
+        rows = {c["id"]: c for c in tomllib.loads(
+            toml_path.read_text(encoding="utf-8"))["gates"]["checks"]}
+        self.assertIn("T2-potfiles", rows, "the gating POTFILES row must exist")
+        self.assertTrue(rows["T2-potfiles"]["gating"], "T2-potfiles must be gating=true")
+        self.assertEqual(rows["T2-potfiles"]["target"], "core")
+        self.assertEqual(rows["T2-potfiles"]["scope"], "bundle")
+
+
 # ---------------------------------------------------------------------------
 # doc16 anchors — every cited section must exist in its vendored source
 # ---------------------------------------------------------------------------

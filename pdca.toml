@@ -311,6 +311,12 @@ target = ["addon", "frontend"]   # frontend addons only (AND); pure-logic addons
 # violations as evidence for the reviewer + human, without gating on legacy
 # addon state that the contribution did not introduce. Promote to gating once
 # the targeted addons are conformance-clean.
+#
+# EXCEPTION — T2-potfiles is GATING (below). The POTFILES-registration MUST
+# (doc 16 §Adding and removing Python files) is contribution-scoped: it inspects only
+# the .py files THIS patch adds/removes, never the legacy tree, so it cannot false-fail
+# on pre-existing unregistered files. That removes the reason the others stay advisory,
+# so the core MUST blocks (a maintainer caught this omission at review — Act 2026-06-12).
 [[gates.checks]]
 id = "T1-structure"
 tier = "T1"
@@ -326,6 +332,21 @@ label = "shape: code shape vs doc 16 §Coding style (GPL header on touched files
 cmd = "python3 ./engine/conformance/gate.py T2"
 gating = false
 scope = "bundle"
+
+# T2-potfiles — the §Adding and removing Python files MUST, GATING (the exception to the
+# advisory posture above). For a CORE bundle whose patch.diff ADDS or REMOVES a .py, that
+# file must be registered in po/POTFILES.in (translatable) or po/POTFILES.skip (none), and
+# a deletion removed from both. Read from the patch (a new file isn't on disk yet).
+# Contribution-scoped → no legacy false-positives → safe to block. target=core skips it for
+# addon-only bundles; a core bundle that adds/removes no .py is N/A (pass).
+[[gates.checks]]
+id = "T2-potfiles"
+tier = "T2"
+label = "potfiles: new/removed core .py registered in po/POTFILES.in|.skip (doc 16 §Adding and removing Python files)"
+cmd = "python3 ./engine/conformance/gate.py T2-potfiles"
+gating = true
+scope = "bundle"
+target = "core"
 
 [[gates.checks]]
 id = "T4-contribution"
