@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Scrape Gramps Mantis issue threads into each issue's bundle as mantis-notes.json
+# Scrape Gramps Mantis issue threads into each issue's bundle as notes.json
 # — the file the Plan leaf reads for full context beyond the CSV row. Wraps
 # engine/scripts/mantis_notes.py (Playwright + a system Google Chrome).
 #
@@ -17,7 +17,7 @@
 #   ./engine/scripts/scrape-mantis.sh --attach <cdp-url> <id> [<id> ...]
 #       Attach to a Chrome YOU already started at <cdp-url> (skip the start/pause).
 #
-# All modes write results/issue_<id>/mantis-notes.json per id. Env override:
+# All modes write results/issue_<id>/notes.json per id. Env override:
 # MANTIS_DEBUG_PORT (default 9222). HOST-SIDE tool — NOT run in the Docker image.
 # One-time setup:
 #   pip install --break-system-packages playwright   # + a system Google Chrome .deb
@@ -128,8 +128,8 @@ for id in "${ids[@]}"; do
   dest_dir="$REPO_ROOT/results/issue_${id}"
   if [ -f "$src" ]; then
     mkdir -p "$dest_dir"
-    cp "$src" "$dest_dir/mantis-notes.json"
-    echo "→ wrote $dest_dir/mantis-notes.json"
+    cp "$src" "$dest_dir/notes.json"
+    echo "→ wrote $dest_dir/notes.json"
   else
     echo "WARN: no scrape output for #$id (blocked / access-restricted? see log above)" >&2
   fi
