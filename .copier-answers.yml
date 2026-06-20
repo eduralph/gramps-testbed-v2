@@ -1,21 +1,26 @@
 # Records the template version and your answers so `copier update` can re-apply
 # harness updates. Managed by Copier — do not edit by hand; commit it to your repo.
-_commit: v0.23.0
+_commit: v0.28.0
 _src_path: ../pdca-harness
 author_email: eduard@ralphovi.net
 author_name: Eduard Ralph
 builder_family: claude
 bundle_root: results
 cli_name: gramps-pdca
+contribution_model: fork
 default_branch: main
+gates_runner: ''
 issue_id_example: '13418'
 leaves_mode: stub
 process_dir: process
 project_description: CI/CD harness for interface-testing Gramps and third-party addons
     via AT-SPI / dogtail
+project_license: Apache-2.0
 project_name: Gramps Testbed v2
 project_slug: gramps-testbed-v2
 reviewer_family: codex
+ship_ci_workflow: true
+ship_merge_guard: true
 tracker_system: mantis
 tracker_url: https://gramps-project.org/bugs
 

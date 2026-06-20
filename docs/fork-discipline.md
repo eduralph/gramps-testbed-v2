@@ -1,5 +1,6 @@
 # Fork & contribution discipline
 
+
 > The generic rules for contributing a fix upstream through a fork — the **Check
 > closing / contribution** discipline (the counterpart to [`principles.md`](principles.md),
 > which governs Plan-time solution design). These rules are project-agnostic; **your

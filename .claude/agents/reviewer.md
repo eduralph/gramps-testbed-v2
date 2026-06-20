@@ -32,8 +32,11 @@ physically cannot patch what you judge.
 
 - Re-run the asserted evidence: stash the fix → confirm red; unstash → confirm
   green. Re-run the validator/scanners yourself. Trust re-runs, not claims.
-- Re-check that every cited `path:line` grounds on the target branch; drop
-  findings that do not ground.
+- Re-check that every cited `path:line` grounds on the **target source at
+  `$PDCA_TARGET`** (read-only; the driver resolves it from the brief's target and adds
+  it for you). Ground only there — do **not** wander into other checkouts on the
+  machine; if `$PDCA_TARGET` is unset, ground against `patch.diff` alone. Drop findings
+  that do not ground.
 - Emit per item `PASS / FAIL / NEEDS-HUMAN` + one-line rationale + path:line.
 
 ## Always emit the complete 5/5/1 verdict table
@@ -69,17 +72,21 @@ upstream-isn't-ahead; scope-creep / Plan re-entry; visual / manual-repro
 outcomes; and the project's enumerated human-only items (INTEGRATION.md §4).
 Each becomes a `- [ ]` row in `SUMMARY.md` §6 the human must clear.
 
-Judge the contribution against `docs/fork-discipline.md`: a cross-version
-cherry-pick that *applies cleanly* is not necessarily *correct* on the target (§3);
-validation must be against the **clean upstream** target, not the fork's branches
-(§4); and confirm the prior-art check ran by file path (§5). Where these can't be
-mechanically settled, raise them NEEDS-HUMAN.
+Confirm the prior-art check ran by **affected file path** (merged history + closed/
+rejected work); where it can't be mechanically settled, raise it NEEDS-HUMAN.
+
+This is a fork contribution — judge it against `docs/fork-discipline.md`: a
+cross-version cherry-pick that *applies cleanly* is not necessarily *correct* on the
+target (§3), and validation must be against the **clean upstream** target, not the
+fork's drifted branches (§4). Raise NEEDS-HUMAN where these can't be mechanically settled.
+
 
 ### C5 symptom-guard smell-test
 
 The "contested symptom-vs-root-cause" trigger above has a concrete detection rule —
-apply it to `patch.diff` every cycle: if the fix adds a **capability probe**
-(`has_display()`, `hasattr`, `try: import …`) or a **runtime guard** *inside code that
+apply it to `patch.diff` every cycle. If the fix adds a **capability probe** (a
+feature/attribute check, or a try-it-and-fall-back around an optional capability —
+e.g. in Python `hasattr` / `try: import …`) or a **runtime guard** *inside code that
 is meant to run with that capability present* — the guard protects a path that, by
 design, only executes when the capability exists — flag C5 **NEEDS-HUMAN** and ask in
 the basis: can the eager / load-time cause be removed instead (e.g. compute lazily on
@@ -88,15 +95,3 @@ effect is the canonical case. This is the downstream backstop for the planner's
 Plan-exit gate (`docs/principles.md` §3) — it catches a guard Do introduces even
 when the brief was clean. It does **not** fire on a fix that *removes / transforms* the
 cause rather than guarding a present capability.
-
-### T2 Shape — diagnostic `print()` adjudication
-
-The T2 gate is deterministic: it FAILs only a missing GPL header on a touched file,
-and **locates** `print()` call sites as `T2 ⚠` advisories — it does not decide whether
-any of them is a defect. That decision is yours. §Logging bans `print()` *for
-diagnostic output*, not all output. For each advisory, read the surrounding code and
-judge: a debug / trace / "got here" print is diagnostic → it should be a module logger,
-so weigh it toward **FAIL**; output that is the code's actual product — a report or
-quickview writing to stdout, a CLI tool's result, output behind a `--debug` / verbosity
-guard — is legitimate → **PASS**. Record the call you made in the T2 Shape basis with
-`path:line`; raise **NEEDS-HUMAN** only when you genuinely cannot tell from the code.

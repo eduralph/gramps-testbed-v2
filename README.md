@@ -71,9 +71,9 @@ beat; `make flow` does not push for you.)
 | `make publish ID=<id> [DRY=1] [BY=<name>]` | Closing work of Check: contribute an accepted fix as a **draft PR** (drafts the commit/PR artifacts, runs the T4 gate, branches from upstream, applies, commits, pushes, opens the draft). `DRY=1` previews. Ready/merge stay yours. |
 | `make rehearse ID=<id> [CSV="<path>"]` | Dry-run the *same* control flow with stub leaves + stub gates — **no Claude, no Docker, instant**. Watch `PLANNED → … → COMPLETE` before a real run. |
 | `make status` | List every bundle and its state. |
-| `make cli ARGS="<subcommand>"` | Any other `pdca` subcommand (e.g. `signoff 13636 --accept`). |
+| `make cli ARGS="<subcommand>"` | Any other `gramps-pdca` subcommand (e.g. `signoff 13636 --accept`). |
 | `make` / `make check` | Self-test (full / fast offline). |
-| `make install` | Optional: a real `pdca` console script in `.venv/`. |
+| `make install` | Optional: a real `gramps-pdca` console script in `.venv/`. |
 
 If something looks stuck, it isn't — a headless `claude -p` and a Docker gate print
 nothing until they finish, so the flow shows a `… still working (NmSSs elapsed)`
@@ -82,7 +82,7 @@ heartbeat. Let it run.
 ## Gates (what makes a fix "verified")
 
 Configured in [pdca.toml](pdca.toml) `[[gates.checks]]`, single-sourced for the local
-driver and CI:
+driver and CI (`gramps-pdca gates` / `gramps-pdca gates --working-tree`):
 
 - **C4-verify** (gating) — the per-fix correctness check. Applies the bundle's
   `patch.diff` and runs *only* its test, asserting it is **red without the fix,
@@ -120,4 +120,11 @@ PCDA/               the generic model (reference docs)
 - **Harness changes feed back upstream.** This repo is rendered from a copier
   template; changes to the generic machinery are filed as `enhancement` issues on the
   [`pdca-harness`](https://github.com/eduralph/pdca-harness/issues) template repo for
-  propagation.
+  propagation (or pulled in with `copier update`).
+
+## License
+
+Licensed under Apache-2.0 ([LICENSE](LICENSE), [NOTICE](NOTICE)). The PDCA
+harness this project was generated from is Apache-2.0, which carries no copyleft into
+this repo. Contributions are gated on the [Developer Certificate of Origin](DCO) —
+sign off with `git commit -s` (see [CONTRIBUTING.md](CONTRIBUTING.md)).
