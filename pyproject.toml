@@ -6,12 +6,9 @@ build-backend = "setuptools.build_meta"
 name = "gramps-testbed-v2-pdca-harness"
 version = "0.1.0"
 description = "PDCA quality-cycle harness for Gramps Testbed v2"
+license = "Apache-2.0"
 requires-python = ">=3.11"
 authors = [{ name = "Eduard Ralph", email = "eduard@ralphovi.net" }]
-license = { file = "LICENSE" }
-classifiers = [
-    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
-]
 dependencies = []
 
 [project.scripts]

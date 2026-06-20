@@ -1,18 +1,21 @@
 """The model leaves — the only points where a model is invoked (docs 03 §leaves).
 
 The rest of the pipeline is deterministic code; models fill *artifacts*, never
-decide control flow. There are six leaves across the cycle:
+decide control flow. The cycle has exactly **four beats** (Plan · Do · Check · Act);
+the leaves are model touchpoints *within* those beats, not beats of their own — in
+particular review, sign-off and publish are all **steps of the Check beat**. The six
+leaves:
 
 * **planner** (Plan, interactive) — the human feeds documents (e.g. a tracker CSV)
   and Claude writes ``brief.md``;
 * **builder** (Do, headless) — reads ``brief.md``, writes ``patch.diff`` + the
   named test + ``build-notes.md``;
-* **reviewer** (Check, headless) — advisory, decorrelated, writes ``check-review.md``;
-* **signoff** (Check sign-off, interactive) — Claude reviews the result *with* the
-  human and records the decision token;
-* **publisher** (the publish step of Check, interactive) — for an ACCEPTED fix,
-  writes the contribution artifacts (``commit-msg.txt`` + ``pr-description.md``) the
-  deterministic ``publish`` step turns into a draft PR;
+* **reviewer** (Check — review step, headless) — advisory, decorrelated, writes
+  ``check-review.md``;
+* **signoff** (Check — sign-off step, interactive) — Claude reviews the result
+  *with* the human and records the decision token;
+* **publisher** (Check — publish step, interactive) — on an accepted bundle, writes
+  the contribution artifacts (the ``publish`` module does the git/draft-PR);
 * **act** (Act, interactive) — reviews frozen cycles and proposes process deltas.
 
 Two invariants live here and matter more than any prompt:
@@ -64,6 +67,8 @@ def _invoke(
     label: str = "",
     status=None,
     stream_json: bool = False,
+    env: dict | None = None,
+    extra_argv: list[str] | None = None,
 ) -> None:
     """Run the leaf's configured command in ``workdir``, feeding it ``prompt``.
 
@@ -80,9 +85,10 @@ def _invoke(
     leaf is using right now. Ignored for non-claude families (e.g. a codex reviewer),
     which don't speak that format.
     """
-    argv = list(leaf.argv)
+    argv = list(leaf.argv) + list(extra_argv or [])
+    run_env = {**os.environ, **env} if env else None
     if leaf.interactive:
-        subprocess.run(argv + [prompt], cwd=workdir)
+        subprocess.run(argv + [prompt], cwd=workdir, env=run_env)
         return
     # Headless: feed the prompt on stdin (a trailing positional would be swallowed
     # by a variadic --allowedTools) and tick a heartbeat, since `claude -p` prints
@@ -92,7 +98,7 @@ def _invoke(
         argv += ["--output-format", "stream-json", "--verbose"]
     rc, _ = progress.run_with_heartbeat(
         argv, cwd=workdir, input_text=prompt, label=label, status=status,
-        stream_json=use_stream)
+        stream_json=use_stream, env=run_env)
     if rc != 0:
         raise subprocess.CalledProcessError(rc, argv)
 
@@ -143,43 +149,44 @@ def do_plan(d: Path, cfg: Config, csv: str | None = None) -> None:
 def _plan_prompt(cfg: Config, csv: str | None, d: Path) -> str:
     fix_tpl = cfg.templates_dir / "brief.md.tpl"
     geps_tpl = cfg.templates_dir / "design-proposal.md.tpl"
+    pointer_tpl = cfg.templates_dir / "plan-pointer.md.tpl"
     issue_id = d.name.removeprefix("issue_")
     tracker_csv = csv or cfg.tracker_export_csv
     notes = d / "notes.json"
-
-    # Source of truth = the tracker row for THIS issue, not a scan of the testbed.
+    # Source of truth = the tracker row for THIS issue, not a scan of the harness repo.
     src_line = (
-        f"The issue is {issue_id} on the {cfg.tracker_system or 'tracker'} "
-        f"({cfg.tracker_url}/view.php?id={issue_id}). " if cfg.tracker_url
-        else f"The issue is {issue_id}. "
+        f"The issue is {issue_id} on the {cfg.tracker_system or 'tracker'}"
+        + (f" ({cfg.tracker_url}). " if cfg.tracker_url else ". ")
     )
     csv_line = (
         f"Read the row for {issue_id} in the tracker export at '{tracker_csv}' FIRST — "
         "that row (summary / description / steps) is the authoritative statement of what "
         "to brief. " if tracker_csv else
-        "Ask the human for the issue's tracker export or bug details. "
+        "Ask the human for the issue's tracker export or details. "
     )
     notes_line = (
-        f"If {notes} exists, read it for the full comment thread. If you need the "
-        f"discussion and it is absent, tell the human to run "
-        f"`./engine/scripts/scrape-mantis.sh {issue_id}` (writes {notes}) and stop. "
+        f"If {notes} exists, read it for the full comment thread; if you need the "
+        "discussion and it is absent, ask the human to produce it with the project's "
+        "tracker-scrape tooling, and stop. "
     )
     citation_line = (
-        "Cite the root cause against the gramps source with `git -C ../gramps log/show "
-        "-- <file>` plus Read/Grep on ../gramps and ../addons-source — NEVER "
-        "`cd ../gramps && git ...` (it trips a safety prompt; `git -C` is the safe idiom). "
-        "Do NOT scan this testbed repo for issue information — the tracker is the source. "
+        "Cite the root cause against the target source with `git -C <checkout> log/show "
+        "-- <file>` plus Read/Grep on the checkout — NEVER `cd <checkout> && git ...` "
+        "(it trips a safety prompt; `git -C` is the safe idiom). Do NOT scan THIS harness "
+        "repo for issue information — the tracker is the source. "
     )
     return (
         "You are the Plan leaf of a PDCA cycle. " + src_line + csv_line + notes_line
         + citation_line
         + f"Together with the human, write brief.md in the bundle directory {d}. Default "
         f"to {fix_tpl} — it fits bug fixes AND ordinary new functionality. Use {geps_tpl} "
-        "(a GEPS-style design proposal) ONLY for the exception: a change significant "
-        "enough to warrant a proposal (major architecture / API / UX). Not every feature "
-        "is a GEPS — when in doubt use the normal brief. Keep the parsed `- **Label:** "
-        "value` field shape; resolve the repo + branch target per INTEGRATION §2. "
-        "One bundle = one brief.md. Plan only."
+        "(a design proposal) ONLY for the exception: a change significant enough to "
+        "warrant a proposal (major architecture / API / UX). Not every feature is a "
+        f"design proposal — when in doubt use the normal brief. Use {pointer_tpl} when the "
+        "plan ALREADY lives in a host artifact (an ADR / proposal / normative spec): the "
+        "brief then POINTS at that document (a `Planning artifact:` reference) instead of "
+        "restating it. Keep the parsed `- **Label:** value` field shape; resolve the repo + "
+        "branch target per INTEGRATION §2. One bundle = one brief.md. Plan only."
     )
 
 
@@ -285,23 +292,28 @@ def _build_prompt(d: Path) -> str:
         f"You are the Do builder. Read {d}/brief.md. Build to satisfy its **Success "
         "criterion** (the real end result), not a narrower proxy — an item is done only "
         "when that end result holds, proven red→green; a green mechanical check on "
-        "something adjacent is not done. If brief.md carries an '## Iteration N — "
+        "something adjacent is not done. If brief.md names a **Planning artifact** (an "
+        "ADR / proposal / spec), READ that document — it is the authoritative plan and the "
+        "brief only points at it; build to it and cite it. If brief.md carries an '## Iteration N — "
         "carry-forward' block, address it (the previous attempt's rationale + failing "
         "gate) and do NOT repeat the rejected approach. Produce, in the bundle directory "
         f"{d}: (1) patch.diff — a unified diff against the brief's target branch; "
         "(2) the test file the brief names, red before the fix and green after; "
         "(3) build-notes.md — your rationale (withheld from the reviewer). Cite "
-        "path:line on the target branch for every change. To check the test red→green "
-        "use the engine runner ./engine/scripts/ubuntu/run-verify.sh (NOT a hand-rolled "
-        "`docker run`) — it applies your patch and runs ONLY your test as the C4 gate, "
-        "with a timeout. The runner is HEADLESS: a core fix runs the test under plain "
-        "`python3 -m unittest` (no display, no D-Bus, no AT-SPI); an addon fix adds only "
-        "`xvfb` (a bare display, still no D-Bus/AT-SPI). The full display+D-Bus+AT-SPI "
-        "env belongs to the interface runner, NOT C4. So a test that imports a GUI "
-        "module at load time (`gi.repository` / `gramps.gui.*`, e.g. a ManagedWindow "
-        "tool) CRASHES the runner (core dump). Keep the test GUI-import-free: extract "
-        "the logic under test into a module with no `gi`/`gramps.gui` imports and import "
-        "THAT — never the Gtk-bound tool module. Do NOT push, open, or mark any PR ready."
+        "path:line on the target branch for every change. To run the test red→green, "
+        "use the project's own test runner (it provides a timeout and whatever "
+        "environment it is configured for); do NOT hand-roll your own runner command "
+        "(a raw container or ad-hoc test invocation) — it has no timeout and can hang "
+        "forever, stalling the cycle. "
+        "Do NOT assume the runner gives you a display / GUI / other rich runtime: if it "
+        "is headless, a test that imports a heavy module (a GUI toolkit, etc.) AT LOAD "
+        "can crash it (and recur every iterate-do) — keep the unit under test "
+        "import-light by extracting the logic into an import-free module and testing "
+        "that. Make the patch commit-ready for the TARGET repo: run the project's "
+        "configured formatter / commit hooks before declaring done — the publish commit "
+        "runs the target's own hooks (formatter/linters), which no PDCA gate models, so a patch the target's "
+        "commit hook would reject is not done even if every gate is green. Do NOT push, "
+        "open, or mark any PR ready."
     )
 
 
@@ -349,8 +361,31 @@ _REVIEW_PROMPT = (
     "you can). Emit NEEDS-HUMAN for the always-human items (validation "
     "fitness-to-purpose, contested root-cause, ambiguous scope) — each NEEDS-HUMAN "
     "row becomes a §6 item the human must clear. Do not omit a row; use N/A with a "
-    "reason when an element does not apply."
+    "reason when an element does not apply. "
+    "Ground every cited path:line on the target source at $PDCA_TARGET (read-only); "
+    "if $PDCA_TARGET is unset, ground against patch.diff alone — do NOT search other "
+    "checkouts on the machine."
 )
+
+
+def _reviewer_target(d: Path, cfg: Config) -> Path | None:
+    """The local target checkout the reviewer grounds its citations on, or None (#75).
+
+    Single-sourced from the brief's "Repo + branch target" via the same resolution
+    publish uses (``_checkout_path`` — configured ``[publisher.checkouts]`` or the
+    sibling convention). Returned only if it exists on disk; the reviewer is told to
+    ground against ``$PDCA_TARGET`` and not to wander into other checkouts. Best-effort:
+    any failure (no target, unresolved) yields None and the reviewer falls back to the diff.
+    """
+    from . import publish  # lazy: publish imports leaves, avoid an import cycle
+    try:
+        repo_spec, _base, _slug = publish._resolve_target(d)
+        if not repo_spec:
+            return None
+        p = publish._checkout_path(cfg, repo_spec)
+        return p if p.exists() else None
+    except Exception:  # noqa: BLE001 — grounding access is best-effort, never fatal
+        return None
 
 
 def run_review(d: Path, cfg: Config) -> None:
@@ -376,12 +411,20 @@ def _run_review_sandboxed(d: Path, cfg: Config) -> None:
             src = d / name
             if src.exists():
                 shutil.copy2(src, sandbox / name)
+        # Ground citations on the brief's target checkout (#75): name it via $PDCA_TARGET
+        # so the reviewer doesn't wander into unrelated checkouts, and grant read access
+        # for the claude family (--add-dir). Independence holds — the target is the
+        # upstream source, not build-notes.md.
+        target = _reviewer_target(d, cfg)
+        env = {"PDCA_TARGET": str(target)} if target else None
+        extra_argv = ["--add-dir", str(target)] if target and cfg.reviewer.family == "claude" else None
         try:
             _invoke(
                 cfg.reviewer, sandbox, _REVIEW_PROMPT,
                 label=f"Check review {d.name}",
                 status=lambda: progress.bundle_activity(sandbox, ("check-review.md",)),
                 stream_json=True,  # Tier 3 (no-op unless the reviewer family is claude)
+                env=env, extra_argv=extra_argv,
             )
         except Exception as exc:  # a failed reviewer (e.g. dropped connection) must
             _review_unavailable(d, f"reviewer leaf failed: {exc}")  # not crash the cycle
@@ -504,11 +547,9 @@ def _signoff_batch_prompt(bundles: list[Path]) -> str:
         "Work them in order. For EACH bundle, review its SUMMARY.md / patch.diff / "
         "check-gates.md / check-review.md with the human, help clear that bundle's §6 "
         "NEEDS-HUMAN items (`- [ ]` → `- [x]` only with their explicit OK), then write "
-        f"the agreed decision token — one of: {', '.join(sorted(VALID_DECISIONS))} — on the "
-        f"FIRST line of THAT bundle's {SIGNOFF_DECISION} file **as soon as it is decided** "
-        "(so if the session ends early the finished bundles keep their decisions); on an "
-        "`iterate-*`, add the human's rationale (why rejected / what to change) on the lines "
-        "below the token. Every write names "
+        f"the agreed decision token — one of: {', '.join(sorted(VALID_DECISIONS))} — into "
+        f"THAT bundle's {SIGNOFF_DECISION} file **as soon as it is decided** (so if the "
+        "session ends early the finished bundles keep their decisions). Every write names "
         "its own `issue_<id>` bundle — never leave an item ambient to the batch or write "
         "it into the wrong bundle. Do not edit §9 yourself; the driver records it under a "
         "deterministic guard."
@@ -571,10 +612,9 @@ def _stub_act(cfg: Config, date: str) -> None:
 
 
 # ----------------------------------------------------------------------------
-# Leaf 5 — Publish (publisher, interactive): the closing work of Check. Writes the
-# contribution artifacts (commit-msg.txt + pr-description.md) for an ACCEPTED fix;
-# the deterministic `publish` step (publish.py) then branches/applies/commits/pushes
-# and opens the DRAFT PR. The leaf writes prose only — it never pushes.
+# Leaf 5 — Publish (publisher, interactive): the closing STEP of Check.
+# Writes the two contribution artifacts (commit-msg.txt + pr-description.md, the
+# T4 gate's inputs); the deterministic `publish` module does the git/draft-PR.
 # ----------------------------------------------------------------------------
 def run_publish(d: Path, cfg: Config) -> None:
     if cfg.publisher.mode == "command":
@@ -599,37 +639,35 @@ def _publish_prompt(d: Path, cfg: Config) -> str:
         if trailer else ""
     )
     return (
-        f"You are the Publish leaf — the closing work of Check. The fix for issue "
+        "You are the Publish leaf — the closing work of Check. The fix for issue "
         f"{issue_id} is ACCEPTED; with the human, write TWO contribution artifacts in "
-        f"{d}, following the project's doc 16 rules. Target: {target}. Read "
-        f"{d}/brief.md + {d}/build-notes.md + {d}/patch.diff for content; cite gramps "
-        f"via `git -C ../gramps` if needed.\n"
-        f"1) {d}/commit-msg.txt — summary ≤70 chars, then a blank line, then the body "
-        f"wrapped ≤80; the LAST line is the Mantis trailer `Fixes #{issue_id}` "
-        f"(gramps CORE: the trailer goes in BOTH the commit and the PR body; "
-        f"addons-source: reference the bug in the PR body only, NOT the commit). "
-        f"Reference any other commit by its FULL hash. Keep `Fixes #{issue_id}` the "
-        f"last line (the T4 gate enforces it); if you add a Co-Authored-By line, put "
-        f"it ABOVE the trailer block.\n"
-        f"2) {d}/pr-description.md — sections Root cause / Fix / Verified against / "
-        f"Test, citing path:lines on the target branch, and reference #{issue_id} "
-        f"(see {pr_tpl}).\n"
+        f"{d}, following the project's contributor rules (docs/INTEGRATION.md §4). "
+        f"Target: {target}. Read {d}/brief.md + {d}/build-notes.md + {d}/patch.diff for "
+        "content; cite the target source with `git -C <checkout>` (never `cd <checkout> "
+        "&& git`).\n"
+        f"1) {d}/commit-msg.txt — a summary ≤70 chars, then a blank line, then the body "
+        f"wrapped ≤80; reference any other commit by its FULL hash. {trailer_line}\n"
+        f"2) {d}/pr-description.md — sections Root cause / Fix / Verified against / Test, "
+        f"citing path:lines on the target branch (see {pr_tpl}).\n"
         "Write ONLY those two files. Do NOT push, branch, or open a PR — the driver's "
         "`pdca publish` does the branch/apply/commit/push/draft-PR after you finish."
     )
 
 
 def _stub_publish(d: Path, cfg: Config) -> None:
-    # Offline placeholders, deliberately doc-16/T4-shaped (summary ≤70, blank line,
-    # body ≤80, `Fixes #<id>` last; PR body has the four sections + #<id>).
+    # Offline placeholders, shaped to pass a contribution (T4) gate: summary ≤70,
+    # blank line, body ≤80, the configured issue trailer last; PR body has the four
+    # sections that pr-description.md.tpl prescribes.
     issue_id = d.name.removeprefix("issue_")
-    (d / "commit-msg.txt").write_text(
+    trailer = cfg.issue_trailer.format(id=issue_id) if cfg.issue_trailer else ""
+    body = (
         f"Fix issue {issue_id} (stub contribution artifact)\n\n"
         "Stub commit body for the offline publish slice, wrapped under eighty\n"
-        "characters so the T4 contribution gate validates it cleanly.\n\n"
-        f"Fixes #{issue_id}\n",
-        encoding="utf-8",
+        "characters so a contribution gate validates it cleanly.\n"
     )
+    if trailer:
+        body += f"\n{trailer}\n"
+    (d / "commit-msg.txt").write_text(body, encoding="utf-8")
     (d / "pr-description.md").write_text(
         "## Root cause\nstub.\n\n## Fix\nstub.\n\n## Verified against\n"
         "- path:1 — stub.\n\n## Test\nstub regression test.\n\n"
