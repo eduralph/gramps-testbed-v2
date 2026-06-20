@@ -207,6 +207,9 @@ class T2TouchedScope(unittest.TestCase):
         self.addons = self.tmp / "addons-source"
         addon = self.addons / "MyAddon"
         addon.mkdir(parents=True)
+        # A real addon dir carries a .gpr.py registration — that is what marks the
+        # dir as an addon (issue #158: a bare dir like po/ or tests/ is not one).
+        (addon / "MyAddon.gpr.py").write_text("register(GENERAL, id='myaddon')\n", encoding="utf-8")
         for f in ("added.py", "modified.py", "untouched.py"):
             (addon / f).write_text("x = 1\n", encoding="utf-8")
 
@@ -227,6 +230,60 @@ class T2TouchedScope(unittest.TestCase):
         names = {f.name for f in gate._touched_addon_files(patch, self.addons)}
         self.assertEqual(names, {"added.py", "modified.py"})
         self.assertNotIn("untouched.py", names)
+
+
+class AddonDirClassification(unittest.TestCase):
+    """An addon directory is one holding a ``*.gpr.py`` — NOT any directory that
+    happens to exist under addons-source. ``po/`` (translations) and ``tests/``
+    (the #820 shared infra) have no ``.gpr.py``, so a core patch that touches
+    ``po/POTFILES.skip`` (mandated for every new core .py since the 2026-06-12 Act
+    review) must not be misclassified as an addon and false-FAIL T1 (issue #158)."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addons = self.tmp / "addons-source"
+        # A real addon (has a .gpr.py) plus two non-addon dirs that exist there.
+        (self.addons / "GraphView").mkdir(parents=True)
+        (self.addons / "GraphView" / "GraphView.gpr.py").write_text("register(VIEW)\n", encoding="utf-8")
+        (self.addons / "po").mkdir()
+        (self.addons / "po" / "POTFILES.skip").write_text("gramps/x.py\n", encoding="utf-8")
+        (self.addons / "tests").mkdir()
+        (self.addons / "tests" / "run_addon_tests.py").write_text("x = 1\n", encoding="utf-8")
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _patch(self, *bpaths: str) -> Path:
+        p = self.tmp / "patch.diff"
+        p.write_text(
+            "".join(f"diff --git a/{b} b/{b}\n--- a/{b}\n+++ b/{b}\n@@ -1 +1 @@\n-x\n+y\n"
+                    for b in bpaths),
+            encoding="utf-8",
+        )
+        return p
+
+    def test_po_dir_is_not_an_addon(self) -> None:
+        # A core patch registering po/POTFILES.skip → no addon touched.
+        self.assertEqual(gate._touched_addons(self._patch("po/POTFILES.skip"), self.addons), [])
+
+    def test_tests_dir_is_not_an_addon(self) -> None:
+        self.assertEqual(gate._touched_addons(self._patch("tests/run_addon_tests.py"), self.addons), [])
+
+    def test_real_addon_dir_still_detected(self) -> None:
+        addons = gate._touched_addons(self._patch("GraphView/graphview.py"), self.addons)
+        self.assertEqual([d.name for d in addons], ["GraphView"])
+
+    def test_mixed_patch_finds_only_the_real_addon(self) -> None:
+        # A patch touching both po/ and a real addon → only the addon is returned.
+        addons = gate._touched_addons(
+            self._patch("po/POTFILES.skip", "GraphView/graphview.py"), self.addons)
+        self.assertEqual([d.name for d in addons], ["GraphView"])
+
+    def test_is_addon_dir_helper(self) -> None:
+        self.assertTrue(gate._is_addon_dir(self.addons / "GraphView"))
+        self.assertFalse(gate._is_addon_dir(self.addons / "po"))
+        self.assertFalse(gate._is_addon_dir(self.addons / "tests"))
+        self.assertFalse(gate._is_addon_dir(self.addons / "does-not-exist"))
 
 
 # ---------------------------------------------------------------------------
@@ -389,7 +446,10 @@ class T4AddonTrailerOptional(unittest.TestCase):
         # gate derives addons_root as repo_root.parent / "addons-source"; point the
         # repo root at tmp/repo so the synthetic addon tree below is what it scans.
         (self.tmp / "repo").mkdir()
-        (self.tmp / "addons-source" / "GraphView").mkdir(parents=True)
+        gv = self.tmp / "addons-source" / "GraphView"
+        gv.mkdir(parents=True)
+        # The .gpr.py registration is what marks GraphView as an addon dir (#158).
+        (gv / "GraphView.gpr.py").write_text("register(VIEW, id='graphview')\n", encoding="utf-8")
         self._orig_root = gate._repo_root
         gate._repo_root = lambda: self.tmp / "repo"
 
