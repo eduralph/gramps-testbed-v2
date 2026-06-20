@@ -1,0 +1,229 @@
+diff --git a/gramps/gui/widgets/styledtextbuffer.py b/gramps/gui/widgets/styledtextbuffer.py
+index a3e03afdb0..0c6b6a7240 100644
+--- a/gramps/gui/widgets/styledtextbuffer.py
++++ b/gramps/gui/widgets/styledtextbuffer.py
+@@ -599,7 +599,23 @@ class StyledTextBuffer(UndoableBuffer):
+                   Gtk.*.
+         """
+         super(StyledTextBuffer, self).set_text(str(s_text))
+-        # self.remove_all_tags(self.get_start_iter(), self.get_end_iter())
++        self.apply_styled_tags(s_text)
++
++    def apply_styled_tags(self, s_text):
++        """
++        (Re)apply the markup tags of *s_text* to the buffer's *existing* text.
++
++        Unlike :meth:`set_text`, this does **not** replace the buffer content,
++        so callers that only need to restore styling (the undo/redo handlers in
++        :class:`.UndoableStyledBuffer`) must not rebuild the whole buffer.  A
++        full rebuild collapses every Gtk.TextMark to offset 0, which resets a
++        bound GtkTextView's scroll position to the top of the note (bug 13268).
++        The caller is responsible for having restored the plain text first.
++
++        .. note:: ``s_`` prefix means StyledText*, while ``g_`` prefix means
++                  Gtk.*.
++        """
++        self.remove_all_tags(self.get_start_iter(), self.get_end_iter())
+ 
+         s_tags = s_text.get_tags()
+         for s_tag in s_tags:
+diff --git a/gramps/gui/widgets/test/undoablestyledbuffer_test.py b/gramps/gui/widgets/test/undoablestyledbuffer_test.py
+new file mode 100644
+index 0000000000..a13563621d
+--- /dev/null
++++ b/gramps/gui/widgets/test/undoablestyledbuffer_test.py
+@@ -0,0 +1,112 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  Gramps developers
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Regression test for bug 13268 — Undo in the Notes editor scrolls to the top.
++
++A GtkTextView's scroll position cannot be asserted headlessly (it needs a
++realized widget and a display, neither of which the C4 gate provides).  But the
++*cause* of the scroll jump lives in the buffer, which is a plain Gtk.TextBuffer
++subclass and so is fully exercisable with no display:
++
++The notes-editor undo handlers used to call :meth:`set_text`, which replaces the
++entire buffer content.  A full-buffer replace deletes the whole buffer, which
++collapses *every* Gtk.TextMark to offset 0 — including the marks a bound
++GtkTextView uses to track its scroll position.  That is exactly why the view
++jumped to the top of the note after an Undo.
++
++This test stands in for the viewport by placing an independent TextMark at the
++edit site (where the user was working, well below the top) and asserting that an
++Undo does **not** collapse it to offset 0.  It drives the real production
++``UndoableStyledBuffer.undo()`` path, so it is red before the fix and green
++after.
++"""
++
++import unittest
++
++from gramps.gen.lib import StyledText
++from gramps.gui.widgets.undoablestyledbuffer import UndoableStyledBuffer
++
++
++class UndoViewportPreservationTest(unittest.TestCase):
++    """Bug 13268: Undo must not reset the editor's viewport to the top."""
++
++    def _long_buffer(self):
++        """A note long enough to need scrolling, with undo history cleared."""
++        buf = UndoableStyledBuffer()
++        base = "\n".join(
++            "This is line number %d of a long note." % i for i in range(400)
++        )
++        # Seed the note without recording it as an undoable action, so the only
++        # thing on the undo stack is the edit we make below.
++        with buf.undo_disabled():
++            buf.set_text(StyledText(base))
++        return buf, base
++
++    def test_undo_of_insert_preserves_viewport_mark(self):
++        buf, base = self._long_buffer()
++
++        # The user, scrolled down into the note, types something at the end.
++        buf.insert(buf.get_end_iter(), " and the user typed this at the bottom")
++
++        # Stand in for the viewport: a mark at the edit site, deep in the note,
++        # far from both the top and the just-typed text at the end.
++        anchor_offset = len(base) // 2
++        self.assertGreater(anchor_offset, 0)
++        view_mark = buf.create_mark(
++            "viewport", buf.get_iter_at_offset(anchor_offset), True
++        )
++
++        buf.undo()
++
++        new_offset = buf.get_iter_at_mark(view_mark).get_offset()
++        # Pre-fix the full-buffer set_text() rebuild collapses the mark to 0
++        # (the view jumps to the top of the note); post-fix the mark survives.
++        self.assertGreater(
++            new_offset,
++            0,
++            "Undo collapsed the viewport mark to the top of the note (bug 13268)",
++        )
++
++    def test_undo_of_delete_preserves_viewport_mark(self):
++        buf, base = self._long_buffer()
++
++        # The user, scrolled down, deletes a run of text near the end.
++        end = buf.get_char_count()
++        start_iter = buf.get_iter_at_offset(end - 20)
++        end_iter = buf.get_iter_at_offset(end)
++        buf.delete(start_iter, end_iter)
++
++        anchor_offset = len(base) // 2
++        view_mark = buf.create_mark(
++            "viewport", buf.get_iter_at_offset(anchor_offset), True
++        )
++
++        buf.undo()
++
++        new_offset = buf.get_iter_at_mark(view_mark).get_offset()
++        self.assertGreater(
++            new_offset,
++            0,
++            "Undo collapsed the viewport mark to the top of the note (bug 13268)",
++        )
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/gramps/gui/widgets/undoablestyledbuffer.py b/gramps/gui/widgets/undoablestyledbuffer.py
+index d7c0509714..904fc2bce3 100644
+--- a/gramps/gui/widgets/undoablestyledbuffer.py
++++ b/gramps/gui/widgets/undoablestyledbuffer.py
+@@ -147,27 +147,29 @@ class UndoableStyledBuffer(StyledTextBuffer):
+         start = self.get_iter_at_offset(undo_action.offset)
+         stop = self.get_iter_at_offset(undo_action.offset + undo_action.length)
+         self.delete(start, stop)
+-        # the text is correct again, now we create correct styled text
++        # the text is correct again, now we restore the styled tags in place
++        # (a full set_text() rebuild would reset the view to the top, bug 13268)
+         s_text = StyledText(
+             Gtk.TextBuffer.get_text(
+                 self, self.get_start_iter(), self.get_end_iter(), True
+             ),
+             undo_action.tags,
+         )
+-        self.set_text(s_text)
++        self.apply_styled_tags(s_text)
+         self.place_cursor(self.get_iter_at_offset(undo_action.offset))
+ 
+     def _undo_delete(self, undo_action):
+         start = self.get_iter_at_offset(undo_action.start)
+         self.insert(start, undo_action.text)
+-        # the text is correct again, now we create correct styled text
++        # the text is correct again, now we restore the styled tags in place
++        # (a full set_text() rebuild would reset the view to the top, bug 13268)
+         s_text = StyledText(
+             Gtk.TextBuffer.get_text(
+                 self, self.get_start_iter(), self.get_end_iter(), True
+             ),
+             undo_action.tags,
+         )
+-        self.set_text(s_text)
++        self.apply_styled_tags(s_text)
+         if undo_action.delete_key_used:
+             self.place_cursor(self.get_iter_at_offset(undo_action.start))
+         else:
+@@ -180,7 +182,9 @@ class UndoableStyledBuffer(StyledTextBuffer):
+             ),
+             redo_action.tags,
+         )
+-        self.set_text(s_text)
++        # restore styling in place rather than rebuilding the whole buffer,
++        # which would reset the view to the top (bug 13268)
++        self.apply_styled_tags(s_text)
+         start = self.get_iter_at_offset(redo_action.offset)
+         self.insert(start, redo_action.text)
+         new_cursor_pos = self.get_iter_at_offset(
+@@ -206,7 +210,9 @@ class UndoableStyledBuffer(StyledTextBuffer):
+             ),
+             undo_action.tags,
+         )
+-        self.set_text(s_text)
++        # only the styling changed, so reapply it in place rather than
++        # rebuilding the whole buffer (which resets the view, bug 13268)
++        self.apply_styled_tags(s_text)
+         self.place_cursor(self.get_iter_at_offset(undo_action.offset))
+ 
+     def _handle_redo(self, redo_action):
+@@ -217,5 +223,7 @@ class UndoableStyledBuffer(StyledTextBuffer):
+             ),
+             redo_action.tags_after,
+         )
+-        self.set_text(s_text)
++        # only the styling changed, so reapply it in place rather than
++        # rebuilding the whole buffer (which resets the view, bug 13268)
++        self.apply_styled_tags(s_text)
+         self.place_cursor(self.get_iter_at_offset(redo_action.offset_after))
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index d4a15ea5b4..997f86c8a6 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -507,6 +507,8 @@ gramps/gui/widgets/undoablebuffer.py
+ gramps/gui/widgets/undoableentry.py
+ gramps/gui/widgets/undoablestyledbuffer.py
+ gramps/gui/widgets/validatedcomboentry.py
++gramps/gui/widgets/test/__init__.py
++gramps/gui/widgets/test/undoablestyledbuffer_test.py
+ #
+ # gramps/gui/widgets/test directory
+ #
