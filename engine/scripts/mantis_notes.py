@@ -40,7 +40,7 @@ SETUP (one time):
   #   sudo apt install ./google-chrome-stable_current_amd64.deb
 
 USAGE (normally via engine/scripts/scrape-mantis.sh, which places the output at the
-per-bundle path results/issue_<id>/mantis-notes.json the planner reads):
+per-bundle path results/issue_<id>/notes.json the planner reads):
   python3 mantis_notes.py --channel chrome --ids 13830,14051,13920
   python3 mantis_notes.py --channel chrome --csv Mantis_Export.csv --category "3rd Party Addons"
   # If --channel chrome can't find it, point explicitly:

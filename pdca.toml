@@ -32,7 +32,7 @@ templates_dir = "templates"
 # `$WORKSPACE/.pdca-lanes/`) or is pinned with `PDCA_LANE=k`, and publish serializes
 # across them on a checkout lock. See docs/parallel-lanes.md §0.1 (issue #98).
 [driver]
-lanes = 4
+lanes = 6
 # Close-disposition fast path (issue #60). A bundle whose brief's `Disposition hint`
 # matches one of these close / no-fix classes skips the builder + reviewer model leaves
 # (the engine's only token spend) and routes straight to sign-off, where the human
@@ -56,6 +56,13 @@ export_csv = "engine/20260529 - Mantis Export.csv"
 # No tracker id yet? Use `pdca publish --no-issue`: it omits the trailer, relaxes
 # T4 to a flag, and records the bundle `id_pending` (no magic "#0000" placeholder).
 issue_trailer = "Fixes #{id}"
+# Notes-fetch (issue #65): a `.format(id=)` tracker-scrape command run before a Plan beat
+# to seed a bundle's issue_<id>/notes.json (the planner reads it for the full comment
+# thread) — so a seeded id list briefs end-to-end without scraping by hand. $PDCA_BUNDLE is
+# the bundle dir; the command MUST write notes.json there itself. Skipped when notes.json
+# already exists; a failure is non-fatal (Plan falls back to the CSV / asking the human).
+# The gramps Mantis scraper (Playwright/Chrome) writes results/issue_<id>/notes.json.
+notes_cmd = "./engine/scripts/scrape-mantis.sh {id}"
 
 # Publish mechanics — `pdca publish` and the flow's publish-on-accept (docs 03 §Check
 # closing step). Branch patterns are `{id}` / `{slug}` format strings; the

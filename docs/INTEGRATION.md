@@ -20,7 +20,7 @@
   issue id** from this file (it does not scan the testbed repo); `--from-csv`
   overrides it. Re-export from Mantis to refresh.
 - **Full-thread context (optional):** `./engine/scripts/scrape-mantis.sh <id>` writes
-  `results/issue_<id>/mantis-notes.json` (the scraped comment thread); the planner
+  `results/issue_<id>/notes.json` (the scraped comment thread); the planner
   reads it if present, else offers the command. Host-side, manual — see §9.
 - **Cross-link form (commit/PR → Mantis tracker):** gramps core PRs use the
   `p:gramps:nnnn:` source-control shorthand MantisBT resolves; addons-source has no such
@@ -378,7 +378,7 @@ List every project-specific script the cycle invokes (role → path + invocation
 
 | Role | Path | Invocation | Status |
 |---|---|---|---|
-| Tracker scrape | `engine/scripts/mantis_notes.py` + `scrape-mantis.sh` | `./engine/scripts/scrape-mantis.sh <id>` → `results/issue_<id>/mantis-notes.json` (Playwright + system Chrome; one-time manual login; host-side, not in the Docker image) | [ported — Plan-stage context; the planner reads the notes if present] |
+| Tracker scrape | `engine/scripts/mantis_notes.py` + `scrape-mantis.sh` | `./engine/scripts/scrape-mantis.sh <id>` → `results/issue_<id>/notes.json` (Playwright + system Chrome; one-time manual login; host-side, not in the Docker image) | [ported — Plan-stage context; the planner reads the notes if present] |
 | Handoff / brief generator | `triage/scripts/make_handoff.py` | merge CSV export + notes → per-issue briefs | [not ported — superseded by the interactive **planner** leaf, which briefs from the CSV directly at Plan] |
 | Fork bootstrap | `engine/scripts/bootstrap-forks.sh` | clone gramps + addons-source forks as siblings, set `upstream` | [ported — root via pdca.toml marker, git-free] |
 | Repro / verification runners | `engine/scripts/ubuntu/run-*.sh`, `engine/scripts/windows/run-*.sh` | unit / addon-unit / verify / interface / manual | [partial — `ubuntu/{run-unit,run-addon-unit,run-verify,run-interface,rebuild-image,clean-build}.sh` + `lib/` + the `engine/interface/` suite ported; manual + windows pending] |
