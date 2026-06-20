@@ -204,6 +204,23 @@ cmd = "./engine/scripts/ubuntu/run-verify.sh"
 gating = true
 scope = "bundle"
 
+# C4-verify-interface — the per-fix BEHAVIORAL correctness gate (bundle-scoped, ADVISORY
+# first; #157). The GUI sibling of C4-verify: instead of the patch's own unit test it runs
+# the bug's committed AT-SPI/dogtail repro (engine/interface/test_bug_<id>_*.py), RED on the
+# UNPATCHED worktree (bug reproduces → fails) and GREEN on the PATCHED one. The repro is NOT
+# in patch.diff (it lives in the testbed mount), so red↔green is just patch-applied-vs-not.
+# Runs for any GUI-surfacing change (core OR frontend addon E2E). No repro for the bundle id
+# → PDCA-UNVERIFIABLE (human verifies the GUI at sign-off). gating=false until stable
+# (a GUI repro is flakier than a unit test); promote like T3-interface once green-baseline.
+[[gates.checks]]
+id = "C4-verify-interface"
+tier = "C4"
+label = "fix verified in GUI: interface repro red unpatched, green patched (headless dogtail)"
+cmd = "./engine/scripts/ubuntu/run-verify-interface.sh"
+gating = false
+scope = "bundle"
+target = "frontend"   # GUI-surfacing changes only (Surfaces: gui); skips pure-logic fixes
+
 # T3 runtime — the WHOLE gramps core unit suite, on the UNMODIFIED tree. CORE_VERSION
 # pins it to the realigned per-version worktree (gramps-6.1), the contribution target,
 # NOT the primary ../gramps dev clone — so the baseline diff is against a deterministic

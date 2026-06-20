@@ -169,6 +169,30 @@ vendored ruleset; each target carries its auditable origin per doc 16
     manufacture a non-`test_` module just to give `run-verify` a file to revert — that ships
     dead scaffolding (worked example: the dropped `tests/plugin_load_gate.py` in
     820-pluginloading-gate).
+  - **Per-fix interface verify — behavioral C4 (issue #157):**
+    `./engine/scripts/ubuntu/run-verify-interface.sh` **(ported, ADVISORY)** — the GUI sibling
+    of `run-verify.sh`. Instead of the patch's own unit test it runs the bug's committed
+    AT-SPI/dogtail repro **RED on the unpatched** worktree (the bug reproduces → the repro
+    fails) and **GREEN on the patched** one. The gate (`C4-verify-interface`, `scope=bundle`,
+    `target=frontend`, `gating=false`) runs for any `Surfaces: gui` bundle — core GUI fixes
+    and frontend-addon E2E (the addon is installed into the running GUI). v1 runs a single
+    `TARGET_VER` leg (no 6.0×6.1 matrix — two GUI launches per leg is already heavy).
+    - **Repro location — committed, NOT in `patch.diff`.** The repro lives at
+      `engine/interface/test_bug_<id>_<slug>.py` (the existing `test_bug_NNNN.py` convention;
+      `<id>` is the bundle's `issue_<id>`, the filename's number zero-padded). Because the
+      repro is in the *testbed* mount — a separate checkout from gramps/addons-source — a
+      gramps-side revert never touches it, so red↔green is simply *patch-applied-vs-not* (no
+      test-vs-production split). A repro that needs a fixture ships
+      `engine/interface/data/<TREE_NAME>.gramps` and sets `TREE_NAME` to that basename.
+    - **No repro → `PDCA-UNVERIFIABLE` (exit 77).** A GUI bundle with no committed repro (or
+      an ambiguous >1 match, or a non-`issue_<id>` dir) routes to §6 NEEDS-HUMAN under the C6
+      accept-guard — the human verifies the GUI at sign-off. A repro that merely **SKIPPED**
+      on the red leg (e.g. a missing locale `.mo`) is *also* unverifiable, never a red-PASS —
+      the soundness guard that keeps the gate honest.
+    - **Not yet supported:** a fork/stack `Verification base`/`Onto branch` (fails loudly),
+      and the version matrix. The repro-discovery helpers are unit-tested offline
+      (`engine/tests/test_verify_interface_discovery.py`); the real red→green is verified by
+      an out-of-band Docker run (`PDCA_BUNDLE=… run-verify-interface.sh`).
   - **Fork / stack verification base (addon only).** By default C4 verifies against the
     clean per-version worktrees. Two brief fields redirect it to a fork's open PR branch
     instead — both resolve to the dedicated `addons-source-<ver>-fork` worktree that `make
