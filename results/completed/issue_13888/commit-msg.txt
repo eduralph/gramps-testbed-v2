@@ -1,0 +1,28 @@
+Add image source option to genealogytree Tree reports
+
+Since PR 1620 (core commit 7335883f68), Tree reports embed only cached
+thumbnails, which reduces quality (3–12 kB vs 500 kB–2 MB originals) and
+machine-ties filenames, breaking `.tex` portability. This adds a
+user-selectable option to choose between cached thumbnails (default,
+preserving PR 1620) and original full-resolution images.
+
+When thumbnails are used, the original filename is now emitted as a
+LaTeX comment so the `.tex` stays identifiable. When original images are
+used, the full paths are embedded as before Gramps 5.1, though they
+inherit the special-character limitation PR 1620 documented.
+
+The change is confined to `gramps/gen/plug/docgen/treedoc.py`:
+- Add `EnumeratedListOption` named `images` in the Node Options category
+  (label: "Images", items: "thumbnail" / "original", default: "thumbnail").
+- Read the option in `TreeDocBase.__init__`.
+- Branch on `self.images` in `write_node`: emit the full path when
+  `"original"`, or the thumbnail path + filename comment when
+  `"thumbnail"`.
+- Register the new test in `po/POTFILES.skip`.
+
+The test drives the production `write_node` path (via `TreeGraphDoc` and
+a real options menu) and asserts both branches: original emits full paths
+with no comment, thumbnail emits cached paths with a `% original image:`
+comment.
+
+Fixes #13888
