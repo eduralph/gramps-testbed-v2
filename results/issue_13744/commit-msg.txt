@@ -1,0 +1,18 @@
+date: normalize empty text dates to canonical empty dates
+
+An empty date entered as text (via XML import or the date editor) was stored
+as MOD_TEXTONLY with empty text. The Gramps-XML writer emits such a date as
+<datestr val=""/>, distinct from the pre-6.0.0 form (missing element), so the
+roundtrip (export → import → verify) broke and validation flagged it as
+invalid. The root cause is that Date.set_as_text("") and Date.set(...) do not
+normalize empty text to a canonical empty date.
+
+Normalize empty text to MOD_NONE (the canonical empty form) at the two entry
+points: Date.set_as_text(text) (gramps/gen/lib/date.py:1939) and
+Date.set(...) (gramps/gen/lib/date.py:1827). This ensures the serialized form
+of an empty date is stable; the XML writer already omits <datestr> for
+MOD_NONE dates (gramps/plugins/export/exportxml.py:1052–1074), so an empty
+date now exports and re-imports without emitting <datestr val=""/> and without
+validation errors, matching pre-6.0.0 behaviour.
+
+Fixes #13744

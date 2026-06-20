@@ -1,0 +1,10 @@
+{
+  "mode": "new-pr",
+  "branch": "fix/bug-13744-empty-date-serialization-roundtrip",
+  "pr_url": "https://github.com/gramps-project/gramps/pull/2390",
+  "base": "maintenance/gramps61",
+  "repo": "gramps-project/gramps",
+  "by": "Eduard Ralph",
+  "date": "2026-06-20",
+  "id_pending": false
+}
