@@ -1,0 +1,24 @@
+dashboard: fix gramplet placement at high column counts
+
+With the Dashboard "Number of Columns" set to a high value (e.g. 20),
+adding a gramplet via right-click placed it in an off-screen column
+with blank space between gramplets. The root cause: GrampletPane.drop_widget
+computed the destination column by dividing the viewport width evenly,
+but the click position x was in content coordinates (which span all
+columns together and are wider than the viewport when scrolled). This
+scaled x up and picked a far-right column scrolled off screen.
+
+Fix: map the drop x against each column's own allocation bounds
+(content coordinates, the same space as x) instead of dividing the
+viewport width. New gi-free helper column_index_for_x in
+gramps/gui/grampletlayout.py routes through the real per-column layout.
+When content fits the viewport (no scroll), the per-column allocations
+equal viewport/N, so behaviour is unchanged for the common case; only
+the broken scrolled case diverges.
+
+Test: headless unit test gramps/gui/test/grampletlayout_test.py
+(no display needed) reproduces the 13865 geometry and asserts that
+the gramplet lands in a valid, on-screen column for any configured
+column count (1..30) and any drop position.
+
+Fixes #13865
