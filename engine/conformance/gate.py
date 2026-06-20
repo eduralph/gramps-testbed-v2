@@ -175,8 +175,8 @@ def _na(tier: str, msg: str) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    if len(argv) != 1 or argv[0] not in ("T1", "T2", "T4"):
-        print("usage: gate.py {T1|T2|T4}  (reads $PDCA_BUNDLE)", file=sys.stderr)
+    if len(argv) != 1 or argv[0] not in ("T1", "T2", "T2-potfiles", "T4"):
+        print("usage: gate.py {T1|T2|T2-potfiles|T4}  (reads $PDCA_BUNDLE)", file=sys.stderr)
         return 2
     tier = argv[0]
     bundle = _bundle()
@@ -195,24 +195,35 @@ def main(argv: list[str] | None = None) -> int:
 
     if tier == "T2":
         # T2 audits the .py files the patch *touches* (added or modified), not the
-        # whole addon dir — pre-existing untouched files are out of scope.
+        # whole addon dir — pre-existing untouched files are out of scope. Shape only;
+        # the POTFILES MUST is the separate gating `T2-potfiles` tier below (issue #67
+        # added the check, the gating promotion split it out).
         files = (_touched_addon_files(patch, addons_root)
                  + _touched_core_files(patch, addons_root, core_root))
-        shape_rc = t2_shape.main([str(f) for f in files]) if files else 0
-        # POTFILES registration (§Adding and removing Python files) — a CORE MUST;
-        # read from the patch since a file the patch *adds* isn't on disk yet, so a
-        # new-.py-only patch leaves `files` empty but still needs this check.
-        pot_violations: list[str] = []
-        if target == "core" and patch.is_file():
-            pot_violations = t2_potfiles.check_patch(
-                patch.read_text(encoding="utf-8", errors="replace"),
-                already_listed=t2_potfiles.listed_on_disk(str(core_root)),
-            )
-            for v in pot_violations:
-                print(f"T2 ✗ {v}")
-        if not files and not pot_violations:
+        if not files:
             return _na("T2", "no checkable .py path in patch.diff")
-        return 1 if (shape_rc or pot_violations) else 0
+        return t2_shape.main([str(f) for f in files])
+
+    if tier == "T2-potfiles":
+        # POTFILES registration (doc 16 §Adding and removing Python files) — a CORE
+        # MUST, run GATING (pdca.toml). Read from the patch: a file the patch *adds*
+        # isn't on disk yet, so a new-.py-only patch (empty `files` for T2) still needs
+        # this. Contribution-scoped (only the patch's added/removed .py), so it never
+        # gates on legacy unregistered files — which is why it is safe to gate.
+        if target != "core":
+            return _na("T2-potfiles", "addon/non-core bundle — POTFILES is core-only")
+        if not patch.is_file():
+            return _na("T2-potfiles", "no patch.diff")
+        violations = t2_potfiles.check_patch(
+            patch.read_text(encoding="utf-8", errors="replace"),
+            already_listed=t2_potfiles.listed_on_disk(str(core_root)),
+        )
+        for v in violations:
+            print(f"T2 ✗ {v}")
+        if not violations:
+            print("T2 ✓ potfiles: new/removed core .py registered "
+                  "(doc 16 §Adding and removing Python files)")
+        return 1 if violations else 0
 
     # T4 — the contribution wrapper, judged against the target's guideline.
     args: list[str] = []

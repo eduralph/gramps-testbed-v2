@@ -250,9 +250,10 @@ rules back to it (`<doc>:<line>`). A gate you can trace to a written source is
 auditable; one you can't is folklore.
 
 Gating policy (see `engine/README.md`): ship every tier **advisory**
-(`gating = false`) except the per-fix C4 (red→green). Runtime / conformance /
-interface tiers audit code the current fix didn't introduce, so promote a tier to
-gating only once its targeted artifacts are clean; gate interface/E2E on a smoke
+(`gating = false`) except the per-fix C4 (red→green) and the **T2-potfiles** POTFILES
+MUST (contribution-scoped, so it has no legacy false-positives — see below). Runtime /
+conformance / interface tiers audit code the current fix didn't introduce, so promote a
+tier to gating only once its targeted artifacts are clean; gate interface/E2E on a smoke
 test, not the full suite.
 
 **The T1–T4 ladder is founded on wiki doc 16**, written in RFC-2119
@@ -273,17 +274,24 @@ line number**, so an edit to a vendored page doesn't invalidate the anchor; the
 | Tier | Written ruleset | Home | Single-sourced command | Status |
 |---|---|---|---|---|
 | T1 structure | `doc16-addon §Structure` (folder==id, `gramps_target_version`, `fname`, no `__init__.py`, no injected imports) — addon-packaging, so addon-only | `engine/conformance/t1_structure.py` | `python3 ./engine/conformance/gate.py T1` (audits the addon the patch touches) | [built — advisory `T1-structure`, bundle-scoped] |
-| T2 shape | `AGENTS.md §File Headers` (GPL header MUST; empty `__init__.py` marker exempt) + `§Logging` (no diagnostic `print()`) — applies to **core and addon** `.py`; **+ `doc16-core §Adding and removing Python files`** (a new core `.py` MUST be listed in `po/POTFILES.in`/`POTFILES.skip`, and a deleted one removed from both — core-only, read from the patch) ; `black` is a separate formatter gate | `engine/conformance/t2_shape.py` + `t2_potfiles.py` | `python3 ./engine/conformance/gate.py T2` | [built — advisory `T2-shape`, bundle-scoped; checks touched addon dirs AND core files; the POTFILES-registration MUST (issue #67) runs on the patch for a core bundle; type-hint/docstring/`cb_` SHOULDs left to reviewer judgment] |
+| T2 shape | `AGENTS.md §File Headers` (GPL header MUST; empty `__init__.py` marker exempt) + `§Logging` (no diagnostic `print()`) — applies to **core and addon** `.py`; `black` is a separate formatter gate | `engine/conformance/t2_shape.py` | `python3 ./engine/conformance/gate.py T2` | [built — advisory `T2-shape`, bundle-scoped; checks touched addon dirs AND core files; type-hint/docstring/`cb_` SHOULDs left to reviewer judgment] |
+| T2 potfiles | `doc16-core §Adding and removing Python files` — a new core `.py` MUST be listed in `po/POTFILES.in`/`POTFILES.skip`, and a deleted one removed from both (core-only, read from the patch) | `engine/conformance/t2_potfiles.py` (via `gate.py T2-potfiles`) | `python3 ./engine/conformance/gate.py T2-potfiles` | [built — **GATING** `T2-potfiles`, bundle-scoped, `target=core`; contribution-scoped (the patch's added/removed `.py` only) so no legacy false-positives. Issue #67 added the checker; the gating promotion split it out of `T2-shape`] |
 | T3 runtime | doc 16 §Runtime / §Testing; gramps test suite (stdlib `unittest`), baseline-diffed against `engine/baselines/*.json` | local Docker mirror + upstream CI | `t3_baseline.py ./engine/scripts/ubuntu/run-unit.sh` (likewise run-interface); addon gates are a **version matrix** — `T3-addon-unit-6{0,1}` run `CORE_VERSION=6.x run-addon-unit.sh` in the pinned `make worktrees` checkouts | [built — advisory `T3-unit` / `T3-interface` + the `T3-addon-unit-6{0,1}` matrix (each addons-source branch × its matching core; issue #10); all wrapped by `t3_baseline.py` so only a delta from the recorded baseline raises §6 (issue #7)] |
 | T4 contribution | `{core,addon} §Commit messages` + `§Mantis trailer keywords`; the four-section PR body (Root cause / Fix / Verified against / Test) is `doc16-core §Contributor workflow` — **core-only** | `engine/conformance/t4_contribution.py` | `python3 ./engine/conformance/gate.py T4` (validates the bundle's `commit-msg.txt` / `pr-description.md` against the patch's target) | [built — advisory `T4-contribution`, bundle-scoped] |
 | T5 judgment | reviewer contract below | Check reviewer + sign-off | (model) | [planned] |
 
-- **Why advisory (gating = false):** T1/T2/T4 audit the *touched* contribution and
+- **Why advisory (gating = false):** T1/T2-shape/T4 audit the *touched* contribution and
   surface doc-16 violations as evidence for the reviewer + human, but do not gate
   on legacy addon state the contribution did not introduce (many shipped addons
-  predate parts of doc 16). A core-only patch is **N/A** for T1/T2; a bundle with
+  predate parts of doc 16). A core-only patch is **N/A** for T1/T2-shape; a bundle with
   no commit/PR wrapper is N/A for T4. Promote a tier to gating once the targeted
   addons are conformance-clean. The per-fix correctness gate stays **C4-verify**.
+- **The exception — `T2-potfiles` is GATING.** The §Adding and removing Python files MUST
+  is **contribution-scoped**: it inspects only the `.py` the *patch* adds/removes, never the
+  legacy tree, so it can't false-fail on pre-existing unregistered files — the reason the
+  others stay advisory doesn't apply. So the core MUST blocks (a maintainer caught this
+  omission at review; Act 2026-06-12). Skipped (`target=core`) for addon-only bundles; a core
+  patch that adds/removes no `.py` is N/A.
 
 - **Reviewer family (cross-vendor, ≠ builder):** codex — config `AGENTS.md`
   (decorrelated path); `.claude/agents/reviewer.md` is a same-vendor fallback with
