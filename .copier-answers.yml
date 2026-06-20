@@ -6,6 +6,7 @@ author_email: eduard@ralphovi.net
 author_name: Eduard Ralph
 builder_family: claude
 bundle_root: results
+cli_name: gramps-pdca
 default_branch: main
 issue_id_example: '13418'
 leaves_mode: stub
