@@ -1,0 +1,194 @@
+--- /dev/null
++++ b/gramps/gui/grampletconfig.py
+@@ -0,0 +1,52 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  The Gramps project
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Validation helpers for the gramplet view layout.
++
++This module deliberately imports nothing from :mod:`gi` or :mod:`gramps.gui`
++so the column-count bound can be unit tested without a display.
++"""
++
++# Upper bound on the number of gramplet columns the Dashboard will build.
++#
++# The configured column count drives GTK widget allocation directly:
++# ``GrampletPane`` builds one container box per column and lays the gramplets
++# out across them. A user-supplied count is otherwise unbounded, so a large
++# value (the reporter used 1000) makes Gramps allocate an enormous layout,
++# freeze ("Not responding"), and then get killed -- which leaves the family
++# tree locked because the database lock is never released. The ceiling is a
++# safety limit, far above any practical Dashboard layout.
++MAX_GRAMPLET_COLUMNS = 100
++
++
++def clamp_column_count(num):
++    """
++    Constrain a requested gramplet column count to a survivable range.
++
++    The value may come from a user keystroke in the configuration dialog, from
++    a saved ``.ini`` file (where it is stored as a string), or from a default,
++    so it is coerced to ``int`` and bounded to ``[1, MAX_GRAMPLET_COLUMNS]``
++    before it is ever used to allocate column widgets.
++
++    :param num: requested column count (``int`` or numeric ``str``)
++    :returns: a column count in ``[1, MAX_GRAMPLET_COLUMNS]``
++    :rtype: int
++    """
++    return min(max(int(num), 1), MAX_GRAMPLET_COLUMNS)
+--- /dev/null
++++ b/gramps/gui/test/grampletconfig_test.py
+@@ -0,0 +1,70 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  The Gramps project
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Unit tests for the gramplet column-count bound (Mantis 13864).
++
++The Dashboard "Number of Columns" control accepts any positive integer, and
++that value drives GTK widget allocation in ``GrampletPane``. An unbounded value
++freezes Gramps and then crashes it, leaving the family tree locked. These tests
++exercise the validation helper the production paths route through
++(``GrampletPane.__init__``, ``load_gramplets`` and ``set_columns`` all call
++``clamp_column_count``) -- without importing any GUI/``gi`` module, so they run
++under the headless test runner.
++"""
++
++import unittest
++
++from gramps.gui.grampletconfig import MAX_GRAMPLET_COLUMNS, clamp_column_count
++
++
++class ClampColumnCountTest(unittest.TestCase):
++    """Any accepted column value must yield a bounded, survivable count."""
++
++    def test_reasonable_values_pass_through(self):
++        for value in (1, 2, 3, MAX_GRAMPLET_COLUMNS):
++            self.assertEqual(clamp_column_count(value), value)
++
++    def test_zero_and_negative_raise_to_one(self):
++        for value in (0, -1, -1000):
++            self.assertEqual(clamp_column_count(value), 1)
++
++    def test_large_values_are_capped(self):
++        # The reporter's 1000 and any pathological value must be bounded so the
++        # layout never grows unboundedly.
++        for value in (1000, 200000, 10**9):
++            self.assertEqual(clamp_column_count(value), MAX_GRAMPLET_COLUMNS)
++
++    def test_string_values_from_ini_are_accepted(self):
++        # load_gramplets() reads the saved value as a string.
++        self.assertEqual(clamp_column_count("2"), 2)
++        self.assertEqual(clamp_column_count("1000"), MAX_GRAMPLET_COLUMNS)
++
++    def test_clamped_count_bounds_widget_allocation(self):
++        # GrampletPane allocates one column box per ``range(column_count)``; the
++        # clamp must keep that allocation bounded for ANY accepted value, which
++        # is what keeps the process from freezing/crashing.
++        for value in (1000, 200000, 10**9):
++            allocated = len(range(clamp_column_count(value)))
++            self.assertLessEqual(allocated, MAX_GRAMPLET_COLUMNS)
++            self.assertGreaterEqual(allocated, 1)
++
++
++if __name__ == "__main__":
++    unittest.main()
+--- a/gramps/gui/widgets/grampletpane.py
++++ b/gramps/gui/widgets/grampletpane.py
+@@ -57,6 +57,7 @@
+ from ..display import display_help, display_url
+ from ..glade import Glade
+ from ..pluginmanager import GuiPluginManager
++from ..grampletconfig import MAX_GRAMPLET_COLUMNS, clamp_column_count
+ from .undoablebuffer import UndoableBuffer
+ from gramps.gen.const import GRAMPS_LOCALE as glocale
+ 
+@@ -1017,7 +1018,7 @@
+         Gtk.ScrolledWindow.__init__(self)
+         self.configfile = os.path.join(VERSION_DIR, "%s.ini" % configfile)
+         # default for new user; may be overridden in config:
+-        self.column_count = kwargs.get("column_count", 2)
++        self.column_count = clamp_column_count(kwargs.get("column_count", 2))
+         # width of window, if sidebar; may be overridden in config:
+         self.pane_position = kwargs.get("pane_position", -1)
+         self.pane_orientation = kwargs.get("pane_orientation", "horizontal")
+@@ -1197,7 +1198,9 @@
+             for sec in cp.sections():
+                 if sec == "Gramplet View Options":
+                     if "column_count" in cp.options(sec):
+-                        self.column_count = int(cp.get(sec, "column_count"))
++                        self.column_count = clamp_column_count(
++                            cp.get(sec, "column_count")
++                        )
+                     if "pane_position" in cp.options(sec):
+                         self.pane_position = int(cp.get(sec, "pane_position"))
+                     if "pane_orientation" in cp.options(sec):
+@@ -1384,8 +1387,7 @@
+         return True
+ 
+     def set_columns(self, num):
+-        if num < 1:
+-            num = 1
++        num = clamp_column_count(num)
+         # clear the gramplets:
+         self.clear_gramplets()
+         # clear the columns:
+@@ -1639,6 +1641,7 @@
+             "Gramplet View Options.column_count",
+             self._config.set,
+             config=self._config,
++            helptext=_("Enter a number from 1 to %d.") % MAX_GRAMPLET_COLUMNS,
+         )
+         return _("Gramplet Layout"), grid
+ 
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -342,6 +342,7 @@
+ gramps/gui/ddtargets.py
+ gramps/gui/display.py
+ gramps/gui/glade.py
++gramps/gui/grampletconfig.py
+ gramps/gui/listmodel.py
+ gramps/gui/managedwindow.py
+ gramps/gui/navigator.py
+@@ -461,6 +462,7 @@
+ # gui.test package
+ #
+ gramps/gui/test/display_test.py
++gramps/gui/test/grampletconfig_test.py
+ gramps/gui/test/user_test.py
+ #
+ # gui/views - the GUI views package
