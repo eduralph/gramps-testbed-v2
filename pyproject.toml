@@ -15,7 +15,7 @@ classifiers = [
 dependencies = []
 
 [project.scripts]
-pdca = "pdca_harness.cli:main"
+pdca-gramps = "pdca_harness.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

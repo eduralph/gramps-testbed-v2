@@ -33,7 +33,7 @@
 #   make check      fast: driver + engine guards only, offline, no Docker (~1s).
 #   make setup      one-time: grant Claude read of the workspace + sibling repos
 #                   so the interactive leaves don't prompt per file/dir.
-#   make install    create .venv with a real `pdca` console script (optional —
+#   make install    create .venv with a real `pdca-gramps` console script (optional —
 #                   the targets above already work without it).
 
 PYTHON ?= python3
@@ -234,10 +234,10 @@ preflight:
 	@echo "preflight ready."
 
 # --- optional real install (venv console script) ---------------------------
-install: .venv/bin/pdca
-	@printf '\nInstalled. Use `.venv/bin/pdca …` directly, or keep using `make flow …`.\n'
+install: .venv/bin/pdca-gramps
+	@printf '\nInstalled. Use `.venv/bin/pdca-gramps …` directly, or keep using `make flow …`.\n'
 
-.venv/bin/pdca: pyproject.toml
+.venv/bin/pdca-gramps: pyproject.toml
 	$(PYTHON) -m venv .venv
 	.venv/bin/pip install -q -e .
 
