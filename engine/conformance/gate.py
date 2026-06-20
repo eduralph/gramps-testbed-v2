@@ -43,7 +43,7 @@ status is 1 only on a real MUST violation; both "clean" and "N/A" exit 0.
 
 Usage::
 
-    PDCA_BUNDLE=results/issue_13636 gate.py T1
+    PDCA_BUNDLE=results/completed/issue_13636 gate.py T1
 """
 
 from __future__ import annotations
