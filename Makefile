@@ -41,7 +41,7 @@ export PYTHONPATH := src
 PDCA := $(PYTHON) -m pdca_harness.cli
 
 .DEFAULT_GOAL := test
-.PHONY: test check flow rehearse status revalidate cli install setup worktrees essential-worktrees fork-worktrees preflight batch publish
+.PHONY: test check flow rehearse status revalidate cli install setup worktrees essential-worktrees fork-worktrees preflight batch publish gramps-requirements
 
 # --- the cycle -------------------------------------------------------------
 # Live, continuous, Claude-driven. Give ID for one issue, or just CSV for a batch
@@ -206,7 +206,13 @@ fork-worktrees:
 # (#89) stays valid. Idempotent; NEVER run mid-batch (realigning between bundles would
 # verify later bundles against a different base). LANES=N for the worker pool;
 # NO_CAPTURE=1 does the realign/image legs only (skips the slow suite captures).
-preflight:
+# Regenerate the baked Docker deps layer from gramps' own pyproject.toml (issue #132).
+# Single-sourced — run after a gramps dep bump; the drift test fails until you do.
+# Then rebuild the image (make preflight / clean-build.sh) to pick up the new layer.
+gramps-requirements:
+	@$(PYTHON) engine/scripts/lib/gramps_python_deps.py -o engine/docker/gramps-requirements.txt
+
+preflight: gramps-requirements
 	@$(MAKE) --no-print-directory worktrees
 	@$(MAKE) --no-print-directory essential-worktrees REBUILD=1
 	@$(MAKE) --no-print-directory fork-worktrees
