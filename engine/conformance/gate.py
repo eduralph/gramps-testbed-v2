@@ -110,13 +110,23 @@ def _patch_bpaths(patch: Path) -> list[str]:
     return list(seen)
 
 
+def _is_addon_dir(cand: Path) -> bool:
+    """True iff ``cand`` is an addon directory — a directory holding at least one
+    ``*.gpr.py`` (the addon registration). A bare directory is NOT enough: ``po/``
+    (addons-source translations) and ``tests/`` (shared infra from the #820 series)
+    exist under addons-source but carry no ``.gpr.py``, so a core patch that touches
+    ``po/POTFILES.skip`` or that infra must not be misread as an addon contribution
+    and run T1/T2 against a dir with no addon to check (issue #158)."""
+    return cand.is_dir() and any(cand.glob("*.gpr.py"))
+
+
 def _touched_addons(patch: Path, addons_root: Path) -> list[Path]:
     """Addon directories under ``addons_root`` referenced by the patch's b-paths."""
     found: dict[str, Path] = {}
     for p in _patch_bpaths(patch):
         first = p.split("/", 1)[0]  # leading path segment = addon dir
         cand = addons_root / first
-        if first and first not in found and cand.is_dir():
+        if first and first not in found and _is_addon_dir(cand):
             found[first] = cand
     return list(found.values())
 
@@ -129,7 +139,7 @@ def _touched_core_files(patch: Path, addons_root: Path, core_root: Path) -> list
     audits the touched code present in the checkout, like the addon-dir scan."""
     found: dict[str, Path] = {}
     for p in _patch_bpaths(patch):
-        if not p.endswith(".py") or (addons_root / p.split("/", 1)[0]).is_dir():
+        if not p.endswith(".py") or _is_addon_dir(addons_root / p.split("/", 1)[0]):
             continue
         f = core_root / p
         if f.is_file() and str(f) not in found:
@@ -150,7 +160,7 @@ def _touched_addon_files(patch: Path, addons_root: Path) -> list[Path]:
     like the core scan."""
     found: dict[str, Path] = {}
     for p in _patch_bpaths(patch):
-        if not p.endswith(".py") or not (addons_root / p.split("/", 1)[0]).is_dir():
+        if not p.endswith(".py") or not _is_addon_dir(addons_root / p.split("/", 1)[0]):
             continue
         f = addons_root / p
         if f.is_file() and str(f) not in found:
