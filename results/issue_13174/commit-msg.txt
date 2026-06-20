@@ -1,0 +1,17 @@
+gui(addon): guard refresh delivery from closed window crash
+
+When the Addon Manager fetches a missing or 404 listing, that fetch is both slow
+and failing: each language's listing is tried and times out in turn. If the user
+closes the window while the refresh is still in flight, the result that arrives
+later must be dropped—delivering it would call back into the destroyed window
+and leave a dangling pointer in the Gtk draw cycle, crashing Gramps.
+
+Extract AddonRefreshDispatch, a plain-Python liveness gate that decides whether
+a fetched result may still be applied. Wire it into the refresh and close paths
+so a result that arrives after teardown is dropped cleanly. A subsequent valid
+refresh creates a new live dispatch and populates normally. The gate holds no
+GUI references, so it is unit-tested headless (red→green regression test in
+gramps/gen/plug/test/utils_test.py), while the real Addon Manager routes its
+refresh delivery through it.
+
+Fixes #13174
