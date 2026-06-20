@@ -1,0 +1,274 @@
+diff --git a/gramps/plugins/lib/libsourceview.py b/gramps/plugins/lib/libsourceview.py
+index 821935450f..18a22f57ab 100644
+--- a/gramps/plugins/lib/libsourceview.py
++++ b/gramps/plugins/lib/libsourceview.py
+@@ -98,5 +98,5 @@ class LibSourceView:
+             ref_obj = self.dbstate.db.method("get_%s_from_handle", ref_type)(ref_hndl)
+             ref_obj.remove_handle_references(obj_type, [handle])
+             self.dbstate.db.method("commit_%s", ref_type)(ref_obj, trans)
+-        # and delete the source
+-        self.dbstate.db.remove_source(handle, trans)
++        # and delete the object itself (a Source or a Citation)
++        self.dbstate.db.method("remove_%s", obj_type)(handle, trans)
+diff --git a/gramps/plugins/view/test/__init__.py b/gramps/plugins/view/test/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/gramps/plugins/view/test/citationtreeview_test.py b/gramps/plugins/view/test/citationtreeview_test.py
+new file mode 100644
+index 0000000000..34df97749c
+--- /dev/null
++++ b/gramps/plugins/view/test/citationtreeview_test.py
+@@ -0,0 +1,109 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026       Gramps developers
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Headless regression test for Mantis 13876.
++
++In the Sources category's *Citation Tree* view mode, deleting a selected
++Citation row did nothing -- the citation stayed in the database.  The cause
++was in ``LibSourceView.remove_object_from_handle`` (the delete handler shared
++by SourceView and CitationTreeView): after cleaning up back-references it
++unconditionally called ``remove_source`` on the selected handle, so when the
++handle belonged to a Citation the object was never removed.
++
++This exercises the production delete handler directly (no Gtk/GUI import,
++so it runs under the headless unit runner) and asserts that deleting a
++citation handle actually removes the citation -- the same effect the flat
++Citation list view's delete produces.
++"""
++
++# -------------------------------------------------------------------------
++#
++# Standard python modules
++#
++# -------------------------------------------------------------------------
++import unittest
++
++# -------------------------------------------------------------------------
++#
++# Gramps modules
++#
++# -------------------------------------------------------------------------
++from gramps.gen.db import DbTxn
++from gramps.gen.db.utils import make_database
++from gramps.gen.lib import Source, Citation
++
++# The module under test imports only gramps.gen.errors -- no gi / gramps.gui --
++# so it is safe to import in the headless runner.
++from gramps.plugins.lib.libsourceview import LibSourceView
++
++
++class _Dbstate:
++    """Minimal stand-in for the DbState the view normally holds."""
++
++    def __init__(self, db):
++        self.db = db
++
++
++class CitationTreeDeleteTest(unittest.TestCase):
++    """
++    Deleting a selected Citation row in the Citation Tree view must remove
++    that citation from the database.
++    """
++
++    def setUp(self):
++        self.db = make_database("sqlite")
++        self.db.load(":memory:")
++        with DbTxn("Add source and citation", self.db) as trans:
++            source = Source()
++            self.source_handle = self.db.add_source(source, trans)
++            citation = Citation()
++            citation.set_reference_handle(self.source_handle)
++            self.citation_handle = self.db.add_citation(citation, trans)
++
++    def tearDown(self):
++        self.db.close()
++
++    def _make_view(self):
++        # LibSourceView is a plain mixin with no __init__; build the handler
++        # and give it the db state the production code reads.
++        view = LibSourceView()
++        view.dbstate = _Dbstate(self.db)
++        return view
++
++    def test_citation_row_delete_removes_citation(self):
++        """A selected citation handle is actually deleted from the DB."""
++        view = self._make_view()
++        self.assertTrue(self.db.has_citation_handle(self.citation_handle))
++
++        with DbTxn("Delete citation", self.db) as trans:
++            view.remove_object_from_handle(
++                "Citation", self.citation_handle, trans, in_use_prompt=False
++            )
++
++        self.assertFalse(
++            self.db.has_citation_handle(self.citation_handle),
++            "Citation Tree view delete must remove the selected citation",
++        )
++        # The parent source is out of scope and must remain untouched.
++        self.assertTrue(self.db.has_source_handle(self.source_handle))
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index d4a15ea5b4..ee8d3cec12 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -75,11 +75,6 @@ gramps/gen/datehandler/test/datehandler_test.py
+ gramps/gen/datehandler/test/dateparser_test.py
+ gramps/gen/datehandler/test/datestrings_test.py
+ #
+-# gen.fs.fs_import.test package
+-#
+-gramps/gen/fs/fs_import/test/__init__.py
+-gramps/gen/fs/fs_import/test/source_dates_test.py
+-#
+ # gen db API
+ #
+ gramps/gen/db/__init__.py
+@@ -236,11 +231,6 @@ gramps/gen/plug/docgen/stylesheet.py
+ gramps/gen/plug/docgen/tablestyle.py
+ gramps/gen/plug/docgen/textdoc.py
+ #
+-# gen.plug.docgen.test
+-#
+-gramps/gen/plug/docgen/test/__init__.py
+-gramps/gen/plug/docgen/test/graphdoc_test.py
+-#
+ # gen.plug.menu
+ #
+ gramps/gen/plug/menu/__init__.py
+@@ -330,9 +320,7 @@ gramps/gen/utils/test/callback_test.py
+ gramps/gen/utils/test/file_test.py
+ gramps/gen/utils/test/grampslocale_test.py
+ gramps/gen/utils/test/keyword_test.py
+-gramps/gen/utils/test/maclocale_test.py
+ gramps/gen/utils/test/place_test.py
+-gramps/gen/utils/test/requirements_test.py
+ #
+ # gui - GUI code
+ #
+@@ -386,11 +374,6 @@ gramps/gui/editors/displaytabs/srcattrmodel.py
+ gramps/gui/editors/displaytabs/surnamemodel.py
+ gramps/gui/editors/displaytabs/webmodel.py
+ #
+-# gui/editors/displaytabs/test
+-#
+-gramps/gui/editors/displaytabs/test/__init__.py
+-gramps/gui/editors/displaytabs/test/gallerytab_test.py
+-#
+ # gui.editors.test package
+ #
+ gramps/gui/editors/test/editreference_test.py
+@@ -446,11 +429,6 @@ gramps/gui/plug/report/_drawreportdialog.py
+ gramps/gui/plug/report/_textreportdialog.py
+ gramps/gui/plug/report/_webreportdialog.py
+ #
+-# gui.plug.test package
+-#
+-gramps/gui/plug/test/__init__.py
+-gramps/gui/plug/test/windows_test.py
+-#
+ # gui/selectors - the GUI selectors package
+ #
+ gramps/gui/selectors/__init__.py
+@@ -482,7 +460,6 @@ gramps/gui/views/treemodels/sourcemodel.py
+ # gui.views.treemodels.test package
+ #
+ gramps/gui/views/treemodels/test/node_test.py
+-gramps/gui/views/treemodels/test/treebasemodel_test.py
+ #
+ # gui/widgets - the GUI widgets package
+ #
+@@ -507,12 +484,8 @@ gramps/gui/widgets/undoablebuffer.py
+ gramps/gui/widgets/undoableentry.py
+ gramps/gui/widgets/undoablestyledbuffer.py
+ gramps/gui/widgets/validatedcomboentry.py
+-#
+-# gramps/gui/widgets/test directory
+-#
+ gramps/gui/widgets/test/__init__.py
+-gramps/gui/widgets/test/fanchart_test.py
+-gramps/gui/widgets/test/selectionwidget_test.py
++gramps/gui/widgets/test/undoablestyledbuffer_test.py
+ #
+ # plugins
+ #
+@@ -550,11 +523,6 @@ gramps/plugins/db/dbapi/test/db_test.py
+ #
+ gramps/plugins/docgen/__init__.py
+ #
+-# plugins/docgen/test directory
+-#
+-gramps/plugins/docgen/test/__init__.py
+-gramps/plugins/docgen/test/latexdoc_test.py
+-#
+ # plugins/drawreport directory
+ #
+ gramps/plugins/drawreport/__init__.py
+@@ -575,27 +543,16 @@ gramps/plugins/gramplet/gallery.py
+ gramps/plugins/gramplet/mediapreview.py
+ gramps/plugins/gramplet/metadataviewer.py
+ #
+-# plugins/gramplet/test directory
+-#
+-gramps/plugins/gramplet/test/__init__.py
+-gramps/plugins/gramplet/test/topsurnamesgramplet_test.py
+-#
+ # plugins/graph directory
+ #
+ gramps/plugins/graph/__init__.py
+ #
+-# plugins/graph/test directory
+-#
+-gramps/plugins/graph/test/__init__.py
+-gramps/plugins/graph/test/year_only_date_test.py
+-#
+ # plugins/importer directory
+ #
+ gramps/plugins/importer/__init__.py
+ #
+ # plugins/importer/test directory
+ #
+-gramps/plugins/importer/test/importgedcom_ambiguous_date_test.py
+ gramps/plugins/importer/test/importgeneweb_test.py
+ gramps/plugins/importer/test/importvcard_test.py
+ #
+@@ -634,7 +591,6 @@ gramps/plugins/mapservices/openstreetmap.py
+ # plugins/quickview directory
+ #
+ gramps/plugins/quickview/__init__.py
+-gramps/plugins/quickview/test/all_relations_test.py
+ #
+ # plugins/rel directory
+ #
+@@ -691,6 +647,11 @@ gramps/plugins/tool/__init__.py
+ #
+ gramps/plugins/view/__init__.py
+ #
++# plugins/view/test directory
++#
++gramps/plugins/view/test/__init__.py
++gramps/plugins/view/test/citationtreeview_test.py
++#
+ # plugins/webreport directory
+ #
+ gramps/plugins/webreport/__init__.py
