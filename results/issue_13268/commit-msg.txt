@@ -1,0 +1,21 @@
+gui(notes): preserve scroll position when undoing edits
+
+In the Notes editor, pressing Undo previously caused the view to jump
+to the top of the note, forcing the user to scroll back to their work.
+This happened because the undo handlers called set_text(), which rebuilds
+the entire buffer — collapsing every Gtk.TextMark (including the marks
+that track the viewport) to offset 0.
+
+The fix extracts the tag-application logic from set_text() into a new
+apply_styled_tags() method that reapplies styling to the existing buffer
+without rebuilding it. The five undo/redo handlers now call
+apply_styled_tags() instead of set_text(): _undo_insert, _undo_delete,
+_redo_insert, _handle_undo, and _handle_redo. This preserves all TextMarks
+(and thus the viewport position and cursor) while correctly restoring the
+text styling.
+
+A regression test in gramps/gui/widgets/test/undoablestyledbuffer_test.py
+verifies that an independent TextMark placed deep in a long note survives
+an undo operation (red before fix, green after).
+
+Fixes #13268
