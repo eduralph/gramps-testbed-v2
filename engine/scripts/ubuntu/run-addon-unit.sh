@@ -131,18 +131,14 @@ trap 'docker rm -f "$CNAME" >/dev/null 2>&1 || true' EXIT
 rc=0
 # Persistent pip cache (issue #68): reuse wheels for the per-run gramps install across
 # gate runs instead of re-resolving every container start. Override with $GRAMPS_TESTBED_PIPCACHE.
-timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
-  -v "${GRAMPS_TESTBED_PIPCACHE:-gramps-testbed-pipcache}":/home/runner/.cache/pip \
-  -v "$GRAMPS_DIR":/workspace/gramps \
-  -v "$ADDONS_DIR":/workspace/addons-source \
-  -v "$REPO_ROOT":/workspace/"$TESTBED_NAME" \
-  "${GIT_MOUNTS[@]}" \
-  -w /workspace \
-  -e "TARGET_ADDONS=$TARGET_ADDONS" \
-  -e "TESTBED_NAME=$TESTBED_NAME" \
-  -e "MODULE_TIMEOUT=$MODULE_TIMEOUT" \
-  "$IMAGE" \
-  bash -c '
+# The container body is built as a QUOTED HEREDOC (read -d '') and run via
+# `bash -c "$ADDON_UNIT_BODY"`, NOT inlined as `bash -c '<single-quoted body>'`.
+# A single-quoted inline body is closed by the FIRST literal apostrophe in it, so
+# a stray `'` (e.g. a single-quoted sed) truncates the script and bash exits before
+# any test runs — the testbed #127 / #159 fragility, previously avoided only by a
+# 'keep this body apostrophe-free' convention. The heredoc removes that constraint;
+# the body reaching the container bash is byte-identical to the old inline form.
+read -r -d '' ADDON_UNIT_BODY <<'ADDON_UNIT_EOF' || true
     set -e
     results_dir="/workspace/$TESTBED_NAME/test-results"
     install_logs="$results_dir/install-logs"
@@ -380,7 +376,20 @@ timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
       echo "→ pip install logs (${#pip_failures[@]} failure(s)): $TESTBED_NAME/test-results/install-logs/"
     fi
     exit $fail
-  ' || rc=$?
+ADDON_UNIT_EOF
+
+timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
+  -v "${GRAMPS_TESTBED_PIPCACHE:-gramps-testbed-pipcache}":/home/runner/.cache/pip \
+  -v "$GRAMPS_DIR":/workspace/gramps \
+  -v "$ADDONS_DIR":/workspace/addons-source \
+  -v "$REPO_ROOT":/workspace/"$TESTBED_NAME" \
+  "${GIT_MOUNTS[@]}" \
+  -w /workspace \
+  -e "TARGET_ADDONS=$TARGET_ADDONS" \
+  -e "TESTBED_NAME=$TESTBED_NAME" \
+  -e "MODULE_TIMEOUT=$MODULE_TIMEOUT" \
+  "$IMAGE" \
+  bash -c "$ADDON_UNIT_BODY" || rc=$?
 if [ "$rc" = 124 ] || [ "$rc" = 137 ]; then
   echo "$(basename "$0"): test run exceeded ${TIMEOUT}s — killed it (raise GRAMPS_TEST_TIMEOUT for longer runs)." >&2
   docker kill "$CNAME" >/dev/null 2>&1 || true
