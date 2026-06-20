@@ -1,0 +1,158 @@
+diff --git a/gramps/plugins/lib/libsourceview.py b/gramps/plugins/lib/libsourceview.py
+index 821935450f..18a22f57ab 100644
+--- a/gramps/plugins/lib/libsourceview.py
++++ b/gramps/plugins/lib/libsourceview.py
+@@ -98,5 +98,5 @@ class LibSourceView:
+             ref_obj = self.dbstate.db.method("get_%s_from_handle", ref_type)(ref_hndl)
+             ref_obj.remove_handle_references(obj_type, [handle])
+             self.dbstate.db.method("commit_%s", ref_type)(ref_obj, trans)
+-        # and delete the source
+-        self.dbstate.db.remove_source(handle, trans)
++        # and delete the object itself (a Source or a Citation)
++        self.dbstate.db.method("remove_%s", obj_type)(handle, trans)
+diff --git a/gramps/plugins/view/test/__init__.py b/gramps/plugins/view/test/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/gramps/plugins/view/test/citationtreeview_test.py b/gramps/plugins/view/test/citationtreeview_test.py
+new file mode 100644
+index 0000000000..29c6c4e796
+--- /dev/null
++++ b/gramps/plugins/view/test/citationtreeview_test.py
+@@ -0,0 +1,121 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026       Gramps developers
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Headless regression test for Mantis 13876.
++
++In the Sources category's *Citation Tree* view mode, deleting a selected
++Citation row did nothing -- the citation stayed in the database.  Only Source
++rows were removed.  The cause was in
++``LibSourceView.remove_object_from_handle`` (the delete handler shared by
++SourceView and CitationTreeView): after cleaning up back-references it
++unconditionally called ``remove_source`` on the selected handle.  When the
++handle belonged to a Citation, ``remove_source`` is a no-op (the handle is not
++in the source table), so the object was never removed.
++
++This drives the *production* delete handler directly --
++``LibSourceView.remove_object_from_handle`` -- which has no gi / gramps.gui
++import (it imports only ``gramps.gen.errors``), so it runs under the headless
++unit runner.  It asserts that deleting a citation handle in tree-view mode
++actually removes the citation -- the same effect the flat Citation list view's
++delete produces -- while leaving the parent source untouched.
++"""
++
++# -------------------------------------------------------------------------
++#
++# Standard python modules
++#
++# -------------------------------------------------------------------------
++import unittest
++
++# -------------------------------------------------------------------------
++#
++# Gramps modules
++#
++# -------------------------------------------------------------------------
++from gramps.gen.db import DbTxn
++from gramps.gen.db.utils import make_database
++from gramps.gen.lib import Source, Citation
++
++# The module under test imports only gramps.gen.errors -- no gi / gramps.gui --
++# so it is safe to import in the headless runner.  This is the exact class that
++# CitationTreeView and SourceView mix in to get their delete behaviour.
++from gramps.plugins.lib.libsourceview import LibSourceView
++
++
++class _Dbstate:
++    """Minimal stand-in for the DbState the view normally holds."""
++
++    def __init__(self, db):
++        self.db = db
++
++
++class _Handler(LibSourceView):
++    """
++    The production delete mixin, with the db state it reads injected.
++
++    ``LibSourceView`` defines no ``__init__`` and the ``Citation`` delete path
++    of ``remove_object_from_handle`` touches only ``self.dbstate.db``; it never
++    reaches ``self.uistate`` (that is the Source-only progressbar branch), so a
++    bare instance with ``dbstate`` set exercises the real code path.
++    """
++
++    def __init__(self, db):
++        self.dbstate = _Dbstate(db)
++
++
++class CitationTreeDeleteTest(unittest.TestCase):
++    """
++    Deleting a selected Citation row in the Citation Tree view must remove
++    that citation from the database.
++    """
++
++    def setUp(self):
++        self.db = make_database("sqlite")
++        self.db.load(":memory:")
++        with DbTxn("Add source and citation", self.db) as trans:
++            source = Source()
++            self.source_handle = self.db.add_source(source, trans)
++            citation = Citation()
++            citation.set_reference_handle(self.source_handle)
++            self.citation_handle = self.db.add_citation(citation, trans)
++
++    def tearDown(self):
++        self.db.close()
++
++    def test_citation_row_delete_removes_citation(self):
++        """A selected citation handle is actually deleted from the DB."""
++        handler = _Handler(self.db)
++        self.assertTrue(self.db.has_citation_handle(self.citation_handle))
++
++        with DbTxn("Delete citation", self.db) as trans:
++            handler.remove_object_from_handle(
++                "Citation", self.citation_handle, trans, in_use_prompt=False
++            )
++
++        self.assertFalse(
++            self.db.has_citation_handle(self.citation_handle),
++            "Citation Tree view delete must remove the selected citation",
++        )
++        # The parent source is out of scope and must remain untouched.
++        self.assertTrue(self.db.has_source_handle(self.source_handle))
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index b95b077991..566cbd035f 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -645,6 +645,11 @@ gramps/plugins/tool/__init__.py
+ #
+ gramps/plugins/view/__init__.py
+ #
++# plugins/view/test directory
++#
++gramps/plugins/view/test/__init__.py
++gramps/plugins/view/test/citationtreeview_test.py
++#
+ # plugins/webreport directory
+ #
+ gramps/plugins/webreport/__init__.py
