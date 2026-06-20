@@ -121,6 +121,18 @@ class Classify(unittest.TestCase):
         self.assertEqual(v["verdict"], "delta")
         self.assertEqual(v["exit_code"], 1)
 
+    def test_no_junit_nonzero_names_a_pre_test_crash_not_a_failure(self) -> None:
+        # rc != 0 with NO parsed JUnit and no signature is a PRE-TEST crash (install /
+        # bootstrap / collection), not a test failure — the verdict must say so and
+        # point at the raw runner output, not the old opaque "no matching signature"
+        # (issue #176).
+        v = t3_baseline.classify({}, 1, "pip: ResolutionImpossible", self.MANIFEST)
+        self.assertEqual((v["verdict"], v["exit_code"]), ("delta", 1))
+        self.assertIn("NO JUnit", v["summary"])
+        self.assertIn("pre-test crash", v["summary"])
+        self.assertIn("raw runner output", v["summary"])
+        self.assertNotIn("a new failure mode", v["summary"])
+
     def test_cleared_baseline_red_reported_when_green(self) -> None:
         v = t3_baseline.classify({}, 0, "Ran 5 tests OK", self.MANIFEST)
         self.assertEqual(v["cleared"], ["pkg.Mod::test_bad"])

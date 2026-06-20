@@ -240,6 +240,21 @@ vendored ruleset; each target carries its auditable origin per doc 16
   A T3 gate matching this signature is known-baseline noise, not a regression — the
   signal is a *new* failure. Re-promote a gate to `gating` (`pdca.toml:107-110`) once
   its underlying defect is fixed and that suite is green-baseline.
+- **A green-C4 / red-T3 split is EXPECTED, not a Do failure (issue #176).** C4-verify is
+  the per-fix, patch-applied, bundle-scoped proof; the T3 lanes are advisory whole-suite
+  baselines that run on the *unmodified* tree and are baseline-red as above. So a fix can be
+  C4-green while an advisory T3 lane is red — Do is **not** required to reconcile that before
+  handing to Check; the human weighs the T3 delta at sign-off. For the **reviewer**:
+  - Check the `run_level_signatures` + the baseline manifest before calling a T3 delta
+    "new" — a matching signature is recorded noise, not a regression.
+  - The addon runners DO bootstrap the GUI stack: `run-addon-unit.sh` runs under
+    `xvfb-run` with the `gi_bootstrap` sitecustomize on `PYTHONPATH` (it pins the GI
+    versions the gramps GUI launcher uses), so do **not** model it as lacking Xvfb / GI.
+  - A T3 delta that **reproduces on a clean tree with no patch applied** is pre-existing
+    environment noise → record a `run_level_signature` for it, don't attribute it to the fix.
+  - `t3_baseline.py` now names a non-zero exit with **no JUnit** as a *pre-test crash*
+    (install / GI bootstrap / collection) and points at the raw runner output it persists to
+    the bundle (`t3-<runner-stem>.log`) — not an opaque "no matching signature" verdict.
 
 ## 4. Conformance ruleset (answers the validation-tooling matrix for this repo)
 For each tier: the **written ruleset** it consumes, its **home**, and the

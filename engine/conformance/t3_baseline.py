@@ -155,10 +155,21 @@ def classify(observed: dict[str, str], rc: int, output: str, manifest: dict) -> 
         if cleared:
             summary += f"; {len(cleared)} recorded red(s) cleared"
     else:
-        # Non-zero exit, no parsed failures, no matching signature → unexplained new red.
+        # Non-zero exit, NO parsed JUnit (observed is empty here), no matching
+        # signature: the runner produced no test output at all, so this is a PRE-TEST
+        # crash (pip install / GI bootstrap / test collection), NOT a parsed test
+        # failure — name it as such and point at the raw runner output (write_runner_log
+        # persists it to the bundle on a delta) instead of the old opaque "no matching
+        # signature (a new failure mode)" that gave the reviewer nothing to act on
+        # (issue #176). If it reproduces on a clean tree with no patch applied, it is
+        # pre-existing environment noise → record a run_level_signature for it.
         verdict, code = "delta", 1
-        summary = (f"DELTA: runner exited {rc} with no parsed failures and no "
-                   f"matching baseline signature (a new failure mode)")
+        summary = (f"DELTA: runner exited {rc} producing NO JUnit XML — a pre-test "
+                   f"crash (install / GI bootstrap / test collection), not a parsed "
+                   f"test failure. Inspect the raw runner output (persisted to the "
+                   f"bundle as t3-<runner-stem>.log on a delta); if it reproduces on a "
+                   f"clean tree with no patch, it is environment noise → add a "
+                   f"run_level_signature.")
     return {"verdict": verdict, "exit_code": code, "summary": summary,
             "new": new, "cleared": cleared, "signature": sig}
 
