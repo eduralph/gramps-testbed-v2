@@ -1,0 +1,12 @@
+# GENERATED — do not edit by hand. Source: gramps pyproject.toml
+# ([project].dependencies + the [testing] extra), via
+# engine/scripts/lib/gramps_python_deps.py. Baked into the Docker image as a layer
+# so the per-run `pip install -e ./gramps[testing]` finds these satisfied and just
+# links gramps (issue #132). Regenerate: `make gramps-requirements`; a drift test
+# (engine/tests/test_gramps_python_deps.py) fails if this is stale vs ../gramps.
+certifi
+jsonschema
+lxml
+mock
+orjson
+requests

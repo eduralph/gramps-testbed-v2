@@ -83,6 +83,17 @@ RUN pip3 install --break-system-packages --no-cache-dir \
       dogtail \
       unittest-xml-reporting
 
+# Bake gramps' OWN Python deps as a layer (issue #132): its [project].dependencies +
+# the [testing] extra — exactly what the per-gate `pip install -e ./gramps[testing]`
+# resolves. With them pre-installed system-wide, that per-run editable install finds
+# them satisfied and just links gramps, eliding most of the residual install time #68's
+# pip-cache volume can't (the editable build + deps' install-copy). Single-sourced from
+# gramps' pyproject.toml via engine/scripts/lib/gramps_python_deps.py and committed (the
+# `engine/` build context excludes the sibling ../gramps, so the file must live here);
+# `make gramps-requirements` regenerates it and a drift test guards staleness vs ../gramps.
+COPY docker/gramps-requirements.txt /opt/testbed/gramps-requirements.txt
+RUN pip3 install --break-system-packages --no-cache-dir -r /opt/testbed/gramps-requirements.txt
+
 WORKDIR /workspace
 
 # Tests run as a non-root user so AT-SPI behaves normally.
