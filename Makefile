@@ -33,7 +33,7 @@
 #   make check      fast: driver + engine guards only, offline, no Docker (~1s).
 #   make setup      one-time: grant Claude read of the workspace + sibling repos
 #                   so the interactive leaves don't prompt per file/dir.
-#   make install    create .venv with a real `pdca-gramps` console script (optional —
+#   make install    create .venv with a real `gramps-pdca` console script (optional —
 #                   the targets above already work without it).
 
 PYTHON ?= python3
@@ -240,12 +240,15 @@ preflight: gramps-requirements
 	@echo "preflight ready."
 
 # --- optional real install (venv console script) ---------------------------
-install: .venv/bin/pdca-gramps
-	@printf '\nInstalled. Use `.venv/bin/pdca-gramps …` directly, or keep using `make flow …`.\n'
+# Name-agnostic: the console script is named per pyproject [project.scripts]
+# (the cli_name copier choice), so depend on a sentinel, not a fixed script path.
+install: .venv/.installed
+	@printf '\nInstalled. The console script (see pyproject [project.scripts]) is on .venv/bin/; or keep using `make flow …`.\n'
 
-.venv/bin/pdca-gramps: pyproject.toml
+.venv/.installed: pyproject.toml
 	$(PYTHON) -m venv .venv
 	.venv/bin/pip install -q -e .
+	@touch $@
 
 # --- self-test -------------------------------------------------------------
 # Depends on `check` so the cheap guards fail fast before the slow live cycle.
