@@ -196,32 +196,11 @@ class RunnerWiresPerModuleTimeout(unittest.TestCase):
         )
 
 
-class RunnerBashCBodyQuoting(unittest.TestCase):
-    """The per-addon loop runs inside a single-quoted `bash -c '…'` body; a bare
-    apostrophe anywhere in it closes that quote early and bash exits before any test
-    runs (testbed #127 — the module-timeout `sed '…'` did exactly that, dead T3-addon-unit
-    since 8b11013). Guard: the body carries no bare apostrophe and parses with `bash -n`."""
-
-    def _body(self) -> tuple[str, list[int]]:
-        """The `bash -c '…'` body (with `'\\''` un-escaped) + any bare-apostrophe line nos."""
-        lines = RUNNER.read_text(encoding="utf-8").splitlines()
-        start = next(i for i, l in enumerate(lines) if l.strip() == "bash -c '")
-        end = next(i for i in range(start + 1, len(lines)) if lines[i].lstrip().startswith("' ||"))
-        body_lines = lines[start + 1 : end]
-        # a bare ' is any apostrophe left after removing the legal '\'' escape sequence
-        bare = [start + 2 + j for j, l in enumerate(body_lines) if "'" in l.replace("'\\''", "")]
-        return "\n".join(body_lines).replace("'\\''", "'"), bare
-
-    def test_body_has_no_bare_apostrophe(self) -> None:
-        _, bare = self._body()
-        self.assertEqual(bare, [], f"bare apostrophe(s) in the bash -c body at line(s) {bare} "
-                                   "— they close the single-quoted body early (testbed #127)")
-
-    @unittest.skipUnless(shutil.which("bash"), "bash required")
-    def test_body_parses(self) -> None:
-        body, _ = self._body()
-        r = subprocess.run(["bash", "-n", "-c", body], capture_output=True, text=True)
-        self.assertEqual(r.returncode, 0, f"bash -c body does not parse:\n{r.stderr}")
+# NB: the old RunnerBashCBodyQuoting guard ("the bash -c '…' body carries no bare
+# apostrophe") was retired in #159 — the container body is now built as a QUOTED HEREDOC
+# (read -d '' ADDON_UNIT_BODY <<'EOF'), so a literal apostrophe can no longer close it.
+# Its successor lives in engine/tests/test_run_addon_unit_body.py (heredoc structure +
+# parse + apostrophe-safety), inverting the obsolete "must be apostrophe-free" assertion.
 
 
 if __name__ == "__main__":
