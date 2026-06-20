@@ -29,6 +29,200 @@
 - The next Do phases should not recreate <specific issue>. Watch the next K cycles.
 -->
 
+# Act review — 2026-06-20 — cycles considered: all 19 in index (issue_11589, issue_11786, issue_12576, issue_13205, issue_13636, issue_13888, issue_46, issue_820-build-toolchain-coverage, issue_820-converge-requires-mod-dedup, issue_820-description-resync, issue_820-pluginloading-gate, issue_8653, issue_8796, issue_addon-tests-init-py-gramps60, issue_glade-setattr, issue_headless-ut-segfault, issue_skip-bsddb-tests-linux, issue_sqlite-export-6.1, issue_tmg-os-test-split-gramps61)
+
+## What the cycles' records exposed
+
+- **Three §10 candidates already resolved — positive signal.** Before routing any
+  new work, confirmed that three prior §10 items have been addressed in code since
+  those SUMMARY.mds were written:
+  - **glade-setattr §10 #2 (t3_baseline precedence bug):** `t3_baseline.py:130`
+    now reads `if new and not sig:` — a matching `run_level_signature` takes
+    precedence over per-test failures, preventing a whole-run crash that surfaces
+    as a `setUpClass` id from being mislabelled as a new delta (comment cites
+    "issue #13"). Fixed.
+  - **820-pluginloading-gate §10 #1 (INTEGRATION.md C4 unverifiable doc):**
+    `INTEGRATION.md:161–171` already documents "C4 *unverifiable* (not a
+    manufactured gate)", the two triggering cases (test-only patch; no local test),
+    the `PDCA-UNVERIFIABLE` + exit 77 mechanic, and the "never manufacture a
+    non-`test_` module" rule — naming the pluginloading-gate helper as the
+    worked example.
+  - **tmg-os-test-split-gramps61 §10 (run-verify.sh N/A path for test-only):**
+    `run-verify.sh:162` already emits `PDCA-UNVERIFIABLE: test-only patch — no
+    non-test production file for the red-without-fix leg to revert` + exit 77.
+    The C4 N/A path is live.
+
+- **One §10 item still open — success-criterion C4-achievability
+  (glade-setattr §10 #1).** The brief template's `Success criterion` field had
+  no guard against scoping the criterion to a repo-wide / whole-suite gate. The
+  glade-setattr brief stated success as "T3-interface smoke goes green" — a gate
+  that applies the full upstream tree and only clears post-merge. C4-verify was
+  green (the real per-fix proof) but didn't match the stated criterion, creating a
+  misleading gate-fail at Check. Fix: add a C4-achievability note to the template
+  field. Addressed in this review (see Process deltas; filed as testbed #175).
+
+- **Recurring NEEDS-HUMAN (V / T5 / C5) — no delta.** All three appear in
+  every cycle by oracle design. The 2026-06-20 predecessor entry already confirmed
+  this is correct system behaviour; reconfirmed here.
+
+- **C2 "no gate configured" (2× signal — threshold not yet met).** Two cycles
+  (addon-tests-init-py-gramps60 and skip-bsddb-tests-linux) show C2 NEEDS-HUMAN
+  because the fix type (structural discovery fix; test-skip with docker required)
+  makes a traditional failing-test repro impossible. Both were handled acceptably
+  at sign-off. The two causes differ; n=2 is below the threshold for a uniform
+  process delta. Carry forward; act if it recurs.
+
+- **issue_8653 §10 — still open.** Both items (run-addon-unit.sh exit-1 root-cause;
+  C4-green/T3-red-split guidance) were carried from the 2026-06-08 review and
+  the previous 2026-06-20 entry. No new evidence to drive a process delta. Filed
+  as testbed #176 (see Follow-ups).
+
+## Process deltas
+
+- **Spec template (applied):** `Success criterion` field in `templates/brief.md.tpl`
+  (line 10) expanded with a C4-achievability note: the criterion must be
+  demonstrable by C4-verify (patch applied in isolation at Check); whole-suite T3
+  passes and fork-CI greens are not acceptable as the per-fix criterion because
+  they only clear post-merge. Supplementary evidence only.
+  (`templates/brief.md.tpl:10`)
+
+## Follow-ups routed (not process deltas — work handed to an owner)
+
+- **Testbed GH #175 — brief template success-criterion C4-achievability:**
+  the template change above is applied; #175 tracks the acceptance signal
+  (next GUI-fix brief should name a C4-achievable criterion).
+  https://github.com/eduralph/gramps-testbed-v2/issues/175
+
+- **Fork issue eduralph/addons-source #50 — drop `tests/plugin_load_gate.py`
+  helper (820-pluginloading-gate §10 #2):** the helper was manufactured to give
+  run-verify a file to revert; now that the PDCA-UNVERIFIABLE path exists, it is
+  dead scaffolding. Cleanup: remove the helper, inline the call in
+  `test_plugin_registration.py`. Owner: human.
+  https://github.com/eduralph/addons-source/issues/50
+
+- **Testbed GH #176 — run-addon-unit.sh exit-1 diagnosis + C4/T3-split guidance
+  (issue_8653 §10 both items):** diagnose the recurring "exited 1 / no parsed
+  failures, no matching baseline signature" mode; add INTEGRATION.md §3 note on
+  the expected green-C4/red-T3 split and correct the reviewer's wrong model of the
+  runner's bootstrap capabilities. Owner: human.
+  https://github.com/eduralph/gramps-testbed-v2/issues/176
+
+## How effectiveness will be judged
+
+- The next brief for a GUI fix (or any fix that could tempt a T3 success
+  criterion) should name a C4-achievable observable: "the regression test passes
+  with the patch applied" or equivalent. No future bundle should show a misleading
+  Check gate-fail because the success criterion required a whole-suite T3 green.
+  Watch the next 2–3 GUI-fix cycles.
+- If the run-addon-unit.sh exit-1 cause (testbed #176) turns out to be a
+  `t3_baseline.py` parsing gap, the fix belongs in the next T3-baseline machinery
+  cycle; if it is a real test failure, it becomes a separate bundle. Track at next
+  review.
+
+# Act review — 2026-06-20 — cycles considered: 13174, 13268, 13744, 13864, 13865, 13876 (2026-06-20 signoffs); open §10 items from index (issue_46, issue_8653, issue_820-pluginloading-gate)
+
+## What the cycles' records exposed
+
+- **T1 false-positive fires on every core patch that registers `po/POTFILES.skip`
+  (5 instances: 13174, 13268, 13865, 13876, 820-review-nits).** Every §4 T1 row
+  above reads `T1 ✗ po: no .gpr.py — addon registers via .gpr.py (doc16-addon
+  §Structure)` (or `T1 ✗ tests: no .gpr.py` for the addons-source patch). This is
+  a **gate bug, not a contribution defect.**
+  - Root cause: `_touched_addons()` in `engine/conformance/gate.py:119` uses
+    `cand.is_dir()` — it checks whether the leading path-segment of any patch
+    b-path resolves to a directory under `../addons-source/`. The `po/` directory
+    (addons-source translations) and `tests/` (shared test infra, added by the
+    #820 series) both exist as directories there. So any core patch that touches
+    `po/POTFILES.skip` or `tests/` paths is misclassified as an addon contribution
+    and T1 is run against those non-addon dirs, which have no `*.gpr.py`.
+  - This is particularly noisy because the 2026-06-12 Act review **mandated** that
+    every core patch adding a new `.py` file must register it in `po/POTFILES.skip`
+    — so the gate delta from that review directly triggers this false-positive on
+    every subsequent core bundle that complies. Two Act-review deltas collide.
+  - Fix: `_touched_addons()` must additionally require
+    `any(cand.glob("*.gpr.py"))` before classifying a dir as an addon — a dir
+    without any `*.gpr.py` is not an addon, regardless of existence.
+
+- **T3 baseline tree drift (maintenance, not a process gap).** All six June-20
+  bundles report `⚠ baseline tree drift: recorded detached@674e3b`. The baseline
+  manifests (`engine/baselines/run-unit.json`, etc.) were recorded at commit
+  `674e3be80a` and the `maintenance/gramps61` worktree has moved since. The T3
+  gate still passes (known reds still match), so no regression is masked — the
+  drift is a stale-capture advisory. No process delta; baseline needs re-recording
+  via `make preflight` when the worktree is next aligned.
+
+- **Open §10 item — issue_46 runner stderr discarding.** The index flags (issue_46
+  §10): the `run-addon-unit.sh` `bash -c` single-quote nesting bug at line 268–269
+  caused an exit-2 that was invisible in the bundle's summarized signature. Not
+  yet filed as a testbed engine issue. Filing now (see Follow-ups).
+
+- **Open §10 item — issue_8653 run-addon-unit standalone analysis.** The index
+  flags a standalone root-cause investigation: "exited 1 / no parsed failures, no
+  matching baseline signature" from `run-addon-unit.sh` — cause never established
+  (install/setup/all-skipped crash, `t3_baseline.py` parsing blind spot, or
+  genuine addon test). Still open; carried below.
+
+- **V / T5 / C5 NEEDS-HUMAN (recurring, by design).** The Act index recurring
+  signals (`needs_human_classes`) show V / T5 / C5 in every cycle. These are
+  **oracle-by-design** — `check-gates.json` routes them to "reviewer + human
+  sign-off" / "human at sign-off" and there is no gate that can close them. No
+  process delta warranted; the pattern is correct system behaviour.
+
+## Process deltas
+
+- **Gate (delta warranted):** `_touched_addons()` in
+  `engine/conformance/gate.py:113–121` must require the candidate directory to
+  contain at least one `*.gpr.py` file before classifying it as an addon target
+  for T1/T2 checks. The one-line fix:
+  ```python
+  if first and first not in found and cand.is_dir() and any(cand.glob("*.gpr.py")):
+  ```
+  This makes `po/`, `tests/`, `.github/` and other non-addon dirs in
+  addons-source invisible to the addon classifier — they have no `*.gpr.py`.
+  A matching test change belongs in
+  `engine/tests/test_conformance.py` (or a new file).
+  *Implementation routed as testbed engine issue (see Follow-ups).*
+  (`engine/conformance/gate.py:119`)
+
+## Follow-ups routed (not process deltas — work handed to an owner)
+
+- **Testbed engine issue — T1 false-positive (`_touched_addons` non-addon dirs):**
+  the gate bug above is an instance/engine change (`engine/conformance/gate.py`).
+  Filed as testbed GH **#158** https://github.com/eduralph/gramps-testbed-v2/issues/158
+  Owner: human. Next step: implement the one-liner + test, then re-record any
+  now-changed FAIL→N/A revalidation deltas across the affected frozen bundles
+  (13174, 13268, 13865, 13876 — all now correctly N/A for T1).
+
+- **Testbed engine issue — issue_46 stderr discarding + `bash -c` nesting in
+  `run-addon-unit.sh:268–269`:** an exit-2 from a single-quote nesting bug was
+  summarized as an opaque signature, hiding the real cause from the bundle review.
+  Fix: persist raw runner stderr in the bundle artifact + move `synth_junit`
+  attribution outside the `bash -c` body.
+  Filed as testbed GH **#159** https://github.com/eduralph/gramps-testbed-v2/issues/159
+  Owner: human.
+
+- **Open Act item — `run-addon-unit.sh` "exited 1 / no parsed failures, no
+  matching baseline signature" root-cause:** first flagged in issue_8653 §10,
+  carried forward. The cause (install/setup crash, `t3_baseline.py` parsing
+  blind spot, or genuine test failure) was never established. Owner: human.
+  Next step: run `run-addon-unit.sh` standalone on a clean cycle and trace the
+  exit-1 path.
+
+- **Maintenance — T3 baseline re-recording:** run `make preflight` against the
+  current `maintenance/gramps61` HEAD to re-anchor the baseline manifests at a
+  current commit and clear the drift warning across future bundles. Not a process
+  change; a one-time maintenance run. Owner: human.
+
+## How effectiveness will be judged
+
+- The next core bundle that adds a `.py` file (and therefore registers it in
+  `po/POTFILES.skip`) should report T1 as **N/A** (core-only change, no addon
+  path), not a false-positive FAIL. Watch the next 2 such cycles after the gate
+  fix lands.
+- If `run-addon-unit.sh` exit-1 analysis surfaces a `t3_baseline.py` parsing gap,
+  the fix belongs in the next T3 baseline machinery cycle; if it surfaces a real
+  addon test failure, it becomes a separate bundle. Track at next review.
+
 # Act review — 2026-06-19 — cycles considered: cross-cycle token-cost review (no single bundle re-decided; triggered by testbed GH #149)
 
 ## What the cycles' records exposed
