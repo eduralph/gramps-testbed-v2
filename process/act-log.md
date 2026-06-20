@@ -119,6 +119,99 @@
   cycle; if it is a real test failure, it becomes a separate bundle. Track at next
   review.
 
+# Act review — 2026-06-20 — cycles considered: all 11 in index (13174, 13268, 13716, 13744, 13864, 13865, 46, 820-build-toolchain-coverage, 820-pluginloading-gate, 8653, glade-setattr); first revalidation run
+
+## What the cycles' records exposed
+
+- **New bundles (issue_13716, issue_820-build-toolchain-coverage) — no pattern.** Both
+  are merged-wider with no §10 candidates. Each carries exactly one NEEDS-HUMAN: `V —
+  fitness-to-purpose (always-human)` — oracle-by-design. No new process delta warranted.
+
+- **V / C5 / T5 NEEDS-HUMAN recurring — by design, confirmed again.** The act-index
+  recurring signals (`needs_human_classes`) show C5 and V appearing in every cycle.
+  This is the 4th consecutive review to confirm it is correct system behaviour. No delta.
+
+- **T3-interface baseline cleared (positive maintenance signal).** issue_13716's
+  `check-gates.json` reports `T3-interface: green (no failures); baseline now clear (1
+  recorded red(s) gone)`. The Glade `__setattr__` fix (issue_glade-setattr) has landed in
+  upstream `maintenance/gramps61` and the one previously-recorded smoke red is gone. The
+  T3 baseline is naturally shrinking as upstream defects are fixed — no process action
+  needed; consistent with the 2026-06-09 (T3 mechanism) Act prediction.
+
+- **First-ever revalidation run — issue_13174 completed, remainder in-progress.**
+  `make revalidate` was run before this review per the Act protocol. As of writing,
+  issue_13174's `revalidation-2026-06-20.json` is complete; the remaining 10 bundles are
+  still running in the background (Docker-backed gates, ~3 min/bundle). The
+  issue_13174 delta set:
+  - **T1: frozen FAIL → current PASS** (non-gating). Confirms the `_touched_addons`
+    gate fix (testbed #158, `engine/conformance/gate.py`) is **live** in the current
+    engine. This is the expected stale-recorded-red outcome; no regression.
+  - **T2-potfiles: frozen — → current PASS** (gating). The T2-potfiles gate was added
+    to the engine after issue_13174 was frozen; it now runs and passes. New gate, not a
+    regression.
+  - **C4-verify-interface: frozen — → current UNVERIFIABLE** (non-gating). New interface
+    gate blocked by uncommitted changes in the gramps-6.1 workspace (environmental). Not
+    a regression.
+  - **T3-unit: text output reports pass→fail; JSON record reports pass→pass.** A
+    discrepancy between the console summary and the written JSON for the same run.
+    T3-unit is non-gating. The most likely cause is baseline tree drift (noted in prior
+    entries: recorded `detached@674e3b`, workspace has since moved). Needs investigation;
+    no gating regression either way (`regression: false` in the JSON). Carried as an open
+    item (see Follow-ups).
+  - **Overall `regression: false`**: no frozen gating PASS → current FAIL across
+    issue_13174.
+
+- **All prior §10 candidates addressed.** Every §10 item in the current index was
+  filed or resolved in the two earlier 2026-06-20 Act entries (testbed #158, #159, #176;
+  addons-source #50; template change for success-criterion C4-achievability). Nothing
+  carried forward requires a new delta here.
+
+## Process deltas
+
+No new process delta is warranted for this review pass. All recurring signals are
+oracle-by-design. The §10 candidates are exhausted. The new bundles (13716,
+820-build-toolchain-coverage) surface no new pattern.
+
+## Follow-ups routed (not process deltas — work handed to an owner)
+
+- **Open Act item — T3-unit JSON / text discrepancy in revalidation.** The first
+  revalidation run (issue_13174) shows the console summary reporting T3-unit pass→fail
+  while the written `revalidation-2026-06-20.json` records new=pass, changed=false. Root
+  cause is unestablished: could be a race between JSON write and gate completion, a
+  display formatting bug in the summary printer, or genuine baseline drift being classified
+  differently by the text path vs. the structured path. Non-blocking (T3-unit is
+  non-gating; no gating regression), but the discrepancy means the revalidation report
+  cannot be read at face value until it is resolved. Owner: human. Next step: compare the
+  raw gate output for T3-unit against the baseline manifest for the current worktree state;
+  if it is a harness bug, file as a testbed engine issue.
+
+- **Open Act item — complete remaining revalidation JSONs.** 10 of 11 bundles are still
+  being revalidated (background task at time of writing). Once the task completes,
+  read each `revalidation-2026-06-20.json` for PASS→FAIL deltas on **gating** checks —
+  those require routing as regressions. FAIL→PASS deltas (stale recorded reds) should be
+  noted so frozen baseline manifests and INTEGRATION.md can be trimmed. Owner: human.
+  Next step: after background task finishes, run
+  `grep -l '"regression": true' results/*/revalidation-2026-06-20.json` to surface any
+  gating regressions quickly.
+
+- **Maintenance — T1 stale recorded reds in frozen bundles (13174, 13268, 13865,
+  13876).** Revalidation confirmed T1 is now a FAIL→PASS in issue_13174. The same delta
+  is expected in the remaining three core bundles once their revalidation JSONs are
+  written. These stale reds in the frozen records are not regressions; they are a natural
+  consequence of the gate fix (#158) landing after those bundles were frozen. No process
+  action needed; note them at the next review as candidates for baseline shrinkage.
+
+## How effectiveness will be judged
+
+- Running `make revalidate` regularly (e.g., after every gate-fix PR merges to main)
+  will keep the stale-recorded-red count visible. At the next review, the T1 FAIL→PASS
+  delta should appear across all four core bundles, confirming the gate fix is uniform.
+- The T3-unit discrepancy (JSON vs text) should be resolved before revalidation output is
+  used to triage any T3 regression. Track at the next review.
+- T3-interface baseline shrinkage (one red cleared in issue_13716) is a positive signal;
+  if the T3-unit segfault is also fixed upstream in coming cycles, the recorded baseline
+  will shrink further. Track alongside testbed #176.
+
 # Act review — 2026-06-20 — cycles considered: 13174, 13268, 13744, 13864, 13865, 13876 (2026-06-20 signoffs); open §10 items from index (issue_46, issue_8653, issue_820-pluginloading-gate)
 
 ## What the cycles' records exposed

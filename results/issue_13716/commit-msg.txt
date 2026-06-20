@@ -1,0 +1,30 @@
+Refresh sidebar filter Type selectors on custom-type changes
+
+A view's sidebar-filter "Type" selector (the same widget the Filter
+Gramplet hosts) reads the database's custom types exactly once when the
+sidebar filter widget is first constructed, and never refreshes them.
+Custom types added to the already-open database after construction
+(e.g., a "GEDCOM import" Note type created by importing a GEDCOM with
+errors) therefore never appear in the selector and remain absent even
+after a full restart, until the gramplet/view is torn down and
+rebuilt.
+
+This fix moves the repopulate orchestration into the GUI-free
+TypeFilterList registry, wired into the shared SidebarFilter path so
+all sidebar filters (note, event, family, person, place, repository)
+benefit from one implementation. Each database-derived type selector is
+registered with two callables: fetch (re-reads the live database) and
+apply (rebuilds the widget's options). The selector refresh is triggered
+when its drop-down is opened (mirroring the editor dialogs, which rebuild
+anew every time they are shown) and when the database changes.
+
+Also corrects the Repository sidebar filter, which was reading
+get_event_types() instead of the correct get_repository_types() —
+a pre-existing bug now fixed alongside this consistency restore.
+
+The headless unit test drives the production repopulate path
+(TypeFilterList.refresh and SidebarFilter.add_type_filter wiring) with
+test doubles standing in only for the GUI selector widget and database
+state, so the test runs without a display.
+
+Fixes #13716

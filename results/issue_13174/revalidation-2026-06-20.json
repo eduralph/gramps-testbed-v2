@@ -1,0 +1,137 @@
+{
+  "date": "2026-06-20",
+  "engine_rev": "e012cd9",
+  "bundle": "issue_13174",
+  "frozen_overall": "pass",
+  "current_overall": "pass",
+  "changed": true,
+  "regression": false,
+  "rows": [
+    {
+      "check": "C1 Spec",
+      "element": "C1",
+      "rule_id": "",
+      "gating": false,
+      "old": "none",
+      "new": "none",
+      "changed": false
+    },
+    {
+      "check": "C2 Reproduction (red pre-fix)",
+      "element": "C2",
+      "rule_id": "",
+      "gating": false,
+      "old": "none",
+      "new": "none",
+      "changed": false
+    },
+    {
+      "check": "C3 Change",
+      "element": "C3",
+      "rule_id": "",
+      "gating": false,
+      "old": "none",
+      "new": "none",
+      "changed": false
+    },
+    {
+      "check": "C4 fix verified: test red pre-fix, green post-fix",
+      "element": "C4",
+      "rule_id": "C4-verify",
+      "gating": true,
+      "old": "pass",
+      "new": "pass",
+      "changed": false
+    },
+    {
+      "check": "C5 Causal adequacy",
+      "element": "C5",
+      "rule_id": "",
+      "gating": false,
+      "old": "none",
+      "new": "none",
+      "changed": false
+    },
+    {
+      "check": "T1 structure: addon layout vs doc 16 \u00a7Structure (folder==id, target_version, fname, no __init__.py)",
+      "element": "T1",
+      "rule_id": "T1-structure",
+      "gating": false,
+      "old": "fail",
+      "new": "pass",
+      "changed": true
+    },
+    {
+      "check": "T2 shape: code shape vs doc 16 \u00a7Coding style (GPL header on touched files; print() advisory for reviewer)",
+      "element": "T2",
+      "rule_id": "T2-shape",
+      "gating": false,
+      "old": "pass",
+      "new": "pass",
+      "changed": false
+    },
+    {
+      "check": "T3 runtime: gramps core unit suite (whole-suite baseline)",
+      "element": "T3",
+      "rule_id": "T3-unit",
+      "gating": false,
+      "old": "pass",
+      "new": "fail",
+      "changed": true
+    },
+    {
+      "check": "T3 runtime: GUI interface smoke (launch + open tree, headless dogtail)",
+      "element": "T3",
+      "rule_id": "T3-interface",
+      "gating": false,
+      "old": "pass",
+      "new": "pass",
+      "changed": false
+    },
+    {
+      "check": "T4 contribution: commit/PR wrapper vs doc 16 \u00a7Commit messages + \u00a7Contributor workflow",
+      "element": "T4",
+      "rule_id": "T4-contribution",
+      "gating": false,
+      "old": "pass",
+      "new": "pass",
+      "changed": false
+    },
+    {
+      "check": "T5 Judgment",
+      "element": "T5",
+      "rule_id": "",
+      "gating": false,
+      "old": "none",
+      "new": "none",
+      "changed": false
+    },
+    {
+      "check": "Validation \u2014 fitness-to-purpose",
+      "element": "V",
+      "rule_id": "",
+      "gating": false,
+      "old": "none",
+      "new": "none",
+      "changed": false
+    },
+    {
+      "check": "C4 fix verified in GUI: interface repro red unpatched, green patched (headless dogtail)",
+      "element": "C4",
+      "rule_id": "C4-verify-interface",
+      "gating": false,
+      "old": null,
+      "new": "unverifiable",
+      "changed": true
+    },
+    {
+      "check": "T2 potfiles: new/removed core .py registered in po/POTFILES.in|.skip (doc 16 \u00a7Adding and removing Python files)",
+      "element": "T2",
+      "rule_id": "T2-potfiles",
+      "gating": true,
+      "old": null,
+      "new": "pass",
+      "changed": true
+    }
+  ]
+}
