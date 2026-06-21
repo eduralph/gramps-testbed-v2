@@ -1,0 +1,122 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "sam888\n\n 2014-10-31 06:08\n\nadministrator    ~0039172": "Following the instructions I added, I can not reproduce this in Gramps (v4.1.1 and master)",
+    "dougbain\n\n 2014-11-02 14:05\n\nreporter    ~0039284": "Following your comment I realise I misidentified the bug. When importing a gpkg I have always reset the media path to a 'standard' image folder and so missed the actual bug which is that the png files are never exported.\n\nAt the moment it's entirely unclear to me why this should be so. I'll kave to report back when I've has a chance to try various things out.",
+    "dougbain\n\n 2014-11-03 17:59\n\nreporter    ~0039322": "On further testing this bug doesn't seem to relate to the position of the files or their names. Working with a cut-down db I find that the files usually don't get exported - but do occasionally, and even then their paths are lost and they're not visible in Media or Gallery view.\nI've tried converting from png to jpg, AFAICT without success, so I think there is something very peculiar about this set of 8 files, particularly as other png files behave fine.\nThey have all been worked up from map images. Maybe they have some element which interferes with reproduction in gramps software, though they copy without problem with a normal copy command.\n\nIt seems an intractable problem but hopefully one likely to crop up only rarely.",
+    "sam888\n\n 2015-01-09 22:16\n\nadministrator    ~0039999": "Could you provide a set of files that causes this issue?",
+    "dougbain\n\n 2015-01-23 12:10\n\nreporter    ~0040150": "Sorry, I've tried repeatedly to produce a cut-down set of files with the bug.\nEvery time I get down to a size I can upload the bug disappears.\n\nYet in the complete db it's persisted through numerous copies, exports, upgrades and major changes of gramps version.\n\nIf I do succeed, be sure I'll post them.",
+    "sam888\n\n 2015-02-01 04:16\n\nadministrator    ~0040202": "I'll change this to acknowledged until you can recreate or narrow down the issue.",
+    "sam888\n\n 2015-08-12 01:13\n\nadministrator    ~0043833": "Does this still happen for you with the latest version of Gramps 4.2.0?",
+    "sam888\n\n 2016-04-12 07:53\n\nadministrator    ~0047415": "Please upgrade to the current version of Gramps 4.2.3 and test, reopen this issue if required. Thanks.\n\nIf you need to upgrade please backup your family trees.\n\nMarking abandoned.",
+    "dougbain\n\n 2016-04-12 11:04\n\nreporter    ~0047416": "The bug is still present in all versions. I'm currently running 4.2.3-8a283ff.\nI don't think it should be closed, even though I've become habituated to it and it's now a minor annoyance.",
+    "dougbain\n\n 2016-04-12 12:53\n\nreporter    ~0047419": "Doing a Check and Repair on the database shows that these PNG files are all considered 'missing'",
+    "sam888\n\n 2016-04-12 20:37\n\nadministrator    ~0047423": "0006698:0040150 Ok, How do you reproduce this?",
+    "dougbain\n\n 2016-04-14 12:22\n\nreporter": "Untitled_3.gpkg (6,686,577 bytes)",
+    "dougbain\n\n 2016-04-14 12:30\n\nreporter": "missed_images.tar.gz (542,678 bytes)",
+    "dougbain\n\n 2016-04-14 13:53\n\nreporter    ~0047433": "I've managed to cut down the db. The bug doesn't show exactly as originally, but it exhibits the essential fault, an inability to handle these PNG images properly.\n\nCreate a new family tree. Import untitled_3.gpkg.\nIn Mediaview you'll see 8 PNG images referred to that cannot be displayed because they're not present in the extracted gpkg.media folder.\n\nUntar missing_images.tar.gz. Add its contents to the extracted gpkg.media folder.\nGo back to Mediaview. Select a non-displayable PNG image. Edit=> Path. click on 'Open file browser to select a media image'.\nselect one of the missing images. OK. etc.etc. All of the previously non-displayable images can be added to the display.\n\nIf you now export the corrected db as another gpkg and then re-import it as a new family tree, you'll find the PNG images have got lost again",
+    "sam888\n\n 2016-05-02 04:08\n\nadministrator    ~0047793\n\n last edited: 2016-05-02 04:09\n\nview 2 revisions": "Following your instructions in 0006698:0047433 , I get the same result you did, Thank you.\n\nConfirmed on Gramps master.\n\nCreate a new family tree.\nImport untitled_3.gpkg.\n** Dismiss the Warning dialog on import\n\nSelect the \"Media\" category\nSelect one of the listed media objects to view the result in the bottombar \"Media Preview\" gramplet you should see the [x]icon for \"Missing image image\" is shown.\nuntar the missing images as indicated\nreattach each of the images as mentioned (I had to check the '[x] Convert to a relative path' checkbox\ncheck in the \"Media Preview\" gramplet that the image can now be viewed\nExport to a .gpkg (with a new name)\n....................\nCreate a new empty family tree and import the newly created .gpkg\nSelect the \"Media\" category\nSelect one of the listed media objects to view the result in the bottombar \"Media Preview\" gramplet you should once again see the [x]icon for \"Missing image image\" is shown.\nIn your OS's file explorer open the path where the images have been restored and you can confirm that they exist!",
+    "dsblank\n\n 2016-05-02 10:37\n\ndeveloper    ~0047796": "That was a tricky one! Looks like the filenames start with a space character, and it is getting removed along the way.",
+    "dougbain\n\n 2016-05-02 20:08\n\nreporter    ~0047811": "BINGO, Doug! That's exactly what was the trouble.\n\nRemoving the leading space from the names of the files in the media directory, and also from the media paths allows them to be exported correctly and to appear in a NarWeb report.\n\nI hadn't noticed the leading spaces all this time and the file names were not intended to have them; but they've got introduced along the way somehow. This smells very like the problem we had several years ago with the Place Completion Tool, where additional space characters were getting smuggled into a string when it was copied (bug 0005780).\n\nHowever, testing has thrown up a new minor bug with the Narweb report - the Page Generation options allow one to enable both 'include images and media objects' and 'create and use only thumbnail-sized images', but they seem be mutually exclusive and it's thumbnails that dominate.",
+    "dougbain\n\n 2016-05-03 09:10\n\nreporter    ~0047818\n\n last edited: 2016-05-03 09:17\n\nview 2 revisions": "Thinking back, I probably created the first filename in the set of images by cut and paste, then for the others just copied the first filename and edited that by changing a digit or two in the name string.\n\nIt's exactly like bug 0005780.\n\nIt's a nasty little bug, because it wasn't sufficient to change the filenames in the media directory and the path names in Media view. I had to track down the links in Notes where the images were used and edit them to give the correct links as well.\n\nIt seems there ought to be a warning about cut-and-paste, but I've no idea where you would want to put it!"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Following the instructions I added, I can not reproduce this in Gramps (v4.1.1 and master)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Following your comment I realise I misidentified the bug. When importing a gpkg I have always reset the media path to a 'standard' image folder and so missed the actual bug which is that the png files are never exported.\n\nAt the moment it's entirely unclear to me why this should be so. I'll kave to report back when I've has a chance to try various things out."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "On further testing this bug doesn't seem to relate to the position of the files or their names. Working with a cut-down db I find that the files usually don't get exported - but do occasionally, and even then their paths are lost and they're not visible in Media or Gallery view.\nI've tried converting from png to jpg, AFAICT without success, so I think there is something very peculiar about this set of 8 files, particularly as other png files behave fine.\nThey have all been worked up from map images. Maybe they have some element which interferes with reproduction in gramps software, though they copy without problem with a normal copy command.\n\nIt seems an intractable problem but hopefully one likely to crop up only rarely."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Could you provide a set of files that causes this issue?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Sorry, I've tried repeatedly to produce a cut-down set of files with the bug.\nEvery time I get down to a size I can upload the bug disappears.\n\nYet in the complete db it's persisted through numerous copies, exports, upgrades and major changes of gramps version.\n\nIf I do succeed, be sure I'll post them."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I'll change this to acknowledged until you can recreate or narrow down the issue."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Does this still happen for you with the latest version of Gramps 4.2.0?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Please upgrade to the current version of Gramps 4.2.3 and test, reopen this issue if required. Thanks.\n\nIf you need to upgrade please backup your family trees.\n\nMarking abandoned."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "The bug is still present in all versions. I'm currently running 4.2.3-8a283ff.\nI don't think it should be closed, even though I've become habituated to it and it's now a minor annoyance."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Doing a Check and Repair on the database shows that these PNG files are all considered 'missing'"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "0006698:0040150 Ok, How do you reproduce this?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Untitled_3.gpkg (6,686,577 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "missed_images.tar.gz (542,678 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I've managed to cut down the db. The bug doesn't show exactly as originally, but it exhibits the essential fault, an inability to handle these PNG images properly.\n\nCreate a new family tree. Import untitled_3.gpkg.\nIn Mediaview you'll see 8 PNG images referred to that cannot be displayed because they're not present in the extracted gpkg.media folder.\n\nUntar missing_images.tar.gz. Add its contents to the extracted gpkg.media folder.\nGo back to Mediaview. Select a non-displayable PNG image. Edit=> Path. click on 'Open file browser to select a media image'.\nselect one of the missing images. OK. etc.etc. All of the previously non-displayable images can be added to the display.\n\nIf you now export the corrected db as another gpkg and then re-import it as a new family tree, you'll find the PNG images have got lost again"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Following your instructions in 0006698:0047433 , I get the same result you did, Thank you.\n\nConfirmed on Gramps master.\n\nCreate a new family tree.\nImport untitled_3.gpkg.\n** Dismiss the Warning dialog on import\n\nSelect the \"Media\" category\nSelect one of the listed media objects to view the result in the bottombar \"Media Preview\" gramplet you should see the [x]icon for \"Missing image image\" is shown.\nuntar the missing images as indicated\nreattach each of the images as mentioned (I had to check the '[x] Convert to a relative path' checkbox\ncheck in the \"Media Preview\" gramplet that the image can now be viewed\nExport to a .gpkg (with a new name)\n....................\nCreate a new empty family tree and import the newly created .gpkg\nSelect the \"Media\" category\nSelect one of the listed media objects to view the result in the bottombar \"Media Preview\" gramplet you should once again see the [x]icon for \"Missing image image\" is shown.\nIn your OS's file explorer open the path where the images have been restored and you can confirm that they exist!"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "That was a tricky one! Looks like the filenames start with a space character, and it is getting removed along the way."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "BINGO, Doug! That's exactly what was the trouble.\n\nRemoving the leading space from the names of the files in the media directory, and also from the media paths allows them to be exported correctly and to appear in a NarWeb report.\n\nI hadn't noticed the leading spaces all this time and the file names were not intended to have them; but they've got introduced along the way somehow. This smells very like the problem we had several years ago with the Place Completion Tool, where additional space characters were getting smuggled into a string when it was copied (bug 0005780).\n\nHowever, testing has thrown up a new minor bug with the Narweb report - the Page Generation options allow one to enable both 'include images and media objects' and 'create and use only thumbnail-sized images', but they seem be mutually exclusive and it's thumbnails that dominate."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Thinking back, I probably created the first filename in the set of images by cut and paste, then for the others just copied the first filename and edited that by changing a digit or two in the name string.\n\nIt's exactly like bug 0005780.\n\nIt's a nasty little bug, because it wasn't sufficient to change the filenames in the media directory and the path names in Media view. I had to track down the links in Notes where the images were used and edit them to give the correct links as well.\n\nIt seems there ought to be a warning about cut-and-paste, but I've no idea where you would want to put it!"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "6698",
+  "url": "https://gramps-project.org/bugs/view.php?id=6698"
+}

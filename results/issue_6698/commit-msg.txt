@@ -1,0 +1,19 @@
+Fix media path whitespace stripping in XML export
+
+When exporting a Gramps tree to XML (.gramps) or a Gramps XML Package
+(.gpkg), media object paths are serialized through self.fix(path),
+which strips leading and trailing whitespace. However, the package
+archiver stores the file under the un-stripped name (exportpkg.py:192,
+archname = str(mobject.get_path())). This disagreement causes the XML
+<file src> attribute to point to a filename the archive does not
+contain, so media shows as "missing" on re-import.
+
+Restore the invariant by adding a dedicated fix_media_path() function
+in libgrampsxml.py that preserves whitespace while still removing
+XML-illegal control characters and escaping metacharacters (so the path
+round-trips faithfully on parse). Update exportxml.py:1395 to use it
+for <file src> serialization instead of the general free-text fix()
+function, whose whitespace-stripping is intended for descriptive fields,
+not paths.
+
+Fixes #6698
