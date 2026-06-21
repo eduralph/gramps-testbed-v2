@@ -35,3 +35,6 @@ notes_json/
 
 # wiki scrape cache (regenerable; the reference root-ignores it)
 wiki/.wikiscrape/
+
+# git worktrees created by EnterWorktree
+.claude/worktrees/

@@ -12,7 +12,36 @@ managed: true
 
 Core is released under the **GNU General Public License, version 2 or later** (GPL-2.0-or-later; `gramps/COPYING`). Every new source file carries the canonical GPL header — see [[16-guidelines]].
 
-The normative MUST/SHOULD rules — branch target, test layout, translation tooling, commit format — live in [[16-guidelines]]. This page is orientation; that page is the reference to cite in review.
+This page is the **start point** for the section: a quick map to every other page below, then the orientation a newcomer needs (architecture, the codebase tree, the object model, how to build and run). The normative MUST/SHOULD rules — branch target, test layout, translation tooling, commit format — live in [[16-guidelines]]; this page orients, that page is the reference to cite in review.
+
+## Start here
+
+**New to the Gramps codebase?** Read these in order — the path from a running source checkout to a tested, rules-compliant first change:
+
+[[02-get-started]] → [[04-architecture]] → [[05-fundamentals]] → [[06-data-access]] → [[08-testing]] → [[16-guidelines]]
+
+**Looking for something specific?** Jump straight to it:
+
+| If you want to… | Go to |
+|-----------------|-------|
+| Set up a dev environment and run Gramps from source | [[02-get-started]] |
+| Work a bug fix, a report, or a quick view end to end | [[03-tutorials]] |
+| Understand how the code is laid out and layered | [[04-architecture]] |
+| Learn the cross-cutting mechanisms — signals, config, logging, i18n | [[05-fundamentals]] |
+| Read from or write to the database | [[06-data-access]] |
+| Look up the `gramps.gen` / `gui` / `plugins` API surface | [[07-api-reference]] |
+| Write and run tests | [[08-testing]] |
+| Debug a running Gramps (logs, `pdb`, `gdb`, profiling) | [[09-debug]] |
+| Triage a tracker bug or diagnose a failure mode | [[10-troubleshoot]] |
+| Pass the static gate — Black, `mypy`, pylint, POTFILES | [[11-code-analysis]] |
+| Mark strings for translation and maintain `po/` | [[12-internationalization]] |
+| Build Gramps or help cut a release | [[13-packaging]] |
+| Port a change across Gramps versions | [[14-compatibility]] |
+| See per-release changes that affect developers | [[15-whats-new]] |
+| Know the rules to follow — and to cite in review | [[16-guidelines]] |
+| See what's planned, or propose a change (GEP) | [[17-roadmap]] |
+
+The one page to bookmark is [[16-guidelines]] — the normative MUST / SHOULD / MAY reference every contribution is held to.
 
 ## Architecture at a glance
 
