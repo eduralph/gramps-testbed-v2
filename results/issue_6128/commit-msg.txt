@@ -1,0 +1,26 @@
+Fix book-report style collisions with per-item namespacing
+
+A Book Report renders all items into one shared document with one
+shared stylesheet (required by ODF backends which emit the sheet once
+at open()). Two items of the same type define styles under identical
+names (e.g. two Descendant Reports both define "DR-Title"), and prior
+to this fix, append_styles() collated them into the flat sheet keyed
+by bare name, so the second item's style overwrote the first.
+Both items then resolved that name to the last-written values.
+
+This fix implements per-item style-name namespacing within the single
+shared sheet: append_styles() now stores each style under prefix +
+name (e.g. "BI000-DR-Title", "BI001-DR-Title"), preserving the single
+shared sheet while making same-named styles distinct. A new
+BookItemStyleProxy class wraps the shared document for each item and
+rewrites every style-name-bearing method call (start_paragraph,
+write_styled_note, draw_box, etc.) to use the item's namespace prefix,
+so baked-in bare references resolve to that item's own values.
+
+The fix addresses not only the title case but also write_styled_note
+(used by textual reports for notes), draw-style embedded paragraph
+references, and reports that mutate styles at run time (AncestorTree,
+DescendTree, FanChart) — auditing the full abstract document interface
+ensured the proxy covers every style-name-bearing method.
+
+Fixes #6128
