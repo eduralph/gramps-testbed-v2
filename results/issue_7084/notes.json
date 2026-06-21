@@ -1,0 +1,105 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "vassilii\n\n 2013-09-20 22:14\n\ndeveloper": "7084-bad-dates-EN.txt (27,800 bytes)",
+    "vassilii\n\n 2013-09-20 22:15\n\ndeveloper    ~0031486": "failing dates attached",
+    "vassilii\n\n 2013-09-20 22:21\n\ndeveloper    ~0031487\n\n last edited: 2013-09-20 22:22\n\nview 2 revisions": "While fixing this bug, it is important first to update the date parser round trip unit test code first, and verify these dates can be broken there, too.",
+    "romjerome\n\n 2013-10-17 06:22\n\ndeveloper    ~0032128": "+1 0003478:0032119\n\n606 tests failing out under trunk (also more tests than 3795).",
+    "romjerome\n\n 2013-10-17 11:30\n\ndeveloper    ~0032143\n\n last edited: 2013-10-17 11:32\n\nview 3 revisions": "Note, we are maybe using specific tests, which could be right but invalid! 0003478:0032142\n\neg, span/range dates with one calendar (eg, french) and a large period (1788/9 ->1876).\nFrench calendar was only used after 1792...\n\nI suppose it is the same with swedish?\nor on calendars with more than 12 months? (hebrew, french)",
+    "vassilii\n\n 2013-10-25 18:29\n\ndeveloper    ~0032325": "No, the problem is with the parser not understanding that if \"May 1234\" is valid, then \"before May 1234\" should be valid in a similar way. The parser logic is broken...\n\nSee the \"Description\" and the attached list for the failing dates, they are all like that. Try any other year if you want. French calendar is now extended to beyond the Republican period (see 0007068), so this is not the issue.",
+    "paulfranklin\n\n 2014-01-20 18:54\n\ndeveloper    ~0034220": "Hi Vassilii,\n\nI don't think a developer-only problem belongs on the roadmap.\n\nYou know about the problem and will fix it when you fix it. Or not.\n\nBut it's a waste of space to have it cluttering the roadmap.",
+    "vassilii\n\n 2014-01-20 19:10\n\ndeveloper    ~0034225": "Since when is the roadmap our interface to the users?! I'm a developer, and I use the roadmap to prioritize my work on the bugs. Please raise this on the list, rather than scattering the discussion across multiple bugs.",
+    "paulfranklin\n\n 2014-01-20 20:41\n\ndeveloper    ~0034236": "The roadmap is read by developers and is primarily\nfor developers. But /all/ developers, not just you\npersonally.\n\nAs I have said on the list, and told you privately\nmonths ago, I don't think you should be using the\nroadmap as your own personal scratch pad, to keep\nan ever-growing list on, just in case you might be\nsomeday interested in looking into them.\n\nYou can keep such a list in your own personal world\nand there is no reason to put your personal choices\nonto what should be a list of bugs for all developers.\n\nAnd you are the one who is raising this \"discussion\" on\nthe bug tracker. I was trying to ask you about this\nparticular bug. Let me be more specific: 1) are you\ngoing to personally fix it before 3.4.7 is released,\n2) if so why don't you assign it to yourself, and 3)\nif neither of those things will happen why is it on\nthe roadmap at all?\n\nThanks.",
+    "vassilii\n\n 2014-01-21 07:59\n\ndeveloper    ~0034247": "1) can't commit to that, but I have it in my sights for later timeframe if noone solves it until then and it is still on the roadmap\n2) this is why I haven't assigned it to myself yet --- I view a bug I keep \"assigned\" to self as a commitment to fix by the target version milestone\n3) because I believe we should clean up anything our tests flag as a bug, and so do some other developers",
+    "romjerome\n\n 2014-01-21 10:04\n\ndeveloper    ~0034251": "Maybe it was here that I had to copy the traceback for testing date handling under english 'C' fallback?\n0007360:0033879 0007360:0034034\n\nfrom ._datehandler import (LANG, LANG_SHORT, LANG_TO_PARSER, LANG_TO_DISPLAY,\nFile \"/home/jerome/Gramps/gramps/gen/datehandler/_datehandler.py\", line 48, in <module>\n\nfrom ._dateparser import DateParser\nFile \"/home/jerome/Gramps/gramps/gen/datehandler/_dateparser.py\", line 53, in <module>\n\nfrom . import _grampslocale\nFile \"/home/jerome/Gramps/gramps/gen/datehandler/_grampslocale.py\", line 147, in <module>\n\nto_uni(time.strftime('%B',(1,2,1,1,1,1,1,1,1)), codeset).lower() : 2,\nUnicodeDecodeError: 'ascii' codec can't decode byte 0xc3 in position 1: ordinal not in range(128)",
+    "paulfranklin\n\n 2014-01-22 17:00\n\ndeveloper    ~0034343": "Vassilii,\n\nCan this be moved to 3.4.99?\n\nThanks.",
+    "romjerome\n\n 2014-01-25 13:05\n\ndeveloper    ~0034410": "<pre>#------------------------------------------------------------------------\n#\n\nCheck Localized Date Displayer and Parser\n\n#\n#------------------------------------------------------------------------\n\nregister(TOOL,\nid = 'test_for_date_parser_and_displayer',\nname = \"Check Localized Date Displayer and Parser\",\ndescription = (\"This test tool will create many people showing all\"\n\" different date variants as birth. The death date is\"\n\" created by parsing the result of the date displayer for\"\n\" the birth date. This way you can ensure that dates\"\n\" printed can be parsed back in correctly.\"),\nversion = '1.0',\ngramps_target_version = '3.4',\nstatus = UNSTABLE,\nfname = 'dateparserdisplaytest.py',\nauthors = [\"Martin Hawlisch\"],\nauthors_email = [\"martin@hawlisch.de\"],\ncategory = TOOL_DEBUG,\ntoolclass = 'DateParserDisplayTest',\noptionclass = 'DateParserDisplayTestOptions',\ntool_modes = [TOOL_MODE_GUI, TOOL_MODE_CLI]\n)</pre>\n\nThis tool is only visible for devs or during devel stages (<i>gramps/plugins/tool/toolsdebug.gpr.py</i>), we can ignore this issue on '3.4.7' release.",
+    "vassilii\n\n 2014-01-25 18:38\n\ndeveloper    ~0034435": "we can ignore this issue on '3.4.7' release.\n\nthis shouldn't be a release blocker right now, I agree!\n\nThis tool is only visible for devs or during devel stages (gramps/plugins/tool/toolsdebug.gpr.py),\n\n...but not because of this reason! The bugs showing up here flag a problem with the parsing code in the date parser which is present and very visible to everybody. Try parsing a date \"before May 1945\" in English or any other date from the attached .txt file --- these are dates that are supposed to be parsed!\n\nSo we have our testing code that helped us and found a long standing bug. Because it is long-standing, and not a recent regression, I agree we can push it to a later release.",
+    "paulfranklin\n\n 2017-09-22 20:00\n\ndeveloper    ~0052720": "It's been a long time since this \"bug\" was reported, in\n2013 (a day after the tool was changed by Vasilii so that\nit started failing). There have been many changes to the\ndate handler code, and specifically the DateParser class.\n\nI believe that things like \"parsing a date 'before May 1945'\"\nhave worked for a long time. At any rate, they never failed\nfor me, whether I typed them in manually or used the tool.\n\nIn fact, when I glanced at the hundreds of failing dates, in\n0007084:0031486 -- attached back in 2013 when this bug was created --\nI don't see any failures listed for \"before May 1945\" dates,\nnormal years that is to say.\n\nWhat did fail for me was the parsing of \"slash dates\" (also\ncalled \"double-dated\" dates, I believe). The same as the\nhundreds listed in the attached file. But only for dates with\nno day, which started only when Vasilii modified the tool (to\nadd \"0\" days). Normal with-day dates had always passed the\ntool, and still do, even for slashed years.\n\nBut on the off chance that some users might actually want\nto type in (since they could always be entered using the date\neditor dialog) dates like \"1739/40\" or \"May 1722/3\" or \"1745/6\nJune\" -- with or without any modifiers like \"before\" or \"after\"\nor \"calculated\" or \"from ... to ...\" and so on, I have modified\nthe DateParser class to accept them. Or so I hope.\n\nBut I am leaving this bug open in case other people have\ndifferent results than I did, in my testing.\n\nIt's somewhat tedious to test that tool, time-consuming.\nFirst you have to start gramps in some specific locale. In\nmy testing I used en_US and en_GB and sv_SE and fr_FR\nand ru_RU. But it's not sufficient to just start gramps; it\nmust be started anew for each date format which is to\nbe tested, after selecting the format in Edit=>Preferences\nDisplay tab (or the corresponding one in other languages).\nThen a new, empty DB must be created, and only then is\nthe tool run.\n\nFor each of the locales/languages I made a DB with \"ISO\"\ndate-output format (even though I suspect that the code\nis the same in all cases), also the second \"Display\" choice,\nthe \"numerical\" one. Then for all but Swedish I also made\nDBs with some \"dmy\" and \"mdy\" date-output formats. For\nSwedish I just selected one of the \"ymd\" formats (as none\nexist in the new Swedish date handler with the year at the\nend).\n\nI viewed all the results in the \"People\" view, configured to have\nthe \"Tags\" column visible, and then I sorted that Tags column.\nI then checked both the top and bottom of that column, to\nmake sure it said \"Pass\" in both cases (or the equivalent word\nin the other languages), since if there had been any failures\nthe word Fail would have been in that column, either at the\ntop or at the bottom (depending on the language).\n\nFor all the locales, all the languages (I tested), all the date\nformats (I selected), there were no failures reported by the\ntool at all. All 3795 lines were always green.\n\nSo my conclusion is that the dates are correctly being\nparsed, assuming I can believe that the tool is doing its\njob.\n\nBut as I said, I am leaving this bug open in case others\nwish to try things. Some other date format perhaps, or\na different locale/language, to get that date handler.\n\nBut the change I made is in the gramps50 repo now,\nand so it will be in 5.0.0-alpha4 whenever it is released,\n(if it is released, or some 5.0.0 \"beta\" if it isn't,) and\nof course it will be in 5.0.0 also, when it is released.",
+    "gramps: maintenance/gramps50 829a8bd0\n\n 2017-09-22 18:51:30\n\n paulfranklin\n\ndetails diff": "DateParserEN failures under the DateTest tool\n\nIssue 0007084"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "7084-bad-dates-EN.txt (27,800 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "failing dates attached"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "While fixing this bug, it is important first to update the date parser round trip unit test code first, and verify these dates can be broken there, too."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "+1 0003478:0032119\n\n606 tests failing out under trunk (also more tests than 3795)."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Note, we are maybe using specific tests, which could be right but invalid! 0003478:0032142\n\neg, span/range dates with one calendar (eg, french) and a large period (1788/9 ->1876).\nFrench calendar was only used after 1792...\n\nI suppose it is the same with swedish?\nor on calendars with more than 12 months? (hebrew, french)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "No, the problem is with the parser not understanding that if \"May 1234\" is valid, then \"before May 1234\" should be valid in a similar way. The parser logic is broken...\n\nSee the \"Description\" and the attached list for the failing dates, they are all like that. Try any other year if you want. French calendar is now extended to beyond the Republican period (see 0007068), so this is not the issue."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Hi Vassilii,\n\nI don't think a developer-only problem belongs on the roadmap.\n\nYou know about the problem and will fix it when you fix it. Or not.\n\nBut it's a waste of space to have it cluttering the roadmap."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Since when is the roadmap our interface to the users?! I'm a developer, and I use the roadmap to prioritize my work on the bugs. Please raise this on the list, rather than scattering the discussion across multiple bugs."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "The roadmap is read by developers and is primarily\nfor developers. But /all/ developers, not just you\npersonally.\n\nAs I have said on the list, and told you privately\nmonths ago, I don't think you should be using the\nroadmap as your own personal scratch pad, to keep\nan ever-growing list on, just in case you might be\nsomeday interested in looking into them.\n\nYou can keep such a list in your own personal world\nand there is no reason to put your personal choices\nonto what should be a list of bugs for all developers.\n\nAnd you are the one who is raising this \"discussion\" on\nthe bug tracker. I was trying to ask you about this\nparticular bug. Let me be more specific: 1) are you\ngoing to personally fix it before 3.4.7 is released,\n2) if so why don't you assign it to yourself, and 3)\nif neither of those things will happen why is it on\nthe roadmap at all?\n\nThanks."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "1) can't commit to that, but I have it in my sights for later timeframe if noone solves it until then and it is still on the roadmap\n2) this is why I haven't assigned it to myself yet --- I view a bug I keep \"assigned\" to self as a commitment to fix by the target version milestone\n3) because I believe we should clean up anything our tests flag as a bug, and so do some other developers"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Maybe it was here that I had to copy the traceback for testing date handling under english 'C' fallback?\n0007360:0033879 0007360:0034034\n\nfrom ._datehandler import (LANG, LANG_SHORT, LANG_TO_PARSER, LANG_TO_DISPLAY,\nFile \"/home/jerome/Gramps/gramps/gen/datehandler/_datehandler.py\", line 48, in <module>\n\nfrom ._dateparser import DateParser\nFile \"/home/jerome/Gramps/gramps/gen/datehandler/_dateparser.py\", line 53, in <module>\n\nfrom . import _grampslocale\nFile \"/home/jerome/Gramps/gramps/gen/datehandler/_grampslocale.py\", line 147, in <module>\n\nto_uni(time.strftime('%B',(1,2,1,1,1,1,1,1,1)), codeset).lower() : 2,\nUnicodeDecodeError: 'ascii' codec can't decode byte 0xc3 in position 1: ordinal not in range(128)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Vassilii,\n\nCan this be moved to 3.4.99?\n\nThanks."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "<pre>#------------------------------------------------------------------------\n#\n\nCheck Localized Date Displayer and Parser\n\n#\n#------------------------------------------------------------------------\n\nregister(TOOL,\nid = 'test_for_date_parser_and_displayer',\nname = \"Check Localized Date Displayer and Parser\",\ndescription = (\"This test tool will create many people showing all\"\n\" different date variants as birth. The death date is\"\n\" created by parsing the result of the date displayer for\"\n\" the birth date. This way you can ensure that dates\"\n\" printed can be parsed back in correctly.\"),\nversion = '1.0',\ngramps_target_version = '3.4',\nstatus = UNSTABLE,\nfname = 'dateparserdisplaytest.py',\nauthors = [\"Martin Hawlisch\"],\nauthors_email = [\"martin@hawlisch.de\"],\ncategory = TOOL_DEBUG,\ntoolclass = 'DateParserDisplayTest',\noptionclass = 'DateParserDisplayTestOptions',\ntool_modes = [TOOL_MODE_GUI, TOOL_MODE_CLI]\n)</pre>\n\nThis tool is only visible for devs or during devel stages (<i>gramps/plugins/tool/toolsdebug.gpr.py</i>), we can ignore this issue on '3.4.7' release."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "we can ignore this issue on '3.4.7' release.\n\nthis shouldn't be a release blocker right now, I agree!\n\nThis tool is only visible for devs or during devel stages (gramps/plugins/tool/toolsdebug.gpr.py),\n\n...but not because of this reason! The bugs showing up here flag a problem with the parsing code in the date parser which is present and very visible to everybody. Try parsing a date \"before May 1945\" in English or any other date from the attached .txt file --- these are dates that are supposed to be parsed!\n\nSo we have our testing code that helped us and found a long standing bug. Because it is long-standing, and not a recent regression, I agree we can push it to a later release."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "It's been a long time since this \"bug\" was reported, in\n2013 (a day after the tool was changed by Vasilii so that\nit started failing). There have been many changes to the\ndate handler code, and specifically the DateParser class.\n\nI believe that things like \"parsing a date 'before May 1945'\"\nhave worked for a long time. At any rate, they never failed\nfor me, whether I typed them in manually or used the tool.\n\nIn fact, when I glanced at the hundreds of failing dates, in\n0007084:0031486 -- attached back in 2013 when this bug was created --\nI don't see any failures listed for \"before May 1945\" dates,\nnormal years that is to say.\n\nWhat did fail for me was the parsing of \"slash dates\" (also\ncalled \"double-dated\" dates, I believe). The same as the\nhundreds listed in the attached file. But only for dates with\nno day, which started only when Vasilii modified the tool (to\nadd \"0\" days). Normal with-day dates had always passed the\ntool, and still do, even for slashed years.\n\nBut on the off chance that some users might actually want\nto type in (since they could always be entered using the date\neditor dialog) dates like \"1739/40\" or \"May 1722/3\" or \"1745/6\nJune\" -- with or without any modifiers like \"before\" or \"after\"\nor \"calculated\" or \"from ... to ...\" and so on, I have modified\nthe DateParser class to accept them. Or so I hope.\n\nBut I am leaving this bug open in case other people have\ndifferent results than I did, in my testing.\n\nIt's somewhat tedious to test that tool, time-consuming.\nFirst you have to start gramps in some specific locale. In\nmy testing I used en_US and en_GB and sv_SE and fr_FR\nand ru_RU. But it's not sufficient to just start gramps; it\nmust be started anew for each date format which is to\nbe tested, after selecting the format in Edit=>Preferences\nDisplay tab (or the corresponding one in other languages).\nThen a new, empty DB must be created, and only then is\nthe tool run.\n\nFor each of the locales/languages I made a DB with \"ISO\"\ndate-output format (even though I suspect that the code\nis the same in all cases), also the second \"Display\" choice,\nthe \"numerical\" one. Then for all but Swedish I also made\nDBs with some \"dmy\" and \"mdy\" date-output formats. For\nSwedish I just selected one of the \"ymd\" formats (as none\nexist in the new Swedish date handler with the year at the\nend).\n\nI viewed all the results in the \"People\" view, configured to have\nthe \"Tags\" column visible, and then I sorted that Tags column.\nI then checked both the top and bottom of that column, to\nmake sure it said \"Pass\" in both cases (or the equivalent word\nin the other languages), since if there had been any failures\nthe word Fail would have been in that column, either at the\ntop or at the bottom (depending on the language).\n\nFor all the locales, all the languages (I tested), all the date\nformats (I selected), there were no failures reported by the\ntool at all. All 3795 lines were always green.\n\nSo my conclusion is that the dates are correctly being\nparsed, assuming I can believe that the tool is doing its\njob.\n\nBut as I said, I am leaving this bug open in case others\nwish to try things. Some other date format perhaps, or\na different locale/language, to get that date handler.\n\nBut the change I made is in the gramps50 repo now,\nand so it will be in 5.0.0-alpha4 whenever it is released,\n(if it is released, or some 5.0.0 \"beta\" if it isn't,) and\nof course it will be in 5.0.0 also, when it is released."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "7084",
+  "url": "https://gramps-project.org/bugs/view.php?id=7084"
+}

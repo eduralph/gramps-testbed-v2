@@ -1,0 +1,44 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "ennoborg\n\n 2013-03-27 00:20\n\ndeveloper": "test_2013-03-27.gramps (523 bytes)",
+    "romjerome\n\n 2013-12-14 11:34\n\ndeveloper    ~0033316": "Thank you for your report.\n\nCan you reproduce it on Gramps 3.4.6?",
+    "ennoborg\n\n 2013-12-14 18:45\n\ndeveloper    ~0033379": "Yes. Still the same in 3.4.6-1 (deb)",
+    "dsblank\n\n 2013-12-16 11:26\n\ndeveloper    ~0033473": "I believe that this is \"by design\":\n\nhttp://www.gramps-project.org/wiki/index.php?title=Gramps_and_GEDCOM#Information_written_in_other_form_on_GEDCOM_export\n\nThat is, GEDCOM is not the format to use for exporting and importing in Gramps... lots of information can be lost (as the page above shows).",
+    "ennoborg\n\n 2013-12-16 15:04\n\ndeveloper    ~0033475": "I think that we have two options here:\n\nA. Adapt Gramps to the fact that most programs and sites don't understand commma separated fields, and put the compound name in the SURN tag.\n\nB. Make Gramps consistent in that sense, that commas in surname fields are automatically converted, so that the extract tool is not needed.\n\nSince GEDCOM's are mostly used to export to other programs and sites, I prefer A, and think that this issue can be moved to the GEDCOM plug-ins in version 4."
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "test_2013-03-27.gramps (523 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Thank you for your report.\n\nCan you reproduce it on Gramps 3.4.6?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Yes. Still the same in 3.4.6-1 (deb)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I believe that this is \"by design\":\n\nhttp://www.gramps-project.org/wiki/index.php?title=Gramps_and_GEDCOM#Information_written_in_other_form_on_GEDCOM_export\n\nThat is, GEDCOM is not the format to use for exporting and importing in Gramps... lots of information can be lost (as the page above shows)."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I think that we have two options here:\n\nA. Adapt Gramps to the fact that most programs and sites don't understand commma separated fields, and put the compound name in the SURN tag.\n\nB. Make Gramps consistent in that sense, that commas in surname fields are automatically converted, so that the extract tool is not needed.\n\nSince GEDCOM's are mostly used to export to other programs and sites, I prefer A, and think that this issue can be moved to the GEDCOM plug-ins in version 4."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "6571",
+  "url": "https://gramps-project.org/bugs/view.php?id=6571"
+}
