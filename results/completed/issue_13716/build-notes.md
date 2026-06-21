@@ -105,6 +105,44 @@ one implementation, not a parallel copy (principles §3.4).
 - `C4-verify: green-with-fix=PASS / red-without-fix=PASS` and the stale
   `essential-dependency.json` was cleared (now passes on clean upstream).
 
+## PR #2396 follow-up — `popup-shown` reliability verified (2026-06-21)
+
+Reviewer prculley asked on the PR how the fix recognizes custom-type changes from
+other editors/imports, noting `_db_changed` only fires on a family-tree switch. He is
+right about `_db_changed`; that is the *secondary* trigger. The live mechanism is the
+`notify::popup-shown` connection made in `add_type_filter` (`_sidebarfilter.py:236`):
+opening a selector's drop-down calls `_type_popup_shown` → `_type_filters.refresh()` →
+the `fetch` re-reads the **live** db (`getattr(self.dbstate.db, db_method)()`), so any
+type present at open time is offered, regardless of how it got there. Pull-on-open,
+mirroring the editor dialogs (which rebuild their selector every time shown) — no
+per-source signal subscription needed.
+
+The question hinges on one assumption: that `notify::popup-shown` fires for these
+selectors, which are all `Gtk.ComboBox(has_entry=True)`. Verified both ways against
+the local GTK (3.24.52):
+
+- **Source (authoritative).** In `gtkcombobox.c`, `popup-shown` is set+notified only
+  in `gtk_combo_box_child_show()`/`child_hide()` (each does `priv->popup_shown = …;
+  g_object_notify(…, "popup-shown")`). Both the menu-mode setup and list-mode
+  `gtk_combo_box_set_popup_widget()` wire their popup toplevel's `show`/`hide` to these
+  same callbacks — so the notify is independent of popup mode.
+- **Empirical.** Drove a `Gtk.ComboBox(has_entry=True)` through `popup()`/`popdown()`:
+  `events: [('notify', True), ('notify', False)]` — fires on open and close. The
+  patch's guard `if combo.get_property("popup-shown")` (`_sidebarfilter.py:243`)
+  refreshes only on the open transition.
+- **Correction to an earlier assumption.** `has_entry=TRUE` does **not** force list
+  mode. `gtk_combo_box_check_appearance()` keys only off `wrap_width` and the
+  `appears-as-list` style property (theme-dependent), never `has_entry`. On the test
+  system's theme `appears-as-list` is False, so these combos use a **GtkMenu** popup
+  (confirmed by the `Gtk-WARNING: no trigger event for menu popup` and
+  `style_get_property("appears-as-list") == False`). The notify fired anyway — i.e. it
+  held in the mode least expected, making the mechanism theme-independent.
+- **Open-popup live update (nuance, not a bug).** The refresh runs synchronously after
+  the popup's `show`, but the in-place rebuild (`store.clear()` + re-append) lets GTK's
+  own model-sync handlers update the already-open popup live; and the *next* open is
+  unconditionally correct. For the actual bug scenario (import while the filter is
+  closed, user then opens it) there is no race.
+
 ## Alternatives considered (with cost)
 
 - **Keep `get_event_types` for the repo filter (iteration-1 choice).** Rejected by
