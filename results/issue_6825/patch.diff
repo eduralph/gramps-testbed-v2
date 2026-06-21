@@ -1,0 +1,324 @@
+diff --git a/gramps/plugins/gramplet/test/topsurnamesgramplet_test.py b/gramps/plugins/gramplet/test/topsurnamesgramplet_test.py
+index b90fbf45c4..1c1e839fe4 100644
+--- a/gramps/plugins/gramplet/test/topsurnamesgramplet_test.py
++++ b/gramps/plugins/gramplet/test/topsurnamesgramplet_test.py
+@@ -34,6 +34,8 @@ from collections import defaultdict
+ # Gramps modules
+ #
+ # -------------------------------------------------------------------------
++from gramps.gen.db import DbTxn
++from gramps.gen.db.utils import make_database
+ from gramps.gen.lib import Name, Person, Surname
+ from gramps.gen.types import PersonHandle
+ from gramps.plugins.gramplet.topsurnamesgramplet import record_surnames
+@@ -44,6 +46,20 @@ from gramps.plugins.gramplet.topsurnamesgramplet import record_surnames
+ # Test helpers
+ #
+ # -------------------------------------------------------------------------
++class FakeDb:
++    """
++    Minimal database stand-in exposing only the name-group mapping that
++    ``record_surnames`` consults.  An empty mapping leaves every surname
++    grouped under itself (the no-grouping case the original tests exercise).
++    """
++
++    def __init__(self, mapping: dict[str, str] | None = None) -> None:
++        self._mapping = mapping or {}
++
++    def get_name_group_mapping(self, surname: str) -> str:
++        return self._mapping.get(surname, surname)
++
++
+ def make_name(surname_text: str) -> Name:
+     """
+     Build a Name carrying a single surname.
+@@ -67,14 +83,17 @@ def make_person(handle: str, primary: str, alternates: tuple[str, ...] = ()) ->
+     return person
+ 
+ 
+-def tally(people: list[Person]) -> tuple[dict[str, int], dict[str, PersonHandle]]:
++def tally(
++    people: list[Person], db: object | None = None
++) -> tuple[dict[str, int], dict[str, PersonHandle]]:
+     """
+     Run record_surnames over a list of people and return the tallies.
+     """
++    db = db if db is not None else FakeDb()
+     surnames: dict[str, int] = defaultdict(int)
+     representative_handle: dict[str, PersonHandle] = {}
+     for person in people:
+-        record_surnames(person, surnames, representative_handle)
++        record_surnames(db, person, surnames, representative_handle)
+     return surnames, representative_handle
+ 
+ 
+@@ -152,5 +171,101 @@ class TopSurnamesTest(unittest.TestCase):
+         self.assertEqual(surnames["Webb"], 3)
+ 
+ 
++# -------------------------------------------------------------------------
++#
++# SurnameGroupingConsistencyTest (bug #6825)
++#
++# -------------------------------------------------------------------------
++class SurnameGroupingConsistencyTest(unittest.TestCase):
++    """
++    Bug #6825: surname consumers must agree on the grouping.
++
++    When two surnames are grouped together via the database-wide name-group
++    mapping ("Group As -> Group All"), every surname consumer must treat
++    them as one group.  Historically the Top Surnames gramplet and the Same
++    Surnames quick view disagreed: both grouped by ``Name.get_group_name()``
++    (which ignores the database-wide mapping) and the quick view's filter
++    rule matched on the raw surname.
++    """
++
++    @classmethod
++    def setUpClass(cls):
++        # A real in-memory database is needed: the Same Surnames filter rule
++        # applies against the live db, and the global name-group mapping
++        # lives in the db, not on the Name objects.
++        cls.db = make_database("sqlite")
++        cls.db.load(":memory:")
++        cls.smith = make_person("H_SMITH", "Smith")
++        cls.jones = make_person("H_JONES", "Jones")
++        with DbTxn("setup", cls.db) as txn:
++            cls.db.add_person(cls.smith, txn)
++            cls.db.add_person(cls.jones, txn)
++        # "Group As Smith -> Group All": a global mapping, no per-name
++        # override on the Jones name.
++        cls.db.set_name_group_mapping("Jones", "Smith")
++
++    @classmethod
++    def tearDownClass(cls):
++        cls.db.close()
++
++    def test_samesurnames_filter_honors_global_mapping(self):
++        """
++        The Same Surnames filter rule gathers a globally-grouped surname.
++
++        Pre-fix this is RED: the rule matched the raw surname, so Jones
++        (grouped under Smith only via the global mapping) was not gathered
++        with Smith.
++        """
++        from gramps.plugins.quickview.samesurnames import SameSurname
++
++        rule = SameSurname(["Smith"])
++        self.assertTrue(rule.apply_to_one(self.db, self.smith))
++        self.assertTrue(rule.apply_to_one(self.db, self.jones))
++
++    def test_samesurnames_run_path_gathers_the_group(self):
++        """
++        Launching the quick view from either person returns the whole group.
++        """
++        from gramps.plugins.quickview.samesurnames import (
++            _same_surname_handles,
++        )
++
++        expected = {"H_SMITH", "H_JONES"}
++        self.assertEqual(set(_same_surname_handles(self.db, self.smith)), expected)
++        self.assertEqual(set(_same_surname_handles(self.db, self.jones)), expected)
++
++    def test_topsurnames_honors_global_mapping(self):
++        """
++        The Top Surnames tally groups the globally-mapped surname under
++        Smith.
++        """
++        surnames, _ = tally([self.smith, self.jones], db=self.db)
++        self.assertEqual(surnames.get("Smith"), 2)
++        self.assertNotIn("Jones", surnames)
++
++    def test_consumers_agree_on_the_grouping(self):
++        """
++        The two consumers group the same people together (the invariant).
++        """
++        from gramps.plugins.quickview.samesurnames import (
++            _same_surname_handles,
++        )
++
++        same_surnames_group = set(_same_surname_handles(self.db, self.smith))
++
++        surnames, representative_handle = tally([self.smith, self.jones], db=self.db)
++        # The single group the gramplet reports, expanded to its members.
++        top_group = set(
++            _same_surname_handles(
++                self.db,
++                self.db.get_person_from_handle(representative_handle["Smith"]),
++            )
++        )
++
++        self.assertEqual(same_surnames_group, top_group)
++        self.assertEqual(same_surnames_group, {"H_SMITH", "H_JONES"})
++        self.assertEqual(list(surnames), ["Smith"])
++
++
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/gramps/plugins/gramplet/topsurnamesgramplet.py b/gramps/plugins/gramplet/topsurnamesgramplet.py
+index 637508dc7a..9291b72462 100644
+--- a/gramps/plugins/gramplet/topsurnamesgramplet.py
++++ b/gramps/plugins/gramplet/topsurnamesgramplet.py
+@@ -30,6 +30,7 @@ from collections import defaultdict
+ from gramps.gen.plug import Gramplet
+ from gramps.gen.config import config
+ from gramps.gen.const import GRAMPS_LOCALE as glocale
++from gramps.gen.display.name import displayer as name_displayer
+ from gramps.gen.lib import Person
+ from gramps.gen.plug.menu import NumberOption
+ from gramps.gen.types import PersonHandle
+@@ -52,6 +53,7 @@ NUM_SURNAMES = _("Number of Surnames to display")
+ #
+ # ------------------------------------------------------------------------
+ def record_surnames(
++    db,
+     person: Person,
+     surnames: dict[str, int],
+     representative_handle: dict[str, PersonHandle],
+@@ -60,16 +62,22 @@ def record_surnames(
+     Tally one person's surnames and choose representatives for them.
+ 
+     The person is counted under every group name taken from their primary and
+-    alternate names.  They become the representative for a surname only when it
+-    is their primary group name, or when no representative has been chosen yet.
+-    The Same Surnames quick view re-derives the surname from the
+-    representative's primary name, so a representative whose primary surname
+-    differs would open a report for a different surname than the one clicked.
++    alternate names.  Group names are resolved with
++    :meth:`~.display.name.NameDisplay.name_grouping_name`, which honours both
++    the per-name "group as" override and the database-wide name-group mapping,
++    so two surnames the user grouped together are tallied as one --
++    consistently with the Same Surnames quick view (bug #6825).
++
++    They become the representative for a surname only when it is their primary
++    group name, or when no representative has been chosen yet.  The Same
++    Surnames quick view re-derives the surname from the representative's
++    primary name, so a representative whose primary surname differs would open
++    a report for a different surname than the one clicked.
+     """
+     primary_name = person.get_primary_name()
+-    primary_surname = primary_name.get_group_name().strip()
++    primary_surname = name_displayer.name_grouping_name(db, primary_name).strip()
+     allnames = set(
+-        name.get_group_name().strip()
++        name_displayer.name_grouping_name(db, name).strip()
+         for name in [primary_name] + person.get_alternate_names()
+     )
+     for surname in allnames:
+@@ -117,7 +125,7 @@ class TopSurnamesGramplet(Gramplet):
+ 
+         cnt = 0
+         for person in self.dbstate.db.iter_people():
+-            record_surnames(person, surnames, representative_handle)
++            record_surnames(self.dbstate.db, person, surnames, representative_handle)
+             cnt += 1
+             if not cnt % _YIELD_INTERVAL:
+                 yield True
+diff --git a/gramps/plugins/quickview/filterbyname.py b/gramps/plugins/quickview/filterbyname.py
+index d02806731b..e5a29a126b 100644
+--- a/gramps/plugins/quickview/filterbyname.py
++++ b/gramps/plugins/quickview/filterbyname.py
+@@ -29,6 +29,7 @@ from gramps.gui.plug.quick import QuickTable
+ from gramps.gen.utils.file import media_path_full
+ from gramps.gui.plug.quick import run_quick_report_by_name_direct
+ from gramps.gen.lib import Person
++from gramps.gen.display.name import displayer as name_displayer
+ from gramps.gen.datehandler import get_date
+ 
+ import os
+@@ -463,7 +464,12 @@ def run(database, document, filter_name, *args, **kwargs):
+         namelist = defaultdict(int)
+         for person in database.iter_people():
+             names = [person.get_primary_name()] + person.get_alternate_names()
+-            surnames = list(set([name.get_group_name() for name in names]))
++            # Tally by the grouping name (per-name "group as" override AND the
++            # database-wide name-group mapping), matching the Same Surnames
++            # quick view the double-click below opens (bug #6825).
++            surnames = list(
++                set(name_displayer.name_grouping_name(database, name) for name in names)
++            )
+             for surname in surnames:
+                 namelist[surname] += 1
+         stab.columns(_("Surname"), _("Count"))
+diff --git a/gramps/plugins/quickview/samesurnames.py b/gramps/plugins/quickview/samesurnames.py
+index 893663f92f..7d50c1ec20 100644
+--- a/gramps/plugins/quickview/samesurnames.py
++++ b/gramps/plugins/quickview/samesurnames.py
+@@ -31,6 +31,7 @@ ngettext = glocale.translation.ngettext  # else "nearby" comments are ignored
+ from gramps.gen.simple import SimpleAccess, SimpleDoc
+ from gramps.gui.plug.quick import QuickTable
+ from gramps.gen.lib import Person
++from gramps.gen.display.name import displayer as name_displayer
+ from gramps.gen.filters.rules import Rule
+ from gramps.gen.filters import GenericFilterFactory
+ 
+@@ -60,7 +61,12 @@ class SameSurname(Rule):
+     def apply_to_one(self, db, person):
+         src = self.list[0].upper()
+         for name in [person.get_primary_name()] + person.get_alternate_names():
+-            if name.get_surname() and name.get_surname().upper() == src.upper():
++            # Match on the grouping name (honouring the per-name "group as"
++            # override AND the database-wide name-group mapping) rather than the
++            # raw surname, so a name the user grouped under another surname is
++            # gathered with it (bug #6825).
++            group = name_displayer.name_grouping_name(db, name)
++            if group and group.upper() == src:
+                 return True
+         return False
+ 
+@@ -107,6 +113,33 @@ class IncompleteGiven(Rule):
+         return False
+ 
+ 
++def _same_surname_handles(database, person):
++    """
++    Return the handles of everyone sharing ``person``'s surname group.
++
++    The grouping is resolved with
++    :meth:`~.display.name.NameDisplay.name_grouping_name`, which honours both
++    the per-name "group as" override and the database-wide name-group mapping,
++    so the people gathered here are grouped the same way the surname gramplets
++    group them (bug #6825).  ``person`` may be a
++    :class:`~.lib.person.Person` or a plain group-name string (as passed by
++    the surname links).
++    """
++    if isinstance(person, Person):
++        rsurname = name_displayer.name_grouping_name(
++            database, person.get_primary_name()
++        )
++    else:
++        rsurname = person
++    surname_filter = GenericFilterFactory("Person")()
++    if rsurname != "":
++        rule = SameSurname([rsurname])
++    else:
++        rule = IncompleteSurname([])
++    surname_filter.add_rule(rule)
++    return surname_filter.apply(database, database.iter_person_handles())
++
++
+ def run(database, document, person):
+     """
+     Loops through the families that the person is a child in, and displays
+@@ -118,21 +151,13 @@ def run(database, document, person):
+     stab = QuickTable(sdb)
+     if isinstance(person, Person):
+         surname = sdb.surname(person)
+-        rsurname = person.get_primary_name().get_group_name()
+     else:
+         surname = person
+-        rsurname = person
+     # display the title
+     sdoc.title(_("People sharing the surname '%s'") % surname)
+     sdoc.paragraph("")
+     stab.columns(_("Person"), _("Birth Date"), _("Name type"))
+-    filter = GenericFilterFactory("Person")()
+-    if rsurname != "":
+-        rule = SameSurname([rsurname])
+-    else:
+-        rule = IncompleteSurname([])
+-    filter.add_rule(rule)
+-    people = filter.apply(database, database.iter_person_handles())
++    people = _same_surname_handles(database, person)
+ 
+     matches = 0
+     for person_handle in people:
