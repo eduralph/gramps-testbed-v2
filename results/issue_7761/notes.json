@@ -1,0 +1,68 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "tjmac\n\n 2014-05-28 17:07\n\nreporter  \n\ndelete": "Date sort.png (23,368 bytes)  \n Date sort.png (23,368 bytes)",
+    "tjmac\n\n 2014-07-17 19:21\n\nreporter    ~0037528\n\nedit\ndelete\nmake private": "Is this a big issue to fix? It's driving me crazy!",
+    "bubblegum\n\n 2014-11-05 22:45\n\ndeveloper    ~0039370\n\nedit\ndelete\nmake private": "Hi TJMac,\n\nCan you confirm that detailed dates are already grouped ?\nThe problem is that all other dates are actually converted to the same numerical sort_value.\nI am trying to figure out a fix, but this might involve a bit of work creating a different sort_value that takes pre-descriptors into account.",
+    "tjmac\n\n 2014-11-06 03:55\n\nreporter    ~0039380\n\nedit\ndelete\nmake private": "I was pleasantly surprised that someone was looking at these bugs! It was beginning to look like a version 3.4.9 would never be released, and yet there are still a lot of bugs in this version. And there is no way that I can upgrade to 4.X because it's way to slow for my large database.\n\nAs for your above query:\n\nYes, all the detailed dates (ie ones with year, month, day) sort correctly. It's everything else, including dates without a day, that are not grouped consistently. It seems that the biggest problem is that there needs to be a routine that sorts the dates with alphanumeric characters (words) -- that would fix about 90% of the problem.",
+    "paulfranklin\n\n 2014-11-06 17:46\n\ndeveloper    ~0039387\n\nedit\ndelete\nmake private": "I don't think I've ever looked at a \"view\" code,\nfor instance the People view, but each date has\na \"modifier\" attached to it (which is how the\ndisplayer knows to preface an \"about\" etc.), so\nperhaps those modifiers could be tested for, in\nthe GUI code, for a given date value? (Since as\nhe said, IIRC \"about 1925\" gets given the same\nnumerical sort value as \"1925\" (1-1-1925 IIRC).)",
+    "tjmac\n\n 2015-11-01 03:06\n\nreporter    ~0045160\n\n last edited: 2015-11-13 00:39\n\nview 2 revisions\n\nedit\ndelete\nmake private": "This bug is still present in 4.2.1. I hate to keep writing about it, but it really bugs me. When I'm comparing 10 screens of people with the same birth year, and I have to scroll 10 pages up or down just because this isn't fixed.\n\nYou see, the modifier \"after\" should be places after all dates with that date.\n\neg.\nperson a before 1902\nperson b about 1902\nperson c 1902\nperson d jan 5, 1902\nperson...\nPerson x after 1902\n\nCurrently, person a, b, c, and x are found in any order! This example seems the most appropriate (logical) order for comparing people (which I do 50% of the time), because they are ordered as close as possible (position-wise) to a potential duplicate person with an exact date (a date that includes day,month,year).\n\nUPDATE: Here is my suggestion on how the modifier \"between\" should be positioned/placed in a list -- an approximate average should be taken. I would be happy to see gramps just take the difference between the two years (eg. 1922 and 1933 = 10), divided by 2 (10/2), equaling earlier date plus result (1922+5=1927). So in this case it would be positioned before jan 1, 1927 or before/after dates with just the year 1927.\n\nThis above proposal could be used precisely if it didn't slow gramps down too much. Example: Betw Feb 9, 1853 and July 27, 1860, would be divided by two and added to the date Feb 9, 1853... the result would be placed in a precise avg date (so when seen, and comparing names, the user would know to look above and below the given \"between\" date.)",
+    "sam888\n\n 2017-05-06 01:44\n\nadministrator    ~0051680\n\nedit\ndelete\nmake private": "Was confirmed in comment 0007761:0039370",
+    "sam888\n\n 2020-09-24 04:29\n\nadministrator    ~0061002\n\nedit\ndelete\nmake private": "Has this issue improved for you with Gramps 5.1.3?",
+    "aviansid\n\n 2026-04-26 10:34\n\ndeveloper    ~0070543\n\nedit\ndelete\nmake private": "I submittted a fix for this https://github.com/gramps-project/gramps/pull/2264"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Date sort.png (23,368 bytes)  \n Date sort.png (23,368 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Is this a big issue to fix? It's driving me crazy!"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Hi TJMac,\n\nCan you confirm that detailed dates are already grouped ?\nThe problem is that all other dates are actually converted to the same numerical sort_value.\nI am trying to figure out a fix, but this might involve a bit of work creating a different sort_value that takes pre-descriptors into account."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I was pleasantly surprised that someone was looking at these bugs! It was beginning to look like a version 3.4.9 would never be released, and yet there are still a lot of bugs in this version. And there is no way that I can upgrade to 4.X because it's way to slow for my large database.\n\nAs for your above query:\n\nYes, all the detailed dates (ie ones with year, month, day) sort correctly. It's everything else, including dates without a day, that are not grouped consistently. It seems that the biggest problem is that there needs to be a routine that sorts the dates with alphanumeric characters (words) -- that would fix about 90% of the problem."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I don't think I've ever looked at a \"view\" code,\nfor instance the People view, but each date has\na \"modifier\" attached to it (which is how the\ndisplayer knows to preface an \"about\" etc.), so\nperhaps those modifiers could be tested for, in\nthe GUI code, for a given date value? (Since as\nhe said, IIRC \"about 1925\" gets given the same\nnumerical sort value as \"1925\" (1-1-1925 IIRC).)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "This bug is still present in 4.2.1. I hate to keep writing about it, but it really bugs me. When I'm comparing 10 screens of people with the same birth year, and I have to scroll 10 pages up or down just because this isn't fixed.\n\nYou see, the modifier \"after\" should be places after all dates with that date.\n\neg.\nperson a before 1902\nperson b about 1902\nperson c 1902\nperson d jan 5, 1902\nperson...\nPerson x after 1902\n\nCurrently, person a, b, c, and x are found in any order! This example seems the most appropriate (logical) order for comparing people (which I do 50% of the time), because they are ordered as close as possible (position-wise) to a potential duplicate person with an exact date (a date that includes day,month,year).\n\nUPDATE: Here is my suggestion on how the modifier \"between\" should be positioned/placed in a list -- an approximate average should be taken. I would be happy to see gramps just take the difference between the two years (eg. 1922 and 1933 = 10), divided by 2 (10/2), equaling earlier date plus result (1922+5=1927). So in this case it would be positioned before jan 1, 1927 or before/after dates with just the year 1927.\n\nThis above proposal could be used precisely if it didn't slow gramps down too much. Example: Betw Feb 9, 1853 and July 27, 1860, would be divided by two and added to the date Feb 9, 1853... the result would be placed in a precise avg date (so when seen, and comparing names, the user would know to look above and below the given \"between\" date.)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Was confirmed in comment 0007761:0039370"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Has this issue improved for you with Gramps 5.1.3?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I submittted a fix for this https://github.com/gramps-project/gramps/pull/2264"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "7761",
+  "url": "https://gramps-project.org/bugs/view.php?id=7761"
+}
