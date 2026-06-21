@@ -1,0 +1,276 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index d606be7b9..d16496894 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -20,9 +20,13 @@ name: CI
+ 
+ on:
+   push:
+-    branches: [maintenance/gramps**]
++    # gramps[0-9][0-9] (not gramps**) so the filter matches only real series
++    # branches (maintenance/gramps60, /gramps61, …) and not, e.g.,
++    # maintenance/gramps-foo — which would otherwise pass this filter and only
++    # fail later in the setup job's `gramps[0-9][0-9]` ref regex.
++    branches: [maintenance/gramps[0-9][0-9]]
+   pull_request:
+-    branches: [maintenance/gramps**]
++    branches: [maintenance/gramps[0-9][0-9]]
+ 
+ jobs:
+   # -----------------------------------------------------------------
+@@ -154,8 +158,12 @@ jobs:
+     steps:
+       - uses: actions/checkout@v4
+ 
+-      - name: Compile all Python files in listed addons (excluding .gpr.py)
++      - name: Compile all Python files in listed addons (including .gpr.py)
+         # Skip include_in_listing=False addons (see lint job for rationale).
++        # .gpr.py descriptors are included: py_compile only checks *syntax*
++        # (it does not execute them, so the register()/globals injected at
++        # registration time are irrelevant), so a .gpr.py syntax error is
++        # caught here rather than only later at plugin registration.
+         shell: bash
+         run: |
+           is_active() {
+@@ -183,7 +191,7 @@ jobs:
+             if ! python3 -m py_compile "$f" 2>&1; then
+               failed=1
+             fi
+-          done < <(find . -name '*.py' ! -name '*.gpr.py' ! -path './.git/*' ! -path '*/__pycache__/*')
++          done < <(find . -name '*.py' ! -path './.git/*' ! -path '*/__pycache__/*')
+           exit $failed
+ 
+   # -----------------------------------------------------------------
+diff --git a/.github/workflows/docker-build.yml b/.github/workflows/docker-build.yml
+index 6ebd19ed5..a3c2362da 100644
+--- a/.github/workflows/docker-build.yml
++++ b/.github/workflows/docker-build.yml
+@@ -6,7 +6,9 @@ on:
+     # a ~20-30 s no-op when nothing under .github/docker/ has changed,
+     # in exchange for guaranteeing gramps-ci:<suffix> exists on the
+     # first push to any newly-created maintenance branch.
+-    branches: [maintenance/gramps**]
++    # gramps[0-9][0-9] (not gramps**) so only real series branches match —
++    # see the same-named filter in ci.yml.
++    branches: [maintenance/gramps[0-9][0-9]]
+   workflow_dispatch:
+ 
+ env:
+diff --git a/tests/addon_paths.py b/tests/addon_paths.py
+new file mode 100644
+index 000000000..ecd4d46d5
+--- /dev/null
++++ b/tests/addon_paths.py
+@@ -0,0 +1,47 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  Eduard Ralph
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++#
++
++"""
++Path predicates shared by the addon plugin-registration tests.
++
++Deliberately free of Gramps / GI imports so the predicates can be unit-tested
++without booting the plugin system or needing a display.
++"""
++
++# ------------------------
++# Python modules
++# ------------------------
++import os
++
++
++def is_in_addons_tree(fpath: str, addons_root: str) -> bool:
++    """Return whether ``fpath`` lies inside the ``addons_root`` directory tree.
++
++    This is a path-*prefix* check, not a substring test: a sibling directory
++    whose name merely starts with ``addons_root`` (e.g. ``addons-source-6.1``
++    next to ``addons-source``) must **not** be treated as inside the tree.
++
++    :param fpath: A plugin's ``fpath`` (its ``.gpr.py`` directory); may be empty.
++    :param addons_root: Absolute path to the addons-source repository root.
++    :returns: ``True`` iff ``fpath`` is a path beneath ``addons_root``.
++    """
++    if not fpath:
++        return False
++    return fpath.startswith(addons_root + os.sep)
+diff --git a/tests/gramps_test_env.py b/tests/gramps_test_env.py
+index 901169011..e7a5deb54 100644
+--- a/tests/gramps_test_env.py
++++ b/tests/gramps_test_env.py
+@@ -113,16 +113,6 @@ def get_plugin_manager_and_registry() -> tuple[Any, Any]:
+     return _plugin_cache["pmgr"], _plugin_cache["registry"]
+ 
+ 
+-def make_gramps_user() -> Any:
+-    """Return a headless :class:`gramps.cli.user.User` for batch import/export.
+-
+-    :returns: A ``User`` configured with ``auto_accept=True`` and ``quiet=True``.
+-    """
+-    from gramps.cli.user import User
+-
+-    return User(auto_accept=True, quiet=True)
+-
+-
+ # ------------------------------------------------------------
+ #
+ # GrampsTestCase
+diff --git a/tests/test_plugin_registration.py b/tests/test_plugin_registration.py
+index b2f2f4dde..7d155b684 100644
+--- a/tests/test_plugin_registration.py
++++ b/tests/test_plugin_registration.py
+@@ -44,12 +44,13 @@ from typing import Any
+ # ------------------------
+ # Gramps modules
+ # ------------------------
+-from gramps.gen.plug._pluginreg import EXPORT, GRAMPLET, IMPORT, REPORT, TOOL
++from gramps.gen.plug._pluginreg import EXPORT, GRAMPLET, IMPORT, PTYPE, REPORT, TOOL
+ from gramps.version import VERSION_TUPLE
+ 
+ # ------------------------
+ # Gramps specific
+ # ------------------------
++from tests.addon_paths import is_in_addons_tree
+ from tests.gramps_test_env import ADDONS_ROOT, GrampsTestCase
+ 
+ LOG = logging.getLogger(__name__)
+@@ -71,9 +72,9 @@ def _get_addon_plugins(registry: Any, include_unlisted: bool = False) -> list[An
+     """
+     return [
+         pdata
+-        for pdata in registry._PluginRegister__plugindata
+-        if pdata.fpath
+-        and ADDONS_ROOT in pdata.fpath
++        for ptype in PTYPE
++        for pdata in registry.type_plugins(ptype)
++        if is_in_addons_tree(pdata.fpath, ADDONS_ROOT)
+         and (include_unlisted or pdata.include_in_listing)
+     ]
+ 
+@@ -242,7 +243,7 @@ class TestImportPluginSmoke(GrampsTestCase):
+         import_plugins = [
+             p
+             for p in self.plugin_registry.type_plugins(IMPORT)
+-            if p.fpath and ADDONS_ROOT in p.fpath and p.include_in_listing
++            if is_in_addons_tree(p.fpath, ADDONS_ROOT) and p.include_in_listing
+         ]
+         issues: list[str] = []
+         for pdata in import_plugins:
+@@ -274,7 +275,7 @@ class TestExportPluginSmoke(GrampsTestCase):
+         export_plugins = [
+             p
+             for p in self.plugin_registry.type_plugins(EXPORT)
+-            if p.fpath and ADDONS_ROOT in p.fpath and p.include_in_listing
++            if is_in_addons_tree(p.fpath, ADDONS_ROOT) and p.include_in_listing
+         ]
+         issues: list[str] = []
+         for pdata in export_plugins:
+diff --git a/tests/test_addon_paths.py b/tests/test_addon_paths.py
+new file mode 100644
+index 000000000..601ebd839
+--- /dev/null
++++ b/tests/test_addon_paths.py
+@@ -0,0 +1,88 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  Eduard Ralph
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++#
++
++"""
++Unit tests for :func:`tests.addon_paths.is_in_addons_tree`.
++
++Guards review-nit (c): ``_get_addon_plugins`` (and the import/export smoke
++tests) must classify a plugin's ``fpath`` with a path-*prefix* check, not the
++former ``ADDONS_ROOT in pdata.fpath`` substring test — otherwise a sibling
++directory sharing the repo's name prefix (e.g. a ``addons-source-6.1`` checkout
++beside ``addons-source``) is wrongly treated as part of this repository.
++
++Import-light by design: it imports only :mod:`tests.addon_paths`, so it runs
++under a plain ``python3 -m unittest`` with no Gramps, GI, or display.
++"""
++
++# ------------------------
++# Python modules
++# ------------------------
++import os
++import unittest
++
++# ------------------------
++# Module under test
++# ------------------------
++from tests.addon_paths import is_in_addons_tree
++
++
++class IsInAddonsTreeTest(unittest.TestCase):
++    """Path-prefix matching for plugin ``fpath`` classification."""
++
++    def setUp(self) -> None:
++        # An absolute, OS-portable addons-source root, e.g. /work/addons-source.
++        self.root = os.path.join(os.sep + "work", "addons-source")
++
++    def test_direct_child_matches(self) -> None:
++        """A plugin directory directly under the root is inside the tree."""
++        self.assertTrue(is_in_addons_tree(os.path.join(self.root, "Sqlite"), self.root))
++
++    def test_nested_path_matches(self) -> None:
++        """A deeper path under the root is inside the tree."""
++        self.assertTrue(
++            is_in_addons_tree(
++                os.path.join(self.root, "Sqlite", "sqlite.gpr.py"), self.root
++            )
++        )
++
++    def test_sibling_sharing_name_prefix_not_matched(self) -> None:
++        """A sibling dir whose name only *starts with* the root is NOT inside.
++
++        This is the exact case the old ``ADDONS_ROOT in fpath`` substring test
++        got wrong: ``/work/addons-source`` is a substring of
++        ``/work/addons-source-6.1/...`` but it is a different directory.
++        """
++        sibling = self.root + "-6.1"
++        self.assertFalse(
++            is_in_addons_tree(os.path.join(sibling, "SomeAddon", "x.gpr.py"), self.root)
++        )
++
++    def test_root_itself_not_matched(self) -> None:
++        """The bare root (no trailing separator/child) is not a plugin path."""
++        self.assertFalse(is_in_addons_tree(self.root, self.root))
++
++    def test_empty_or_missing_fpath_not_matched(self) -> None:
++        """A falsy ``fpath`` (unregistered plugin) is never inside the tree."""
++        self.assertFalse(is_in_addons_tree("", self.root))
++        self.assertFalse(is_in_addons_tree(None, self.root))
++
++
++if __name__ == "__main__":
++    unittest.main()
