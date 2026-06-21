@@ -1,0 +1,22 @@
+Accept mixed-case GEDCOM date qualifiers (CAL/EST/INT)
+
+GEDCOM 5.5.1 specifies approximate-date qualifier keywords
+(CAL, EST, INT) in uppercase, but real-world exporters emit them in
+mixed case (e.g., "2 DATE Cal 1847"). The MOD regex in libgedcom's
+date-extraction path was case-sensitive, so these mixed-case variants
+never matched: the qualifier was left unrecognised and the value passed
+through as a literal text (MOD_TEXTONLY) date, which Verify-the-Data
+flags as an error. The same value in all-caps imported correctly as a
+Calculated date.
+
+Fix the case sensitivity and normalise the captured qualifier before
+the uppercase-keyed QUALITY_MAP lookup. This restores leniency over
+the whole qualifier class (CAL/EST/INT in any case), not just the one
+token "Cal" — matching the existing lenient treatment of in-text
+modifier words (ABT/BEF/AFT).
+
+Add a test suite that drives the real GEDCOM importer with mixed-case
+qualifiers and asserts the resulting Date has the correct quality with
+the year parsed, not a text-only date.
+
+Fixes #8850
