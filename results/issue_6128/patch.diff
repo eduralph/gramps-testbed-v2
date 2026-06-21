@@ -1,0 +1,692 @@
+diff --git a/gramps/cli/plug/__init__.py b/gramps/cli/plug/__init__.py
+index fb96355695..e0541b55bc 100644
+--- a/gramps/cli/plug/__init__.py
++++ b/gramps/cli/plug/__init__.py
+@@ -79,7 +79,7 @@ from gramps.gen.plug.report import (
+     CATEGORY_TREE,
+     CATEGORY_CODE,
+     ReportOptions,
+-    append_styles,
++    add_book_item_styles,
+ )
+ from gramps.gen.plug.report._paper import paper_sizes
+ from gramps.gen.const import USER_HOME, DOCGEN_OPTIONS
+@@ -877,7 +877,7 @@ def cl_book(database, name, book, options_str_dict):
+     user = User()
+     rptlist = []
+     selected_style = StyleSheet()
+-    for item in book.get_item_list():
++    for item_number, item in enumerate(book.get_item_list()):
+         # The option values were loaded magically by the book parser.
+         # But they still need to be applied to the menu options.
+         opt_dict = item.option_class.options_dict
+@@ -887,14 +887,18 @@ def cl_book(database, name, book, options_str_dict):
+             if menu_option:
+                 menu_option.set_value(opt_dict[optname])
+ 
+-        item.option_class.set_document(doc)
++        # Collate this item's styles into the book's shared stylesheet under a
++        # per-item namespace and route the item's report through a proxy that
++        # rewrites its style references to that namespace, so same-named styles
++        # from different items keep their own values (issue 6128). Must run
++        # before the report is built (it grabs its document here).
++        add_book_item_styles(selected_style, item, doc, item_number)
+         report_class = item.get_write_item()
+         obj = (
+             write_book_item(database, report_class, item.option_class, user),
+             item.get_translated_name(),
+         )
+         if obj:
+-            append_styles(selected_style, item)
+             rptlist.append(obj)
+ 
+     doc.set_style_sheet(selected_style)
+diff --git a/gramps/gen/plug/report/__init__.py b/gramps/gen/plug/report/__init__.py
+index c3a134fc0a..488701d626 100644
+--- a/gramps/gen/plug/report/__init__.py
++++ b/gramps/gen/plug/report/__init__.py
+@@ -32,4 +32,11 @@ from ._bibliography import Bibliography, Citation
+ 
+ from ._options import MenuReportOptions, ReportOptions, DocOptions
+ 
+-from ._book import BookList, Book, BookItem, append_styles
++from ._book import (
++    BookList,
++    Book,
++    BookItem,
++    append_styles,
++    add_book_item_styles,
++    BookItemStyleProxy,
++)
+diff --git a/gramps/gen/plug/report/_book.py b/gramps/gen/plug/report/_book.py
+index ffd9214688..7637baa526 100644
+--- a/gramps/gen/plug/report/_book.py
++++ b/gramps/gen/plug/report/_book.py
+@@ -60,7 +60,7 @@ from ...const import GRAMPS_LOCALE as glocale
+ _ = glocale.translation.gettext
+ from ...const import USER_DATA
+ from ...utils.cast import get_type_converter_by_name, type_name
+-from ..docgen import StyleSheet, StyleSheetList
++from ..docgen import StyleSheet, StyleSheetList, GraphicsStyle
+ from .. import BasePluginManager
+ from . import book_categories
+ 
+@@ -723,9 +723,9 @@ class BookParser(handler.ContentHandler):
+ # Functions
+ #
+ # -------------------------------------------------------------------------
+-def append_styles(selected_style, item):
++def get_item_style_sheet(item):
+     """
+-    Append the styles for a book item to the stylesheet.
++    Return the (own, un-namespaced) :class:`.StyleSheet` a book item selected.
+     """
+     ihandler = item.option_class.handler
+ 
+@@ -741,24 +741,180 @@ def append_styles(selected_style, item):
+ 
+     # Get the selected stylesheet
+     style_name = ihandler.get_default_stylesheet_name()
+-    style_sheet = style_list.get_style_sheet(style_name)
++    return style_list.get_style_sheet(style_name)
+ 
+-    for this_style_name in style_sheet.get_paragraph_style_names():
++
++def _add_namespaced_styles(selected_style, style_sheet, prefix):
++    """
++    Copy every style in ``style_sheet`` into ``selected_style``, each stored
++    under ``prefix`` + its original name.
++
++    A draw (graphics) style embeds the *name* of the paragraph style it renders
++    text with (``GraphicsStyle.get_paragraph_style()``); the document backend
++    resolves that name against the same shared stylesheet (e.g.
++    ``svgdrawdoc``/``libcairodoc``: ``get_draw_style(...).get_paragraph_style()``
++    then ``get_paragraph_style(name)``). So the embedded reference must be
++    namespaced too, or the draw style would resolve its paragraph by the bare
++    (colliding) name. With ``prefix == ""`` this is the historical behaviour.
++    """
++    for name in style_sheet.get_paragraph_style_names():
+         selected_style.add_paragraph_style(
+-            this_style_name, style_sheet.get_paragraph_style(this_style_name)
++            prefix + name, style_sheet.get_paragraph_style(name)
+         )
+ 
+-    for this_style_name in style_sheet.get_draw_style_names():
+-        selected_style.add_draw_style(
+-            this_style_name, style_sheet.get_draw_style(this_style_name)
+-        )
++    for name in style_sheet.get_draw_style_names():
++        draw_style = GraphicsStyle(style_sheet.get_draw_style(name))
++        para_name = draw_style.get_paragraph_style()
++        if para_name:
++            draw_style.set_paragraph_style(prefix + para_name)
++        selected_style.add_draw_style(prefix + name, draw_style)
++
++    for name in style_sheet.get_table_style_names():
++        selected_style.add_table_style(prefix + name, style_sheet.get_table_style(name))
++
++    for name in style_sheet.get_cell_style_names():
++        selected_style.add_cell_style(prefix + name, style_sheet.get_cell_style(name))
++
++
++def append_styles(selected_style, item, prefix=""):
++    """
++    Append the styles for a book item to the book's shared stylesheet.
++
++    Each style is stored under ``prefix`` + its name. A book renders several
++    items into one shared document carrying a single shared stylesheet (a hard
++    requirement of backends such as ODF, which emit the whole stylesheet once at
++    ``open()``). Two items of the same report type define styles under identical
++    names (e.g. two Descendant Reports both define "DR-Title"). Without a
++    per-item ``prefix`` the second item's style overwrites the first's in the
++    flat shared sheet, so both items resolve that name to the last-written values
++    (issue 6128). Namespacing by ``prefix`` keeps every item's styles distinct;
++    :class:`BookItemStyleProxy` rewrites each item's report's style references to
++    the matching prefixed name.
++
++    Returns the item's own (un-namespaced) :class:`.StyleSheet`, so the caller
++    can build the item's :class:`BookItemStyleProxy`.
++    """
++    style_sheet = get_item_style_sheet(item)
++    _add_namespaced_styles(selected_style, style_sheet, prefix)
++    return style_sheet
++
++
++def book_item_style_prefix(item_number):
++    """
++    A per-item style-name namespace, unique across the items of one book.
++
++    ``item_number`` is the item's position in the book's item list. The prefix
++    uses the same character set (upper-case letters, digits, hyphen) as the
++    report-defined style names it is prepended to, so it survives every document
++    backend's style-name handling exactly as the existing distinct style names
++    from different report types already do.
++    """
++    return "BI%03d-" % item_number
+ 
+-    for this_style_name in style_sheet.get_table_style_names():
+-        selected_style.add_table_style(
+-            this_style_name, style_sheet.get_table_style(this_style_name)
+-        )
+ 
+-    for this_style_name in style_sheet.get_cell_style_names():
+-        selected_style.add_cell_style(
+-            this_style_name, style_sheet.get_cell_style(this_style_name)
++class BookItemStyleProxy:
++    """
++    A thin wrapper around the book's shared document that namespaces a single
++    book item's style-name references (issue 6128).
++
++    :func:`append_styles` stores each book item's styles under a per-item
++    ``prefix`` in the shared stylesheet so same-named styles from different items
++    do not collide. A report's style-name references are baked into the report
++    code (e.g. ``self.doc.start_paragraph("DR-Title")``); routing the item's
++    report through this proxy rewrites every such reference to the matching
++    prefixed name, so the shared document resolves it to that item's own values.
++
++    The proxy overrides every style-name-bearing method of the abstract
++    ``TextDoc`` and ``DrawDoc`` interfaces (the only document API a report uses
++    to reference styles by name): ``start_paragraph``, ``start_table``,
++    ``start_cell``, ``write_styled_note``, ``add_media`` (text) and
++    ``draw_path``, ``draw_box``, ``draw_text``, ``center_text``, ``rotate_text``,
++    ``draw_line`` (draw). It also keeps the item's stylesheet view in step:
++    ``get_style_sheet`` returns the item's own un-prefixed sheet, and
++    ``set_style_sheet`` (used by reports that compute styles at run time, e.g.
++    AncestorTree/DescendTree/FanChart) re-namespaces the item's changes back into
++    the shared document instead of replacing it wholesale. Every other
++    attribute/method is delegated unchanged to the shared document.
++    """
++
++    def __init__(self, doc, item_style_sheet, prefix):
++        self._doc = doc
++        self._item_style_sheet = item_style_sheet
++        self._prefix = prefix
++
++    # -- the item's stylesheet view (read/modify/write at run time) -----------
++    def get_style_sheet(self):
++        return StyleSheet(self._item_style_sheet)
++
++    def set_style_sheet(self, style_sheet):
++        # Keep the item's own view, and mirror the change into the shared
++        # document under this item's prefix (never replace the shared sheet,
++        # which holds every other item's namespaced styles).
++        self._item_style_sheet = StyleSheet(style_sheet)
++        shared = self._doc.get_style_sheet()
++        _add_namespaced_styles(shared, style_sheet, self._prefix)
++        self._doc.set_style_sheet(shared)
++
++    # -- TextDoc methods that take a style name -------------------------------
++    def start_paragraph(self, style_name, leader=None):
++        self._doc.start_paragraph(self._prefix + style_name, leader)
++
++    def start_table(self, name, style_name):
++        self._doc.start_table(name, self._prefix + style_name)
++
++    def start_cell(self, style_name, span=1):
++        self._doc.start_cell(self._prefix + style_name, span)
++
++    def write_styled_note(
++        self, styledtext, format, style_name, contains_html=False, links=False
++    ):
++        self._doc.write_styled_note(
++            styledtext, format, self._prefix + style_name, contains_html, links
+         )
++
++    def add_media(self, name, align, w_cm, h_cm, alt="", style_name=None, crop=None):
++        if style_name is not None:
++            style_name = self._prefix + style_name
++        self._doc.add_media(name, align, w_cm, h_cm, alt, style_name, crop)
++
++    # -- DrawDoc methods that take a (graphics) style name --------------------
++    def draw_path(self, style, path):
++        self._doc.draw_path(self._prefix + style, path)
++
++    def draw_box(self, style, text, x, y, w, h, mark=None):
++        self._doc.draw_box(self._prefix + style, text, x, y, w, h, mark)
++
++    def draw_text(self, style, text, x1, y1, mark=None):
++        self._doc.draw_text(self._prefix + style, text, x1, y1, mark)
++
++    def center_text(self, style, text, x1, y1, mark=None):
++        self._doc.center_text(self._prefix + style, text, x1, y1, mark)
++
++    def rotate_text(self, style, text, x, y, angle, mark=None):
++        self._doc.rotate_text(self._prefix + style, text, x, y, angle, mark)
++
++    def draw_line(self, style, x1, y1, x2, y2):
++        self._doc.draw_line(self._prefix + style, x1, y1, x2, y2)
++
++    # -- everything else is the shared document -------------------------------
++    def __getattr__(self, name):
++        return getattr(self._doc, name)
++
++
++def add_book_item_styles(selected_style, item, doc, item_number):
++    """
++    Collate one book item's styles into the book's shared ``selected_style`` and
++    route the item's report through a style-namespacing document proxy, so a book
++    with several same-type items renders each with its OWN style values (the
++    issue-6128 invariant).
++
++    Must be called BEFORE the item's report object is created: the report grabs
++    its document from ``item.option_class.get_document()`` at construction
++    (``_reportbase.ReportBase.__init__``), so the proxy is installed via
++    ``set_document`` here. Returns the proxy.
++    """
++    prefix = book_item_style_prefix(item_number)
++    item_style_sheet = append_styles(selected_style, item, prefix)
++    proxy = BookItemStyleProxy(doc, item_style_sheet, prefix)
++    item.option_class.set_document(proxy)
++    return proxy
+diff --git a/gramps/gen/plug/report/test/__init__.py b/gramps/gen/plug/report/test/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/gramps/gen/plug/report/test/book_styles_test.py b/gramps/gen/plug/report/test/book_styles_test.py
+new file mode 100644
+index 0000000000..6103e9b7f3
+--- /dev/null
++++ b/gramps/gen/plug/report/test/book_styles_test.py
+@@ -0,0 +1,354 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  Gramps Development Team
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Unit tests for the book style collation in
++``gramps.gen.plug.report._book`` (Bug 0006128).
++
++A Book Report renders several items into a single shared document that
++carries one shared stylesheet (a hard requirement of backends such as ODF,
++which emit the whole stylesheet once at ``open()``). Two items of the same
++report type define styles under identical names (e.g. two Descendant
++Reports both define "DR-Title"). ``append_styles`` used to collate every
++item's styles into the flat shared stylesheet keyed by style name, so a
++second item's style overwrote the first item's same-named style and BOTH
++items then resolved that name to the last-written values -- e.g. an item-1
++title configured 14pt and an item-2 title configured 48pt both rendered at
++48pt.
++
++These tests drive the real book collation path -- ``add_book_item_styles``
++(which calls the production ``append_styles`` and installs the production
++``BookItemStyleProxy``) -- against a document that resolves a style name
++exactly as the real document backends do, and assert each item keeps its
++own configured values. The invariant is checked over:
++
++  * the reported start_paragraph (title) case,
++  * write_styled_note (a style-name-bearing TextDoc method every
++    REPORT_MODE_BKI textual report uses for notes),
++  * draw_box (a DrawDoc style whose *embedded* paragraph reference must
++    also stay per-item), and
++  * a run-time ``set_style_sheet`` read-modify-write (the pattern
++    AncestorTree/DescendTree/FanChart use to compute styles while
++    rendering),
++
++over an arbitrary shared style name and more than two items, so the fix is
++not special-cased to the "Descendant Report"/"DR-Title" reproduction.
++"""
++
++import os
++import tempfile
++import unittest
++
++from gramps.gen.plug.docgen import StyleSheet, StyleSheetList
++from gramps.gen.plug.docgen import ParagraphStyle, FontStyle, GraphicsStyle
++
++# Stable, pre- and post-fix import. ``append_styles`` exists on both trees
++# (pre-fix with signature (selected_style, item); post-fix with an added
++# prefix="" default), so this import succeeds on the C4-verify red leg too.
++from gramps.gen.plug.report._book import append_styles
++
++
++# -------------------------------------------------------------------------
++#
++# Test doubles: the minimal book-item interface append_styles consumes, and
++# a document that resolves a style by name the way the real backends do.
++#
++# -------------------------------------------------------------------------
++class _FakeHandler:
++    """The handler interface ``append_styles`` reads an item's styles through."""
++
++    def __init__(self, savefile, style_name):
++        self._savefile = savefile
++        self._style_name = style_name
++        self.doc = None
++
++    def set_default_stylesheet_name(self, name):
++        self._style_name = name
++
++    def get_default_stylesheet_name(self):
++        return self._style_name
++
++    def get_stylesheet_savefile(self):
++        return self._savefile
++
++
++class _FakeOptionClass:
++    def __init__(self, savefile, style_name, default_para_names):
++        self.handler = _FakeHandler(savefile, style_name)
++        self._default_para_names = default_para_names
++
++    def make_default_style(self, default_style):
++        # A report supplies its own default styles before its saved sheet is
++        # read; mirror that so StyleSheetList has a non-empty default sheet.
++        for name in self._default_para_names:
++            default_style.add_paragraph_style(name, ParagraphStyle())
++
++    def set_document(self, val):
++        self.handler.doc = val
++
++    def get_document(self):
++        return self.handler.doc
++
++
++class _FakeBookItem:
++    """A stand-in for a configured :class:`~._book.BookItem`."""
++
++    def __init__(self, savefile, style_name, default_para_names):
++        self.option_class = _FakeOptionClass(savefile, style_name, default_para_names)
++
++    def get_style_name(self):
++        return self.option_class.handler.get_default_stylesheet_name()
++
++
++class _RecordingDoc:
++    """
++    A minimal stand-in for a real document backend.
++
++    It resolves a style by name against its current stylesheet exactly as the
++    real backends do (cf. ``AsciiDoc.start_paragraph`` and
++    ``svgdrawdoc``/``libcairodoc`` draw methods, which read
++    ``self.get_style_sheet().get_paragraph_style(name)`` / ``get_draw_style``)
++    and records the resolved style, so a test can assert what each item
++    actually rendered. Stylesheet storage copies on set/get, matching
++    ``BaseDoc``.
++    """
++
++    def __init__(self):
++        self._style_sheet = StyleSheet()
++        self.rendered = []  # (kind, requested-name, resolved-paragraph-style)
++
++    # -- BaseDoc stylesheet storage (copy semantics, like BaseDoc) -----------
++    def set_style_sheet(self, style_sheet):
++        self._style_sheet = StyleSheet(style_sheet)
++
++    def get_style_sheet(self):
++        return StyleSheet(self._style_sheet)
++
++    # -- a couple of no-op methods reports/_reportbase poke at ---------------
++    def set_creator(self, name):
++        pass
++
++    def set_rtl_doc(self, value):
++        pass
++
++    def open(self, filename):
++        pass
++
++    # -- TextDoc style-name methods we resolve & record ----------------------
++    def start_paragraph(self, style_name, leader=None):
++        style = self.get_style_sheet().get_paragraph_style(style_name)
++        self.rendered.append(("paragraph", style_name, style))
++
++    def write_styled_note(
++        self, styledtext, format, style_name, contains_html=False, links=False
++    ):
++        style = self.get_style_sheet().get_paragraph_style(style_name)
++        self.rendered.append(("note", style_name, style))
++
++    # -- a DrawDoc style-name method: a draw style embeds a paragraph ref ----
++    def draw_box(self, style_name, text, x, y, w, h, mark=None):
++        ss = self.get_style_sheet()
++        box_style = ss.get_draw_style(style_name)
++        para = ss.get_paragraph_style(box_style.get_paragraph_style())
++        self.rendered.append(("box", style_name, para))
++
++
++def _para_size(style):
++    """Font size of a resolved paragraph style (0 for the default/None case)."""
++    return style.get_font().get_size()
++
++
++# -------------------------------------------------------------------------
++#
++# Tests
++#
++# -------------------------------------------------------------------------
++class BookStyleCollationTest(unittest.TestCase):
++    """Book items with same-named styles must keep their own values (#6128)."""
++
++    def setUp(self):
++        self._tmp = tempfile.mkdtemp(prefix="gramps_book_styles_")
++
++    def tearDown(self):
++        for name in os.listdir(self._tmp):
++            os.remove(os.path.join(self._tmp, name))
++        os.rmdir(self._tmp)
++
++    # -- item builders -------------------------------------------------------
++    def _save_sheet(self, index, sheet, default_para_names):
++        savefile = os.path.join(self._tmp, "styles_%d.xml" % index)
++        style_list = StyleSheetList(savefile, StyleSheet())
++        style_list.set_style_sheet("ItemSheet", sheet)
++        style_list.save()
++        return _FakeBookItem(savefile, "ItemSheet", default_para_names)
++
++    def _make_para_item(self, index, style_name, title_size):
++        """An item whose selected sheet defines paragraph ``style_name`` at
++        font size ``title_size``."""
++        sheet = StyleSheet()
++        para = ParagraphStyle()
++        font = FontStyle()
++        font.set_size(title_size)
++        para.set_font(font)
++        sheet.add_paragraph_style(style_name, para)
++        return self._save_sheet(index, sheet, [style_name])
++
++    def _make_draw_item(self, index, draw_name, para_name, title_size):
++        """An item with a draw style ``draw_name`` whose embedded paragraph
++        reference (``para_name``) is at font size ``title_size``."""
++        sheet = StyleSheet()
++        para = ParagraphStyle()
++        font = FontStyle()
++        font.set_size(title_size)
++        para.set_font(font)
++        sheet.add_paragraph_style(para_name, para)
++        gstyle = GraphicsStyle()
++        gstyle.set_paragraph_style(para_name)
++        sheet.add_draw_style(draw_name, gstyle)
++        return self._save_sheet(index, sheet, [para_name])
++
++    # -- the production collation path ---------------------------------------
++    def _collate(self, items):
++        """
++        Drive the production book style-collation path for ``items`` and return
++        ``(doc, item_docs)``: the shared document and, per item, the document
++        the item's report writes through.
++
++        With the fix this routes through ``add_book_item_styles`` (per-item
++        namespacing + ``BookItemStyleProxy``); without it (C4-verify red leg)
++        it reproduces the pre-fix production behaviour -- flat collation onto
++        the shared document with the raw document as each item's doc -- so the
++        assertions fail on the actual collision.
++        """
++        try:
++            from gramps.gen.plug.report._book import add_book_item_styles
++        except ImportError:
++            add_book_item_styles = None
++
++        doc = _RecordingDoc()
++        selected_style = StyleSheet()
++        for item_number, item in enumerate(items):
++            if add_book_item_styles is None:
++                # Pre-fix production behaviour (cf. cli.plug.cl_book before the
++                # fix): flat collation, the raw shared document as the item's doc.
++                item.option_class.set_document(doc)
++                append_styles(selected_style, item)
++            else:
++                add_book_item_styles(selected_style, item, doc, item_number)
++
++        doc.set_style_sheet(selected_style)
++        item_docs = [item.option_class.get_document() for item in items]
++        return doc, item_docs
++
++    # -- tests ---------------------------------------------------------------
++    def test_two_same_type_items_keep_distinct_title_sizes(self):
++        """The reported case: two Descendant-Report-like items, 14pt vs 48pt."""
++        items = [
++            self._make_para_item(0, "DR-Title", 14),
++            self._make_para_item(1, "DR-Title", 48),
++        ]
++        doc, item_docs = self._collate(items)
++        sizes = []
++        for item_doc in item_docs:
++            item_doc.start_paragraph("DR-Title")
++            sizes.append(_para_size(doc.rendered[-1][2]))
++        self.assertEqual(
++            sizes,
++            [14, 48],
++            "each book item must render with its own title style size; "
++            "got %r (the second item's style overwrote the first's)" % (sizes,),
++        )
++
++    def test_write_styled_note_keeps_per_item_style(self):
++        """write_styled_note (used by every BKI textual report for notes) must
++        also resolve to each item's own style, not the last-written one."""
++        items = [
++            self._make_para_item(0, "DDR-Note", 9),
++            self._make_para_item(1, "DDR-Note", 33),
++        ]
++        doc, item_docs = self._collate(items)
++        sizes = []
++        for item_doc in item_docs:
++            item_doc.write_styled_note("hello", 0, "DDR-Note")
++            sizes.append(_para_size(doc.rendered[-1][2]))
++        self.assertEqual(sizes, [9, 33])
++
++    def test_draw_box_embedded_paragraph_ref_stays_per_item(self):
++        """A draw style's embedded paragraph reference must stay per-item, so a
++        book of same-type draw reports (AncestorTree/DescendTree) keeps each
++        box's text style distinct."""
++        items = [
++            self._make_draw_item(0, "AC2-box", "AC2-Normal", 11),
++            self._make_draw_item(1, "AC2-box", "AC2-Normal", 22),
++        ]
++        doc, item_docs = self._collate(items)
++        sizes = []
++        for item_doc in item_docs:
++            item_doc.draw_box("AC2-box", "x", 0, 0, 1, 1)
++            sizes.append(_para_size(doc.rendered[-1][2]))
++        self.assertEqual(sizes, [11, 22])
++
++    def test_runtime_set_style_sheet_is_per_item(self):
++        """A report that computes styles at run time (get_style_sheet ->
++        modify -> set_style_sheet, the AncestorTree/DescendTree/FanChart
++        pattern) must not clobber another item's styles in the shared
++        document."""
++        items = [
++            self._make_para_item(0, "CG-Title", 10),
++            self._make_para_item(1, "CG-Title", 10),
++        ]
++        doc, item_docs = self._collate(items)
++
++        # Item 0's report bumps its own title to 60pt at render time.
++        sheet0 = item_docs[0].get_style_sheet()
++        para0 = sheet0.get_paragraph_style("CG-Title")
++        font0 = para0.get_font()
++        font0.set_size(60)
++        para0.set_font(font0)
++        sheet0.add_paragraph_style("CG-Title", para0)
++        item_docs[0].set_style_sheet(sheet0)
++
++        item_docs[0].start_paragraph("CG-Title")
++        size0 = _para_size(doc.rendered[-1][2])
++        item_docs[1].start_paragraph("CG-Title")
++        size1 = _para_size(doc.rendered[-1][2])
++        self.assertEqual(
++            (size0, size1),
++            (60, 10),
++            "item 0's run-time style change must not leak into item 1",
++        )
++
++    def test_generalizes_beyond_two_items_and_dr_title(self):
++        """Not special-cased to "DR-Title"/two items: an arbitrary shared
++        style name across three items must still preserve every item's value."""
++        items = [
++            self._make_para_item(0, "AB-Heading", 10),
++            self._make_para_item(1, "AB-Heading", 20),
++            self._make_para_item(2, "AB-Heading", 30),
++        ]
++        doc, item_docs = self._collate(items)
++        sizes = []
++        for item_doc in item_docs:
++            item_doc.start_paragraph("AB-Heading")
++            sizes.append(_para_size(doc.rendered[-1][2]))
++        self.assertEqual(sizes, [10, 20, 30])
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/gramps/gui/plug/report/_bookdialog.py b/gramps/gui/plug/report/_bookdialog.py
+index e2b0a998a0..079d0435c6 100644
+--- a/gramps/gui/plug/report/_bookdialog.py
++++ b/gramps/gui/plug/report/_bookdialog.py
+@@ -73,7 +73,7 @@ from ...user import User
+ from .. import make_gui_option
+ 
+ # Import from specific modules in ReportBase
+-from gramps.gen.plug.report import BookList, Book, BookItem, append_styles
++from gramps.gen.plug.report import BookList, Book, BookItem, add_book_item_styles
+ from gramps.gen.plug.report import CATEGORY_BOOK, book_categories
+ from gramps.gen.plug.report._options import ReportOptions
+ from ._reportdialog import ReportDialog
+@@ -1030,15 +1030,19 @@ class BookDialog(DocReportDialog):
+         pstyle = self.paper_frame.get_paper_style()
+         self.doc = self.format(None, pstyle, uistate=self.uistate)
+ 
+-        for item in self.book.get_item_list():
+-            item.option_class.set_document(self.doc)
++        for item_number, item in enumerate(self.book.get_item_list()):
++            # Collate this item's styles into the book's shared stylesheet under
++            # a per-item namespace and route the item's report through a proxy
++            # that rewrites its style references to that namespace, so same-named
++            # styles from different items keep their own values (issue 6128).
++            # Must run before the report is built (it grabs its document here).
++            add_book_item_styles(selected_style, item, self.doc, item_number)
+             report_class = item.get_write_item()
+             obj = (
+                 write_book_item(self.database, report_class, item.option_class, user),
+                 item.get_translated_name(),
+             )
+             self.rptlist.append(obj)
+-            append_styles(selected_style, item)
+ 
+         self.doc.set_style_sheet(selected_style)
+         self.doc.open(self.target_path)
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index d4a15ea5b4..31ade48fb1 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -270,6 +270,8 @@ gramps/gen/plug/report/_bibliography.py
+ gramps/gen/plug/report/_options.py
+ gramps/gen/plug/report/_paper.py
+ gramps/gen/plug/report/_reportbase.py
++gramps/gen/plug/report/test/__init__.py
++gramps/gen/plug/report/test/book_styles_test.py
+ #
+ # gen.plug.test
+ #

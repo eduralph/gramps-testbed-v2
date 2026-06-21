@@ -1,0 +1,38 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "nick_h\n\n 2012-10-17 12:24\n\nadministrator    ~0025763": "Fixed in gramps34 (r20572).",
+    "nick_h\n\n 2013-03-07 23:02\n\nadministrator    ~0027735\n\n last edited: 2015-07-03 00:36\n\nview 2 revisions": "Reversed bug fix in gramps34 (r21575), gramps40 (r21576) and trunk (r21577).\n\nThis fix broke ODF output which requires the definition of a single large stylesheet.\n\n6128: Reverse bug fix keeping code refactor (svn: r21577)\nhttps://github.com/gramps-project/gramps/commit/a5b4759f40645763d0d71f8d6df1441ce98ad1f9",
+    "vassilii\n\n 2013-08-28 10:29\n\ndeveloper    ~0030836": "Moving inactive non-major and non-regression issues to 3.4.7, 3.4.6 is diverging :-(",
+    "vassilii\n\n 2014-01-22 09:31\n\ndeveloper    ~0034291": "not a release-critical bug - already in 3.4.6 and should not hold other bugfixes"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Fixed in gramps34 (r20572)."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Reversed bug fix in gramps34 (r21575), gramps40 (r21576) and trunk (r21577).\n\nThis fix broke ODF output which requires the definition of a single large stylesheet.\n\n6128: Reverse bug fix keeping code refactor (svn: r21577)\nhttps://github.com/gramps-project/gramps/commit/a5b4759f40645763d0d71f8d6df1441ce98ad1f9"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Moving inactive non-major and non-regression issues to 3.4.7, 3.4.6 is diverging :-("
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "not a release-critical bug - already in 3.4.6 and should not hold other bugfixes"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "6128",
+  "url": "https://gramps-project.org/bugs/view.php?id=6128"
+}
