@@ -146,6 +146,45 @@ class ObsidianInternalLinkConversion(unittest.TestCase):
         self.assertIn("user-guide/bg/getting-started.md", msg)
         self.assertIn("[[folder/getting-started]]", msg)
 
+    def test_same_folder_resolves_ambiguous_bare_target(self):
+        # Parallel section trees share stems (core vs addon dev). A bare
+        # [[stem]] means the sibling in the source page's own folder; passing
+        # source_path lets the converter pick it instead of erroring.
+        tm = {
+            "16-guidelines": [
+                ("Core_Rules", "pages/05 - Gramps development/16-guidelines.md"),
+                ("Addon_Rules", "pages/06 - Addon development/16-guidelines.md"),
+            ],
+        }
+        core = M.convert_obsidian_internal_links(
+            "See [[16-guidelines]].",
+            tm,
+            source_path="pages/05 - Gramps development/01-overview.md",
+        )
+        self.assertIn("(wiki:Core_Rules)", core)
+        addon = M.convert_obsidian_internal_links(
+            "See [[16-guidelines]].",
+            tm,
+            source_path="pages/06 - Addon development/00-sidebar.md",
+        )
+        self.assertIn("(wiki:Addon_Rules)", addon)
+
+    def test_same_folder_preference_only_breaks_genuine_ties(self):
+        # When neither candidate is in the source folder, the ambiguity
+        # error still fires -- same-folder preference is a tiebreaker, not a
+        # silent fallback to an arbitrary page.
+        tm = {
+            "16-guidelines": [
+                ("Core_Rules", "pages/05 - Gramps development/16-guidelines.md"),
+                ("Addon_Rules", "pages/06 - Addon development/16-guidelines.md"),
+            ],
+        }
+        with self.assertRaises(ValueError) as cm:
+            M.convert_obsidian_internal_links(
+                "See [[16-guidelines]].", tm, source_path="pages/07 - other/x.md"
+            )
+        self.assertIn("ambiguous", str(cm.exception))
+
     def test_folder_form_disambiguates_collision(self):
         # When a stem has multiple candidates, [[folder/stem]] picks one
         # by path suffix.
@@ -274,6 +313,41 @@ class RelativeMdLinkConversion(unittest.TestCase):
         self.assertIn("ambiguous", msg)
         self.assertIn("a/shared.md", msg)
         self.assertIn("b/shared.md", msg)
+
+    def test_same_folder_resolves_ambiguous_bare_md_link(self):
+        # A bare sibling .md link in parallel trees resolves to the source
+        # page's own folder when source_path is supplied.
+        tm = {
+            "02-get-started": [
+                ("Core_GS", "pages/05 - Gramps development/02-get-started.md"),
+                ("Addon_GS", "pages/06 - Addon development/02-get-started.md"),
+            ],
+        }
+        out = M.convert_relative_md_links(
+            "See [getting started](02-get-started.md).",
+            tm,
+            source_path="pages/06 - Addon development/05-fundamentals.md",
+        )
+        self.assertIn("(wiki:Addon_GS)", out)
+
+    def test_cross_tree_percent_encoded_relative_link(self):
+        # A genuine cross-tree link is written percent-encoded (so it stays a
+        # valid GitHub destination) with a ../ prefix. The converter must
+        # URL-decode and strip the leading ../ to suffix-match the target --
+        # and the explicit path wins over same-folder preference.
+        tm = {
+            "16-guidelines": [
+                ("Core_Rules", "pages/05 - Gramps development/16-guidelines.md"),
+                ("Addon_Rules", "pages/06 - Addon development/16-guidelines.md"),
+            ],
+        }
+        out = M.convert_relative_md_links(
+            "see the [Core Rules](../05%20-%20Gramps%20development/16-guidelines.md) page",
+            tm,
+            source_path="pages/06 - Addon development/16-guidelines.md",
+        )
+        self.assertIn("(wiki:Core_Rules)", out)
+        self.assertNotIn("Addon_Rules", out)
 
     def test_multiple_md_links_in_one_line(self):
         src = "See [a](08-testing.md) then [b](12-internationalization.md)."
@@ -492,6 +566,41 @@ class FileRefBasenameify(unittest.TestCase):
         src = "First [[File:a/x.svg|alpha]] and [[File:b/c/y.png]]."
         out = M.basenameify_file_refs(src)
         self.assertEqual(out, "First [[File:x.svg|alpha]] and [[File:y.png]].")
+
+
+# ------------------------------------------------------------
+# SyntaxHighlightToPre
+# ------------------------------------------------------------
+class SyntaxHighlightToPre(unittest.TestCase):
+    def test_lang_tagged_block_becomes_pre(self):
+        # The Gramps wiki has no SyntaxHighlight extension; pandoc's
+        # <syntaxhighlight lang="x"> must become plain <pre>.
+        src = '<syntaxhighlight lang="python">register(\n    id="x",\n)</syntaxhighlight>'
+        out = M.syntaxhighlight_to_pre(src)
+        self.assertEqual(out, '<pre>register(\n    id="x",\n)</pre>')
+
+    def test_inner_metacharacters_preserved_raw(self):
+        # <,>,& are left raw -- <pre> displays them verbatim just as the
+        # extension tag did, so no re-escaping is needed.
+        src = '<syntaxhighlight lang="python">if a < b & c:\n    x = "<t>"</syntaxhighlight>'
+        out = M.syntaxhighlight_to_pre(src)
+        self.assertEqual(out, '<pre>if a < b & c:\n    x = "<t>"</pre>')
+
+    def test_multiple_blocks_each_rewritten(self):
+        src = (
+            '<syntaxhighlight lang="python">a = 1</syntaxhighlight>\n\n'
+            "text\n\n"
+            "<syntaxhighlight>b = 2</syntaxhighlight>"
+        )
+        out = M.syntaxhighlight_to_pre(src)
+        self.assertEqual(out.count("<pre>"), 2)
+        self.assertNotIn("<syntaxhighlight", out)
+
+    def test_pre_and_code_left_untouched(self):
+        # Plain <pre> (from language-less fences) and inline <code> are the
+        # forms this wiki already renders; leave them alone.
+        src = "<pre>already</pre> and <code>inline()</code>"
+        self.assertEqual(M.syntaxhighlight_to_pre(src), src)
 
 
 # ------------------------------------------------------------
