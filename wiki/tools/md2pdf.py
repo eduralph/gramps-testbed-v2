@@ -309,7 +309,9 @@ def convert_text(
                 f"{source}: contains Obsidian-internal [[Page]] links but no "
                 f"title_map was provided -- pass title_map=mdcommon.build_title_map(...)"
             )
-        body = mdcommon.convert_obsidian_internal_links(body, title_map)
+        body = mdcommon.convert_obsidian_internal_links(
+            body, title_map, source_path=source
+        )
     body = mdcommon.unstash_html_comments(body, comment_tokens)
     body = mdcommon.unstash_code(body, code_tokens)
 
@@ -454,7 +456,7 @@ def convert_tree(
             page_body = mdcommon.convert_obsidian_embeds(page_body)
             if mdcommon.OBSIDIAN_INTERNAL_LINK_RE.search(page_body):
                 page_body = mdcommon.convert_obsidian_internal_links(
-                    page_body, title_map
+                    page_body, title_map, source_path=str(p)
                 )
             page_body = mdcommon.unstash_html_comments(page_body, comment_tokens)
             page_body = mdcommon.unstash_code(page_body, code_tokens)

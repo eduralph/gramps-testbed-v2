@@ -7,6 +7,8 @@ categories:
 managed: true
 ---
 
+<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - Code Analysis|Gramps 6.0 Wiki Manual - Addon Development - Packaging|6.0}}-->
+
 ## Overview
 
 Gramps is a highly globalized application, and addons should be fully translatable to support users worldwide. This guide covers how to prepare your addon for internationalization (i18n), manage translation strings using `gettext`, and package translations with your addon.

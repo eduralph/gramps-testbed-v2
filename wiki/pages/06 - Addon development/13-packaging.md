@@ -7,6 +7,8 @@ categories:
 managed: true
 ---
 
+<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - Internationalization|Gramps 6.0 Wiki Manual - Addon Development - Compatibility|6.0}}-->
+
 <!--
   This page covers the source-to-distribution PIPELINE only. The normative
   rules for contributors (branch targeting, version-field discipline, PR

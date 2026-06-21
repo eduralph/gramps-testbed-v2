@@ -12,8 +12,10 @@ to build the stem-to-wiki-title map needed to resolve ``[[Page]]`` references.
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
+from urllib.parse import unquote
 
 # yaml is imported lazily inside build_title_map -- it's the only function in
 # this module that needs it, and keeping it lazy lets the pure-function tests
@@ -56,6 +58,16 @@ WIKI_LINK_RE = re.compile(r"\[([^\]]+)\]\(wiki:([^)]+)\)")
 # markdown images; we need to basenameify the path because MediaWiki's
 # File: namespace is flat.
 FILE_REF_RE = re.compile(r"\[\[File:([^|\]]+?)(\|[^\]]*)?\]\]")
+
+# Pandoc emits language-tagged fenced code as <syntaxhighlight lang="x">...
+# </syntaxhighlight>. The Gramps wiki has no SyntaxHighlight extension, so the
+# tag renders LITERALLY -- the convention there (confirmed by scraping live
+# dev pages, which come back as <pre>-style indented blocks) is plain <pre>.
+# We rewrite the block tag to <pre>; inner <,>,& are left raw, which <pre>
+# also displays verbatim, so no re-escaping is needed.
+SYNTAXHIGHLIGHT_RE = re.compile(
+    r"<syntaxhighlight\b[^>]*>(.*?)</syntaxhighlight>", re.DOTALL
+)
 
 # ------------------------
 # Front-matter splitter (mirrors md2wiki / md2pdf local copies)
@@ -183,8 +195,34 @@ def convert_obsidian_embeds(body: str) -> str:
     return OBSIDIAN_EMBED_RE.sub(repl, body)
 
 
+def _prefer_same_folder(
+    candidates: list[tuple[str, str]], source_path: str | None
+) -> list[tuple[str, str]]:
+    """Narrow an ambiguous candidate list to the source page's own folder.
+
+    A bare stem like ``[[16-guidelines]]`` is ambiguous when the same stem
+    exists in two parallel section trees (e.g. ``05 - Gramps development`` and
+    ``06 - Addon development``). Authors write the bare form to mean the
+    *sibling* in their own folder, so when exactly the source page's folder
+    holds a candidate, that is the intended target. Returns the same-folder
+    subset if non-empty, else the input unchanged (so the caller still raises
+    the ambiguity error when no sibling resolves it).
+    """
+    if not source_path:
+        return candidates
+    src_dir = os.path.normpath(os.path.dirname(str(source_path).replace("\\", "/")))
+    same = [
+        c
+        for c in candidates
+        if os.path.normpath(os.path.dirname(c[1].replace("\\", "/"))) == src_dir
+    ]
+    return same or candidates
+
+
 def convert_obsidian_internal_links(
-    body: str, title_map: dict[str, list[tuple[str, str]]]
+    body: str,
+    title_map: dict[str, list[tuple[str, str]]],
+    source_path: str | None = None,
 ) -> str:
     """Convert ``[[Page]]`` / ``[[Page|label]]`` -> ``[label](wiki:Wiki_Title)``.
 
@@ -239,6 +277,8 @@ def convert_obsidian_internal_links(
                 f"no source path matched folder/stem form {target!r}"
             )
         if len(candidates) > 1:
+            candidates = _prefer_same_folder(candidates, source_path)
+        if len(candidates) > 1:
             paths = ", ".join(c[1] for c in candidates)
             raise ValueError(
                 f"ambiguous Obsidian internal link [[{target_raw}]]: "
@@ -255,7 +295,9 @@ def convert_obsidian_internal_links(
 
 
 def convert_relative_md_links(
-    body: str, title_map: dict[str, list[tuple[str, str]]]
+    body: str,
+    title_map: dict[str, list[tuple[str, str]]],
+    source_path: str | None = None,
 ) -> str:
     """Convert ``[label](XX-name.md[#anchor])`` -> ``[label](wiki:Wiki_Title[#anchor])``.
 
@@ -281,8 +323,13 @@ def convert_relative_md_links(
         # already excludes ! but not "://", so guard here.
         if "://" in href:
             return m.group(0)
+        # URL-decode the href before matching: a folder name with spaces is
+        # written percent-encoded in the source (``05%20-%20Gramps...``) so
+        # the link stays a valid GitHub-renderable destination, but the
+        # title-map source paths hold literal spaces.
+        href_decoded = unquote(href)
         # Stem is the last path segment without the .md suffix.
-        path_no_ext = href[: -len(".md")]
+        path_no_ext = href_decoded[: -len(".md")]
         stem = path_no_ext.rsplit("/", 1)[-1]
         candidates = title_map.get(stem, [])
         if not candidates:
@@ -295,7 +342,15 @@ def convert_relative_md_links(
                 f"no page with stem {stem!r} in title map (known: {preview})"
             )
         if "/" in path_no_ext:
-            suffix = path_no_ext + ".md"
+            # Folder-prefixed form: keep candidates whose source path ends
+            # with the user-specified ``folder/stem.md`` suffix. Strip any
+            # leading ``./`` / ``../`` segments first so a GitHub-valid
+            # relative path (``../05 - Gramps development/x.md``) still
+            # suffix-matches the root-anchored title-map path.
+            parts = (path_no_ext + ".md").split("/")
+            while parts and parts[0] in (".", ".."):
+                parts.pop(0)
+            suffix = "/".join(parts)
             candidates = [
                 c for c in candidates if c[1].replace("\\", "/").endswith(suffix)
             ]
@@ -304,6 +359,8 @@ def convert_relative_md_links(
                 f"unresolved relative .md link [{label}]({href}{anchor}): "
                 f"no source path matched folder/stem form {path_no_ext!r}"
             )
+        if len(candidates) > 1:
+            candidates = _prefer_same_folder(candidates, source_path)
         if len(candidates) > 1:
             paths = ", ".join(c[1] for c in candidates)
             raise ValueError(
@@ -435,6 +492,21 @@ def basenameify_file_refs(wikitext: str) -> str:
         return f"[[File:{Path(path).name}{suffix}]]"
 
     return FILE_REF_RE.sub(repl, wikitext)
+
+
+def syntaxhighlight_to_pre(wikitext: str) -> str:
+    """Rewrite ``<syntaxhighlight lang="x">...</syntaxhighlight>`` blocks emitted
+    by pandoc to plain ``<pre>...</pre>``.
+
+    The Gramps MediaWiki has no SyntaxHighlight extension active, so the tag
+    would render as literal text with the code body falling into an indented
+    ``<pre>`` box. Matching the wiki's own convention (plain ``<pre>``) makes
+    the code render as a clean preformatted block. The language hint is
+    dropped (no highlighter to consume it). Inner content is preserved
+    verbatim -- ``<pre>`` shows ``<``/``>``/``&`` literally just as the
+    extension tag did.
+    """
+    return SYNTAXHIGHLIGHT_RE.sub(lambda m: f"<pre>{m.group(1)}</pre>", wikitext)
 
 
 def extract_file_basenames(wikitext: str) -> list[str]:

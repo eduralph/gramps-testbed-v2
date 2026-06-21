@@ -172,14 +172,18 @@ def convert_text(
                 f"{source}: contains Obsidian-internal [[Page]] links but no "
                 f"title_map was provided -- pass title_map=mdcommon.build_title_map(...)"
             )
-        body = mdcommon.convert_obsidian_internal_links(body, title_map)
+        body = mdcommon.convert_obsidian_internal_links(
+            body, title_map, source_path=source
+        )
     if mdcommon.RELATIVE_MD_LINK_RE.search(body):
         if title_map is None:
             raise ValueError(
                 f"{source}: contains relative .md links but no title_map "
                 f"was provided -- pass title_map=mdcommon.build_title_map(...)"
             )
-        body = mdcommon.convert_relative_md_links(body, title_map)
+        body = mdcommon.convert_relative_md_links(
+            body, title_map, source_path=source
+        )
     # Apply the sandbox prefix to in-batch wiki: targets. Operates on the
     # uniform `wiki:` form, so it covers all three sources of wiki: links:
     # the Obsidian [[Page]] conversion above, the relative .md conversion
@@ -198,6 +202,10 @@ def convert_text(
     # subdir path, but MediaWiki's File: namespace is flat. Basenameify so
     # the resulting wikitext links to a valid File: title.
     wikitext = mdcommon.basenameify_file_refs(wikitext)
+    # The Gramps wiki has no SyntaxHighlight extension; pandoc's
+    # <syntaxhighlight lang="x"> would render as literal tag text. Rewrite to
+    # plain <pre>, the convention the live wiki actually uses for code.
+    wikitext = mdcommon.syntaxhighlight_to_pre(wikitext)
 
     cats = meta.get("categories") or []
     if isinstance(cats, str):

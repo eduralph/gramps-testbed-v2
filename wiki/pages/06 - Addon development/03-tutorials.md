@@ -7,6 +7,8 @@ categories:
 managed: true
 ---
 
+<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - Getting Started|Gramps 6.0 Wiki Manual - Addon Development - Addon Kinds|6.0}}-->
+
 <!--
   Walkthroughs, one per addon kind, in order of increasing surface area.
   Each tutorial:

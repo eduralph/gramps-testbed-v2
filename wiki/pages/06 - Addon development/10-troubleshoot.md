@@ -7,6 +7,8 @@ categories:
 managed: true
 ---
 
+<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - Debug|Gramps 6.0 Wiki Manual - Addon Development - Code Analysis|6.0}}-->
+
 <!--
   Symptom-first guide. Each entry: what you see → why → what to do.
   Cross-link the originating bug / PR / triage note where one exists.
