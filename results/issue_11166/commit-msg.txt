@@ -1,0 +1,17 @@
+Fix LaTeX docgen picture-width TypeError when emitting table cells
+
+LaTeXDoc.calc_latex_widths() builds a LaTeX \setlength command with
+"".join() over a tuple of fragments. One fragment is the bare numeric
+self.pict_width (a float), but str.join() requires all items to be
+strings, causing TypeError: sequence item 1: expected str instance,
+float found when a report contains a picture cell.
+
+The two sibling emission sites — repack_row (latexdoc.py:804) and the
+cell emit (latexdoc.py:1235) — already stringify the width with
+repr(self.pict_width). Make the calc_latex_widths site consistent
+(latexdoc.py:849) so the value is rendered as text, restoring the
+invariant that no non-str reaches a "".join(...) of LaTeX fragments.
+The test exercises the real LaTeXDoc table+picture API path and
+asserts the emit raises no TypeError.
+
+Fixes #11166
