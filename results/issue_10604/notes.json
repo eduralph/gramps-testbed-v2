@@ -1,0 +1,44 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "sam888\n\n 2018-05-23 23:03\n\nadministrator    ~0054651": "Which report?\n\nHow can this be reproduced?",
+    "prculley\n\n 2018-05-26 23:20\n\nmanager    ~0054669": "Do you have a 'webstuff' subdirectory in your ~/.gramps/gramps42 directory? If so what is in it? I suspect that might be causing your problem.",
+    "prculley\n\n 2018-05-27 14:04\n\nmanager    ~0054673": "I finally found a way to recreate the issue. It seems likely that the user has used the 'Help/Plugin Manager' to 'Hide' the 'Webstuff' plugin. Since this plugin provides the CSS style sheets for HTML documents and Narrative Web reports, it should NEVER be hidden. We should probably rename the plugin and change the description to make this more clear.\n\nWith the Webstuff plugin hidden, there are no style sheets, and the HTML tab in the report dialog (always existing, although only shown for HTML reports) has no entries for the 'CSS file' drop-down. Thus when the code tries to get the active entry for the combobox, it gets a -1 for a result, even though the code earlier set the active entry to 0 (invalid for no entries).",
+    "sam888\n\n 2018-06-10 05:09\n\nadministrator    ~0054741": "@prculley raised PR621 for gramps42\nhttps://github.com/gramps-project/gramps/pull/621",
+    "sam888\n\n 2020-09-23 06:26\n\nadministrator    ~0060930": "PR621 for gramps42 rejected May 31, 2018 by Nick-Hall who left a comment\n\n<i>It is a bad idea to hide core plugins. We should probably restrict this functionality to developers or remove it completely.</i>"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Which report?\n\nHow can this be reproduced?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Do you have a 'webstuff' subdirectory in your ~/.gramps/gramps42 directory? If so what is in it? I suspect that might be causing your problem."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I finally found a way to recreate the issue. It seems likely that the user has used the 'Help/Plugin Manager' to 'Hide' the 'Webstuff' plugin. Since this plugin provides the CSS style sheets for HTML documents and Narrative Web reports, it should NEVER be hidden. We should probably rename the plugin and change the description to make this more clear.\n\nWith the Webstuff plugin hidden, there are no style sheets, and the HTML tab in the report dialog (always existing, although only shown for HTML reports) has no entries for the 'CSS file' drop-down. Thus when the code tries to get the active entry for the combobox, it gets a -1 for a result, even though the code earlier set the active entry to 0 (invalid for no entries)."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "@prculley raised PR621 for gramps42\nhttps://github.com/gramps-project/gramps/pull/621"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "PR621 for gramps42 rejected May 31, 2018 by Nick-Hall who left a comment\n\n<i>It is a bad idea to hide core plugins. We should probably restrict this functionality to developers or remove it completely.</i>"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "10604",
+  "url": "https://gramps-project.org/bugs/view.php?id=10604"
+}
