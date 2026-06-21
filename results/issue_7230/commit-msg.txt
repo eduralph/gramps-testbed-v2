@@ -1,0 +1,19 @@
+Test: regression guard for citation-less sources in Citation Tree View
+
+Bug 7230 reported that sources with no citations were invisible in the
+Citation Tree View — a citation-less source should appear as a top-level
+node whether or not it has citation children.
+
+The defect is already fixed on maintenance/gramps61. The CitationTreeModel
+now uses a two-cursor design where the primary cursor iterates all sources
+(independent of citations) and add_row unconditionally adds each one as a
+top-level node. The pre-fix single-cursor design only materialized sources
+as a side effect of iterating citations.
+
+This regression test drives the production CitationTreeModel build against
+an in-memory SQLite database holding a cited source and a citation-less
+source, and asserts that both appear as top-level nodes. It guards against
+a future regression to the pre-fix coupling, where only cited sources would
+appear.
+
+Fixes #7230

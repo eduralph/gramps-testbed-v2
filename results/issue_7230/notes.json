@@ -1,0 +1,68 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "romjerome\n\n 2013-12-13 10:42\n\ndeveloper    ~0033187\n\nedit\ndelete\nmake private": "I cannot reproduce it!\n\nDid you give a title to your new source?",
+    "user1937\n\n 2013-12-14 19:05\n\n   ~0033381\n\nedit\ndelete\nmake private": "Yes. Attaching a quick video showing the issue.",
+    "user1937\n\n 2013-12-14 19:06\n\n \n\ndelete": "out-2.ogv (2,059,154 bytes)",
+    "romjerome\n\n 2013-12-14 19:19\n\ndeveloper    ~0033385\n\n last edited: 2013-12-14 19:23\n\nview 4 revisions\n\nedit\ndelete\nmake private": "Thanks.\n\nStrange, I cannot reproduce it with few sources.\n\nMaybe something around cursor or something like that?\n\nTODO for myself: need to try to reproduce it with 'example.gramps' (git/svn).",
+    "sam888\n\n 2015-06-17 00:08\n\nadministrator    ~0042639\n\nedit\ndelete\nmake private": "Tested in Gramps 4.1.3",
+    "snoiraud\n\n 2016-02-01 12:42\n\ndeveloper    ~0046428\n\nedit\ndelete\nmake private": "Tested with Gramps 4.2.2\nIt works for me.\nCan you reproduce this with 4.2.2 ?",
+    "sam888\n\n 2016-02-20 22:48\n\nadministrator    ~0046659\n\n last edited: 2017-01-11 22:12\n\nview 2 revisions\n\nedit\ndelete\nmake private": "Reporter from issue 0009268 reproduced on Gramps 4.2.2\n\n\"Steps To Reproduce: Edit the title of an existing source, then look at a relevant citation in the Cite view. Note that the source title hasn't changed. Restart Gramps and see that it's changed.\"",
+    "jk\n\n 2017-02-28 19:57\n\nreporter    ~0051418\n\n last edited: 2017-02-28 20:00\n\nview 2 revisions\n\nedit\ndelete\nmake private": "Encountered in Gramps 4.2.5-1 (see attached screenshots).\n\nArguably there is no place for a source without citations (i.e. branches) in a tree view, but on the other hand it may be considered a bit awkward when switching back and forth between the two views.",
+    "jk\n\n 2017-02-28 19:58\n\nreporter  \n\ndelete": "2. citation-tree-view.JPG (108,653 bytes)"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "I cannot reproduce it!\n\nDid you give a title to your new source?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Yes. Attaching a quick video showing the issue."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "out-2.ogv (2,059,154 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Thanks.\n\nStrange, I cannot reproduce it with few sources.\n\nMaybe something around cursor or something like that?\n\nTODO for myself: need to try to reproduce it with 'example.gramps' (git/svn)."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Tested in Gramps 4.1.3"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Tested with Gramps 4.2.2\nIt works for me.\nCan you reproduce this with 4.2.2 ?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Reporter from issue 0009268 reproduced on Gramps 4.2.2\n\n\"Steps To Reproduce: Edit the title of an existing source, then look at a relevant citation in the Cite view. Note that the source title hasn't changed. Restart Gramps and see that it's changed.\""
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Encountered in Gramps 4.2.5-1 (see attached screenshots).\n\nArguably there is no place for a source without citations (i.e. branches) in a tree view, but on the other hand it may be considered a bit awkward when switching back and forth between the two views."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "1. sources-view.JPG (168,864 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "7230",
+  "url": "https://gramps-project.org/bugs/view.php?id=7230"
+}
