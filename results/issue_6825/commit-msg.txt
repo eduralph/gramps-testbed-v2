@@ -1,0 +1,13 @@
+Make surname consumers consistently honor name-group mapping
+
+When surnames are grouped together via "Group As → Group All"
+(the database-wide name-group mapping), every surname consumer
+must treat them as one group. Historically, TopSurnamesGramplet
+and FilterByName used Name.get_group_name() which ignores the
+global mapping; SameSurnames quick view's filter rule matched on
+raw get_surname(). This fix routes every consumer through the
+canonical NameDisplay.name_grouping_name(db, name), which honors
+both the per-name override and the database-wide mapping, so all
+consumers now agree on the grouping.
+
+Fixes #6825
