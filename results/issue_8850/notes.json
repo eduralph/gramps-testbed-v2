@@ -1,0 +1,74 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "oldest1\n\n 2015-08-16 03:34\n\nreporter  \n\ndelete": "minimal-CRLF-UTF8-CAL.ged (428 bytes)",
+    "sam888\n\n 2015-08-16 04:05\n\nadministrator    ~0044000\n\n last edited: 2015-08-16 04:19\n\nview 6 revisions\n\nedit\ndelete\nmake private": "Import worked with no errors.\n\n[Gramps] GEDCOM import does not handle CAL dates\nActually it does.\n\nthe date should be handled the same as Abt\nGEDCOM does not actually state that.\n\nGramps shows the CAL date as calculated externally. Which is how I interpret GEDCOM 5.5's \"CAL\" field is for, how do you interpret it and (Tried searching for something to support that belief) can you point me to a source of how another program treats the \"CAL\" field differently?\n\nhttp://gramps.1791082.n4.nabble.com/CAL-and-EST-dates-in-GEDCOM-import-td1794306.html\n\nhttp://fhiso.org/pipermail/tsc-public_fhiso.org/2014-October/001049.html\n<pre>\n\nGEDCOM allows to have a date as calculated (i.e. 2 DATE CAL 12 AUG\n1899). I do not see this possibility in GEDCOM-X, however the difference in\nbetween dates without CAL and with CAL is important, and this CAL may not be\nreplaced by ABT (A in GEDCOM X). .....\n</pre>\nhttps://github.com/FamilySearch/gedcomx/blob/master/specifications/date-format-specification.md\n\nhttp://www.beholdgenealogy.com/blog/?p=891",
+    "sam888\n\n 2015-08-16 04:22\n\nadministrator  \n\ndelete": "invaliddate8850verifythedata-result.png (42,206 bytes)  \n invaliddate8850verifythedata-result.png (42,206 bytes)",
+    "sam888\n\n 2015-08-16 04:23\n\nadministrator    ~0044001\n\n last edited: 2015-08-16 04:24\n\nview 3 revisions\n\nedit\ndelete\nmake private": "Is your issue that the \"Verify the data\" tool shows the CAL date as invalid?",
+    "oldest1\n\n 2015-08-16 17:48\n\nreporter    ~0044016\n\n last edited: 2015-08-16 18:01\n\nview 2 revisions\n\nedit\ndelete\nmake private": "1) the problem is with 4.2 as I have both used the code from github as well as Uli Frink's latest 4.2 AIO 64-bit package - both show the problem\n\n2)your reference 1 (CAL and EST dates in GEDCOM import ) speaks of date.quality which seems to have reflected the difference between possibly Abt and Cal but I can no longer find any such quality in gramps, though I am quite new to it.\nIs this still part of gramps and if so, where or how?\n\n3) your reference 2 \"Modeling Dates\" makes the distinction between CAL & ABT (and presumably other 'approximations) and I have no argument or difficulty with that approach (and it would certainly be preferable to lumping them all together, which is what it looks like to me right now), but I do not see that approach taken by gramps.\n\ngramps translates ABT to some approx. date which it considers 'valid' when testing date values, but not CAL (and possibly others)\n\nSo, yes, possibly the real issue is that gramps shows CAL dates as invalid and yet, IMO, these dates are as valid as any other uncertain dates i.e ABT (and likely others I have not run into yet), which gramps seems to handle and at least not marks as invalid.",
+    "oldest1\n\n 2015-08-16 23:40\n\nreporter    ~0044020\n\nedit\ndelete\nmake private": "Once I have the test file loaded, I can enter the birth date as \"calculated 1847' and gramps is happy.\nSo why can it, why would it not simply translate the CAL line to 'calculated' and it would reflect the intended purpose for both GEDCOM & gramps??\n\nEven the verify data tool is happy to accept 'calculated 1847'",
+    "sam888\n\n 2015-08-17 01:00\n\nadministrator    ~0044022\n\n last edited: 2015-08-17 01:12\n\nview 5 revisions\n\nedit\ndelete\nmake private": "Good find seems Gramps date handler is expecting the full word and not abbreviation \"Cal\", should probably handle both (and not be case sensitive on data-entry and normalise to one form)\n\nhttps://github.com/gramps-project/gramps/blob/master/gramps/gen/datehandler/_datestrings.py#L236\n\nhttps://gramps-project.org/wiki/index.php?title=Date_Handler\n\nFound mention of date quality in the user manual!\n\nhttps://gramps-project.org/wiki/index.php?title=Gramps_4.2_Wiki_Manual_-_Entering_and_editing_data:_detailed_-_part_1#Graphical_User_Interface_for_entering_dates\n\nPart of code that monitors the date field:\nhttps://github.com/gramps-project/gramps/blob/master/gramps/gui/widgets/monitoredwidgets.py#L601",
+    "oldest1\n\n 2015-08-17 02:17\n\nreporter    ~0044024\n\nedit\ndelete\nmake private": "Although it accepts 'calc 1847' it does expand it to 'calculated 1847' eventually.\n\nI had seen references to 'quality' in the manual for an earlier version, but I have now finally located that 'quality' dropdown in the 4.2 gramps, but it does not contain either calculated, nor estimated and I'll have to do more thinking about just how this really reflects 'quality'\n\nHowever, the real issue is gedcom import and not the gramps date handler.\nAll we have shown is that, if and when translated properly, the gedcom CAL date fits well enough with the internal gramps date model :-)",
+    "jld\n\n 2024-05-15 15:39\n\nreporter    ~0066788\n\nedit\ndelete\nmake private": "I have reproduced this behavior using the supplied test file using gramps running from current (as of 2024-05-15) source.\nThis issue is (currently) not a failure to interpret the CAL gedcom tag as the Calculated quality, but rather the gedcom importer not parsing the tag without its being all-uppercase.\nIf the line \"Cal 1847\" is replaced with \"CAL 1847\" then the file is imported correctly, and when the person Franz Somebody is examined, the birth date is displayed correctly with the qualifier \"Calculated.\"\nThe \"Abt\" line in the same test gedcom is not affected in the same way, because tags like ABT are parsed along with the text by the internal date parser, rather than being interpreted separately from the date text as CAL is.\nIt's possible that the situation is different from what it was in 2015, of course, but I believe that the above describes the current situation accurately.\nIt's not difficult to make the import of CAL to be case-insensitive, but the GEDCOM spec seems (to me) to say that tags should always be uppercase.\nMy opinion is that the ideal thing to do here would be to detect all tags that aren't in uppercase, and signal an error to the user. Of course, we're currently ignoring many (or all) of these, so this would break gramps for many users that import from poorly-formatted gedcom files. Perhaps it's still worth catching bad tags and warning the user about them (without stopping the import).",
+    "oldest1\n\n 2024-05-15 22:14\n\nreporter    ~0066789\n\nedit\ndelete\nmake private": "Thank you for confirming this issue.\n\nI have not used this feature for some time now and so fixing things won't affect my work.\nStill, FWIW, the 'reasonable' thing to do, IMO, would be to go with the conversion to uppercase with a note to flag this assumption to the user."
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "minimal-CRLF-UTF8-CAL.ged (428 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Import worked with no errors.\n\n[Gramps] GEDCOM import does not handle CAL dates\nActually it does.\n\nthe date should be handled the same as Abt\nGEDCOM does not actually state that.\n\nGramps shows the CAL date as calculated externally. Which is how I interpret GEDCOM 5.5's \"CAL\" field is for, how do you interpret it and (Tried searching for something to support that belief) can you point me to a source of how another program treats the \"CAL\" field differently?\n\nhttp://gramps.1791082.n4.nabble.com/CAL-and-EST-dates-in-GEDCOM-import-td1794306.html\n\nhttp://fhiso.org/pipermail/tsc-public_fhiso.org/2014-October/001049.html\n<pre>\n\nGEDCOM allows to have a date as calculated (i.e. 2 DATE CAL 12 AUG\n1899). I do not see this possibility in GEDCOM-X, however the difference in\nbetween dates without CAL and with CAL is important, and this CAL may not be\nreplaced by ABT (A in GEDCOM X). .....\n</pre>\nhttps://github.com/FamilySearch/gedcomx/blob/master/specifications/date-format-specification.md\n\nhttp://www.beholdgenealogy.com/blog/?p=891"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "invaliddate8850verifythedata-result.png (42,206 bytes)  \n invaliddate8850verifythedata-result.png (42,206 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Is your issue that the \"Verify the data\" tool shows the CAL date as invalid?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "1) the problem is with 4.2 as I have both used the code from github as well as Uli Frink's latest 4.2 AIO 64-bit package - both show the problem\n\n2)your reference 1 (CAL and EST dates in GEDCOM import ) speaks of date.quality which seems to have reflected the difference between possibly Abt and Cal but I can no longer find any such quality in gramps, though I am quite new to it.\nIs this still part of gramps and if so, where or how?\n\n3) your reference 2 \"Modeling Dates\" makes the distinction between CAL & ABT (and presumably other 'approximations) and I have no argument or difficulty with that approach (and it would certainly be preferable to lumping them all together, which is what it looks like to me right now), but I do not see that approach taken by gramps.\n\ngramps translates ABT to some approx. date which it considers 'valid' when testing date values, but not CAL (and possibly others)\n\nSo, yes, possibly the real issue is that gramps shows CAL dates as invalid and yet, IMO, these dates are as valid as any other uncertain dates i.e ABT (and likely others I have not run into yet), which gramps seems to handle and at least not marks as invalid."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Once I have the test file loaded, I can enter the birth date as \"calculated 1847' and gramps is happy.\nSo why can it, why would it not simply translate the CAL line to 'calculated' and it would reflect the intended purpose for both GEDCOM & gramps??\n\nEven the verify data tool is happy to accept 'calculated 1847'"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Good find seems Gramps date handler is expecting the full word and not abbreviation \"Cal\", should probably handle both (and not be case sensitive on data-entry and normalise to one form)\n\nhttps://github.com/gramps-project/gramps/blob/master/gramps/gen/datehandler/_datestrings.py#L236\n\nhttps://gramps-project.org/wiki/index.php?title=Date_Handler\n\nFound mention of date quality in the user manual!\n\nhttps://gramps-project.org/wiki/index.php?title=Gramps_4.2_Wiki_Manual_-_Entering_and_editing_data:_detailed_-_part_1#Graphical_User_Interface_for_entering_dates\n\nPart of code that monitors the date field:\nhttps://github.com/gramps-project/gramps/blob/master/gramps/gui/widgets/monitoredwidgets.py#L601"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Although it accepts 'calc 1847' it does expand it to 'calculated 1847' eventually.\n\nI had seen references to 'quality' in the manual for an earlier version, but I have now finally located that 'quality' dropdown in the 4.2 gramps, but it does not contain either calculated, nor estimated and I'll have to do more thinking about just how this really reflects 'quality'\n\nHowever, the real issue is gedcom import and not the gramps date handler.\nAll we have shown is that, if and when translated properly, the gedcom CAL date fits well enough with the internal gramps date model :-)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I have reproduced this behavior using the supplied test file using gramps running from current (as of 2024-05-15) source.\nThis issue is (currently) not a failure to interpret the CAL gedcom tag as the Calculated quality, but rather the gedcom importer not parsing the tag without its being all-uppercase.\nIf the line \"Cal 1847\" is replaced with \"CAL 1847\" then the file is imported correctly, and when the person Franz Somebody is examined, the birth date is displayed correctly with the qualifier \"Calculated.\"\nThe \"Abt\" line in the same test gedcom is not affected in the same way, because tags like ABT are parsed along with the text by the internal date parser, rather than being interpreted separately from the date text as CAL is.\nIt's possible that the situation is different from what it was in 2015, of course, but I believe that the above describes the current situation accurately.\nIt's not difficult to make the import of CAL to be case-insensitive, but the GEDCOM spec seems (to me) to say that tags should always be uppercase.\nMy opinion is that the ideal thing to do here would be to detect all tags that aren't in uppercase, and signal an error to the user. Of course, we're currently ignoring many (or all) of these, so this would break gramps for many users that import from poorly-formatted gedcom files. Perhaps it's still worth catching bad tags and warning the user about them (without stopping the import)."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Thank you for confirming this issue.\n\nI have not used this feature for some time now and so fixing things won't affect my work.\nStill, FWIW, the 'reasonable' thing to do, IMO, would be to go with the conversion to uppercase with a note to flag this assumption to the user."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "8850",
+  "url": "https://gramps-project.org/bugs/view.php?id=8850"
+}

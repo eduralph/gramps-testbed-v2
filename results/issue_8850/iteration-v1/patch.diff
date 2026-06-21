@@ -1,0 +1,172 @@
+diff --git a/gramps/plugins/importer/test/importgedcom_caldate_test.py b/gramps/plugins/importer/test/importgedcom_caldate_test.py
+new file mode 100644
+index 0000000000..e397e386f9
+--- /dev/null
++++ b/gramps/plugins/importer/test/importgedcom_caldate_test.py
+@@ -0,0 +1,129 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""Mantis 8850 — GEDCOM date qualifiers (CAL/EST/INT) recognised case-insensitively.
++
++GEDCOM 5.5.1 specifies the approximate-date qualifier keywords ``CAL``
++(calculated), ``EST`` (estimated) and ``INT`` (interpreted) in uppercase,
++but real-world exporters emit them in mixed case (``2 DATE Cal 1847``).
++libgedcom's ``MOD`` regex used to be case-sensitive, so ``Cal``/``Est``/
++``Int`` never matched: the qualifier was left unrecognised and the value
++passed through as a literal text (``MOD_TEXTONLY``) date, which the
++Verify-the-Data tool then flags.  The same value in all-caps imported
++correctly as a Calculated date.
++
++These tests drive the real GEDCOM importer (``import_as_dict`` →
++``libgedcom``) and assert that mixed-case qualifiers resolve to the right
++:class:`~gramps.gen.lib.date.Date` quality with the year parsed — matching
++the all-uppercase behaviour — rather than falling back to a text date.
++"""
++
++import os
++import tempfile
++import unittest
++
++from gramps.cli.user import User as CliUser
++from gramps.gen.db.utils import import_as_dict
++from gramps.gen.lib.date import Date
++
++# Each individual carries a birth DATE using a qualifier keyword in a
++# different case.  I_CAL_UPPER is the all-uppercase control that already
++# worked; the mixed-case variants are the regression cases.
++GEDCOM_FIXTURE = """\
++0 HEAD
++1 SOUR Mantis 8850 fixture
++1 GEDC
++2 VERS 5.5.1
++2 FORM LINEAGE-LINKED
++1 CHAR UTF-8
++1 SUBM @SUBM@
++0 @SUBM@ SUBM
++1 NAME Bug 8850 fixture
++0 @I1@ INDI
++1 NAME Cal Mixed /Case/
++1 SEX M
++1 BIRT
++2 DATE Cal 1847
++0 @I2@ INDI
++1 NAME Est Mixed /Case/
++1 SEX F
++1 BIRT
++2 DATE Est 1850
++0 @I3@ INDI
++1 NAME Int Mixed /Case/
++1 SEX U
++1 BIRT
++2 DATE Int 1852
++0 @I4@ INDI
++1 NAME Cal Upper /Case/
++1 SEX M
++1 BIRT
++2 DATE CAL 1847
++0 TRLR
++"""
++
++
++class GedcomCalDateCaseInsensitiveTest(unittest.TestCase):
++    @classmethod
++    def setUpClass(cls):
++        fd, cls.path = tempfile.mkstemp(suffix=".ged", text=True)
++        with os.fdopen(fd, "w") as f:
++            f.write(GEDCOM_FIXTURE)
++        # CLI user that swallows callbacks; import_as_dict needs a User.
++        user = CliUser(callback=lambda *a, **k: None)
++        cls.db = import_as_dict(cls.path, user)
++
++    @classmethod
++    def tearDownClass(cls):
++        os.unlink(cls.path)
++
++    def _birth_date(self, gramps_id):
++        self.assertIsNotNone(self.db, "import_as_dict returned None — import failed")
++        person = self.db.get_person_from_gramps_id(gramps_id)
++        self.assertIsNotNone(person, "person %s not imported" % gramps_id)
++        birth_ref = person.get_birth_ref()
++        self.assertIsNotNone(birth_ref, "%s has no birth ref" % gramps_id)
++        event = self.db.get_event_from_handle(birth_ref.ref)
++        return event.get_date_object()
++
++    def _assert_qualified(self, gramps_id, expected_qual, year):
++        date = self._birth_date(gramps_id)
++        self.assertNotEqual(
++            date.get_modifier(),
++            Date.MOD_TEXTONLY,
++            "%s imported as a text date, not a parsed qualified date" % gramps_id,
++        )
++        self.assertEqual(date.get_quality(), expected_qual)
++        self.assertEqual(date.get_year(), year)
++
++    def test_cal_mixed_case_is_calculated(self):
++        # The reporter's case: "2 DATE Cal 1847".
++        self._assert_qualified("I1", Date.QUAL_CALCULATED, 1847)
++
++    def test_est_mixed_case_is_estimated(self):
++        self._assert_qualified("I2", Date.QUAL_ESTIMATED, 1850)
++
++    def test_int_mixed_case_is_calculated(self):
++        self._assert_qualified("I3", Date.QUAL_CALCULATED, 1852)
++
++    def test_cal_upper_case_control_is_calculated(self):
++        # All-caps already worked; pin it so the fix matches its behaviour.
++        self._assert_qualified("I4", Date.QUAL_CALCULATED, 1847)
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/gramps/plugins/lib/libgedcom.py b/gramps/plugins/lib/libgedcom.py
+index 0b00f44d78..7362d52b6f 100644
+--- a/gramps/plugins/lib/libgedcom.py
++++ b/gramps/plugins/lib/libgedcom.py
+@@ -883,7 +883,7 @@ NOTE_RE = re.compile(r"\s*\d+\s+\@(\S+)\@\s+NOTE(.*)$")
+ CONT_RE = re.compile(r"\s*\d+\s+CONT\s?(.*)$")
+ CONC_RE = re.compile(r"\s*\d+\s+CONC\s?(.*)$")
+ PERSON_RE = re.compile(r"\s*\d+\s+\@(\S+)\@\s+INDI(.*)$")
+-MOD = re.compile(r"\s*(INT|EST|CAL)\s+(.*)$")
++MOD = re.compile(r"\s*(INT|EST|CAL)\s+(.*)$", re.IGNORECASE)
+ CAL = re.compile(r"\s*(ABT|BEF|AFT|FROM|TO)?\s*@#D?([^@]+)@\s*(.*)$")
+ RANGE = re.compile(r"\s*BET\s+@#D?([^@]+)@\s*(.*)\s+AND\s+@#D?([^@]+)@\s*(.*)$")
+ RANGE1 = re.compile(r"\s*BET\s+\s*(.*)\s+AND\s+@#D?([^@]+)@\s*(.*)$")
+@@ -1104,6 +1104,11 @@ class GedLine:
+         mod = ""
+         if match:
+             mod, text = match.groups()
++            # GEDCOM 5.5.1 specifies these qualifiers in uppercase, but
++            # non-conformant exporters emit mixed case (e.g. "Cal 1847").
++            # Normalise before the (uppercase-keyed) QUALITY_MAP lookup and
++            # before mod is reused in the range/span text reconstruction.
++            mod = mod.upper()
+             qual = QUALITY_MAP.get(mod, Date.QUAL_NONE)
+             mod += " "
+         else:
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index d4a15ea5b4..0692f8a9b5 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -596,6 +596,7 @@ gramps/plugins/importer/__init__.py
+ # plugins/importer/test directory
+ #
+ gramps/plugins/importer/test/importgedcom_ambiguous_date_test.py
++gramps/plugins/importer/test/importgedcom_caldate_test.py
+ gramps/plugins/importer/test/importgeneweb_test.py
+ gramps/plugins/importer/test/importvcard_test.py
+ #
