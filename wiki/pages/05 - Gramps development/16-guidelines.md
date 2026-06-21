@@ -4,7 +4,7 @@ categories: [Developers, Gramps 6.1]
 managed: true
 ---
 
-<!--wiki:{{man index|Gramps 6.1 Wiki Manual - Core Development - What's new|Gramps 6.1 Wiki Manual - Core Development - Roadmap|6.1}}-->
+[← Previous](wiki:Gramps 6.1 Wiki Manual - Core Development - What's new) · [Index](wiki:Gramps 6.1 Wiki Manual - Core Development - Overview) · [Next →](wiki:Gramps 6.1 Wiki Manual - Core Development - Roadmap)
 
 ## Overview
 

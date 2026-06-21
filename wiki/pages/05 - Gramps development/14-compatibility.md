@@ -3,7 +3,7 @@ title: "Gramps 6.1 Wiki Manual - Core Development - Compatibility"
 categories: [Developers, Gramps 6.1]
 managed: true
 ---
-<!--wiki:{{man index|Gramps 6.1 Wiki Manual - Core Development - Building & releasing|Gramps 6.1 Wiki Manual - Core Development - What's new|6.1}}-->
+[← Previous](wiki:Gramps 6.1 Wiki Manual - Core Development - Building & releasing) · [Index](wiki:Gramps 6.1 Wiki Manual - Core Development - Overview) · [Next →](wiki:Gramps 6.1 Wiki Manual - Core Development - What's new)
 
 ## Overview
 

@@ -69,6 +69,15 @@ SYNTAXHIGHLIGHT_RE = re.compile(
     r"<syntaxhighlight\b[^>]*>(.*?)</syntaxhighlight>", re.DOTALL
 )
 
+# <code>...</code> / <pre>...</pre> regions in post-pandoc wikitext hold
+# verbatim documentation -- a page may show ``[[File:foo.svg]]`` as a syntax
+# example. The File-ref helpers must not treat that as a live media ref (the
+# same "code is verbatim" rule stash_code enforces on the source side), or the
+# publisher tries to upload a non-existent sample file and the page edit aborts.
+_WIKITEXT_CODE_RE = re.compile(
+    r"<(code|pre)\b[^>]*>.*?</\1>", re.DOTALL | re.IGNORECASE
+)
+
 # ------------------------
 # Front-matter splitter (mirrors md2wiki / md2pdf local copies)
 # ------------------------
@@ -491,7 +500,19 @@ def basenameify_file_refs(wikitext: str) -> str:
         suffix = m.group(2) or ""
         return f"[[File:{Path(path).name}{suffix}]]"
 
-    return FILE_REF_RE.sub(repl, wikitext)
+    # Hide <code>/<pre> doc examples so their [[File:...]] is left verbatim,
+    # not rewritten to a basename.
+    holes: list[str] = []
+
+    def _hide(m: re.Match) -> str:
+        holes.append(m.group(0))
+        return f"\x00FREF{len(holes) - 1}\x00"
+
+    out = _WIKITEXT_CODE_RE.sub(_hide, wikitext)
+    out = FILE_REF_RE.sub(repl, out)
+    for i, original in enumerate(holes):
+        out = out.replace(f"\x00FREF{i}\x00", original)
+    return out
 
 
 def syntaxhighlight_to_pre(wikitext: str) -> str:
@@ -514,5 +535,10 @@ def extract_file_basenames(wikitext: str) -> list[str]:
 
     Used by the publisher to know which media files to upload alongside a
     page. Order preserved; duplicates preserved (caller can dedup).
+
+    ``[[File:...]]`` appearing inside ``<code>``/``<pre>`` is documentation,
+    not a live ref -- excluded so a page that documents File: syntax doesn't
+    trigger a bogus upload.
     """
-    return [Path(m.group(1).strip()).name for m in FILE_REF_RE.finditer(wikitext)]
+    scrubbed = _WIKITEXT_CODE_RE.sub(" ", wikitext)
+    return [Path(m.group(1).strip()).name for m in FILE_REF_RE.finditer(scrubbed)]

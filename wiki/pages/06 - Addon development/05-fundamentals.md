@@ -7,7 +7,7 @@ categories:
 managed: true
 ---
 
-<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - Addon Kinds|Gramps 6.0 Wiki Manual - Addon Development - Data access|6.0}}-->
+[← Previous](wiki:Gramps 6.0 Wiki Manual - Addon Development - Addon Kinds) · [Index](wiki:Gramps 6.0 Wiki Manual - Addon Development) · [Next →](wiki:Gramps 6.0 Wiki Manual - Addon Development - Data access)
 
 <!--
   Cross-cutting concerns every addon author hits regardless of kind.

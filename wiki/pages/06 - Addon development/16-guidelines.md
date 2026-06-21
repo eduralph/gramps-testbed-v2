@@ -7,7 +7,7 @@ categories:
 managed: true
 ---
 
-<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - What's New|Gramps 6.0 Wiki Manual - Addon Development - Roadmap|6.0}}-->
+[← Previous](wiki:Gramps 6.0 Wiki Manual - Addon Development - What's New) · [Index](wiki:Gramps 6.0 Wiki Manual - Addon Development) · [Next →](wiki:Gramps 6.0 Wiki Manual - Addon Development - Roadmap)
 
 ## Overview
 
@@ -38,13 +38,13 @@ Where a rule has a known origin — an upstream PR, a maintainer ruling, a Manti
 - **MUST**: the addon's folder name is a valid Python import name (an importable identifier — no spaces). Gramps puts each addon's directory on `sys.path` and addons share code via `import <FolderName>` (see [04 - Technical Documentation/addons-development.md](../04%20-%20Technical%20Documentation/addons-development.md) → "name your addons with a name appropriate for Python imports"). The folder name need **not** match the `id` in `.gpr.py`: the registration `id` is an independent plugin key and routinely differs (e.g. folder `DeepConnectionsGramplet` ↔ id `Deep Connections Gramplet`), and one folder may register several plugins with unrelated ids.
 - **MUST**: `.gpr.py` declares `gramps_target_version` matching the Gramps minor the addon targets.
 - **MUST**: `fname` points to an implementation module shipped in the same folder.
-- **MUST** (Gramps 6.0): the addon is physically present under the plugin path. 6.0 plugin discovery does not follow symlinks. **MAY** (Gramps 6.1+): the addon folder is reached via a symlink. 6.1 plugin discovery follows symlinks, with realpath-based dedup so symlink loops terminate. The symlink test is skipped on Windows because the platform's symlink behavior is inconsistent without elevated privileges; on Windows a physical copy remains the recommended approach even on 6.1+.
+- **MUST**: the addon is physically present under the plugin path — a physical copy works on every Gramps version and OS. (Gramps 6.1+ also discovers an addon reached via a symlink, but a physical copy is the portable default.)
 - **MUST NOT**: import `register`, `GRAMPLET`, `STABLE`, `_`, or any other name Gramps injects into the `.gpr.py` namespace.
 - **MUST NOT**: add `__init__.py` to the addon directory itself. The plugin loader puts the addon dir on `sys.path` and imports `<Addon>.py` by name; making the addon dir a regular package disturbs that resolution and can trigger the [Mantis 12691](https://gramps-project.org/bugs/view.php?id=12691) submodule-binding trap. (See [08-testing → Why `tests/__init__.py` exists](08-testing.md#why-tests__init__py-exists).)
 - **MUST** (`TOOL` kind): register an `optionclass` even when the tool takes no options. Gramps refuses to load a `TOOL` without one; an empty `tool.ToolOptions` subclass is sufficient.
-- **SHOULD**: ship a `po/` directory with at least `template.pot` if any user-visible string exists.
-- **SHOULD**: ship a `tests/` package with an `__init__.py` marker and at least one test. The marker keeps dotted-path loading deterministic and is the prerequisite for shared test setup.
-- **MAY**: ship multiple plugin kinds from a single addon (multiple `register(...)` calls in one `.gpr.py`).
+- **SHOULD**: ship a `po/` directory with at least `template.pot` if any user-visible string exists. Generate it with `make.py init <Addon>` (see [13-packaging](13-packaging.md)); if it's missing the maintainer creates it on initial check-in.
+- **MAY**: ship a `tests/` package with an `__init__.py` marker and at least one test — most existing addons predate addon unit tests. When tests are shipped, the `__init__.py` marker keeps dotted-path loading deterministic and the layout rules under *Testing* apply; a bug fix still **SHOULD** ship a regression test.
+- **MAY**: ship multiple plugin kinds from a single addon — multiple `register(...)` calls in one `.gpr.py`, and/or multiple `.gpr.py` files in the addon folder (the loader scans every `*.gpr.py`).
 
 ## Source location
 

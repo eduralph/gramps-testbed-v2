@@ -93,7 +93,10 @@ def frob(x: FooHandle) -> Bar | None:
 
 ## Diagrams and images
 
-<!--wiki:[[File:example-diagram.png|thumb|right|400px|Caption goes here.]]-->
+<!-- Diagram placeholder: no asset exists yet, so there is intentionally no
+     live wiki image shim here (an empty image ref would publish as a red
+     link). When a real diagram exists, upload it via Special:Upload and add
+     the wiki image shim as described in the note below. -->
 
 <!--
   Wiki image syntax has no Markdown equivalent — use a wiki shim. Upload

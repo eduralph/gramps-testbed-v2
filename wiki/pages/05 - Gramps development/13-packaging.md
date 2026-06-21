@@ -3,7 +3,7 @@ title: "Gramps 6.1 Wiki Manual - Core Development - Building & releasing"
 categories: [Developers, Gramps 6.1]
 managed: true
 ---
-<!--wiki:{{man index|Gramps 6.1 Wiki Manual - Core Development - Internationalization|Gramps 6.1 Wiki Manual - Core Development - Compatibility|6.1}}-->
+[← Previous](wiki:Gramps 6.1 Wiki Manual - Core Development - Internationalization) · [Index](wiki:Gramps 6.1 Wiki Manual - Core Development - Overview) · [Next →](wiki:Gramps 6.1 Wiki Manual - Core Development - Compatibility)
 
 <!--
   This page covers the build/install-from-source PIPELINE and the

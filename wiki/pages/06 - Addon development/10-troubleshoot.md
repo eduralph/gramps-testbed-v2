@@ -7,7 +7,7 @@ categories:
 managed: true
 ---
 
-<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - Debug|Gramps 6.0 Wiki Manual - Addon Development - Code Analysis|6.0}}-->
+[← Previous](wiki:Gramps 6.0 Wiki Manual - Addon Development - Debug) · [Index](wiki:Gramps 6.0 Wiki Manual - Addon Development) · [Next →](wiki:Gramps 6.0 Wiki Manual - Addon Development - Code Analysis)
 
 <!--
   Symptom-first guide. Each entry: what you see → why → what to do.

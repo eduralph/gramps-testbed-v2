@@ -7,7 +7,7 @@ categories:
 managed: true
 ---
 
-<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - Compatibility|Gramps 6.0 Wiki Manual - Addon Development - Rules|6.0}}-->
+[← Previous](wiki:Gramps 6.0 Wiki Manual - Addon Development - Compatibility) · [Index](wiki:Gramps 6.0 Wiki Manual - Addon Development) · [Next →](wiki:Gramps 6.0 Wiki Manual - Addon Development - Rules)
 
 ## Overview
 

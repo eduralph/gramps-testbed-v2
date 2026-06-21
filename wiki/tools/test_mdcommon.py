@@ -764,6 +764,30 @@ class FileRefExtraction(unittest.TestCase):
         wikitext = "[[File:a.svg]] twice: [[File:a.svg|second]]."
         self.assertEqual(M.extract_file_basenames(wikitext), ["a.svg", "a.svg"])
 
+    def test_refs_inside_code_excluded(self):
+        # A File: ref inside <code>/<pre> is documentation, not a live media
+        # ref -- excluded so a page documenting File: syntax doesn't trigger a
+        # bogus upload (the publish failure on 17-roadmap's foo.svg example).
+        wikitext = (
+            "Real [[File:real.svg]] embed.\n"
+            "Docs: <code>[[File:foo.svg]]</code> and "
+            "<pre>[[File:bar.png]]</pre> are examples."
+        )
+        self.assertEqual(M.extract_file_basenames(wikitext), ["real.svg"])
+
+
+class FileRefBasenameifySkipsCode(unittest.TestCase):
+    def test_code_example_left_verbatim(self):
+        # basenameify rewrites real refs but leaves a <code> doc example's
+        # path untouched, so a "_media/x -> x" table row still reads correctly.
+        wikitext = (
+            "Real [[File:_media/real.svg|cap]] embed; "
+            "doc <code>[[File:_media/foo.svg]]</code>."
+        )
+        out = M.basenameify_file_refs(wikitext)
+        self.assertIn("[[File:real.svg|cap]]", out)          # real ref basenamed
+        self.assertIn("<code>[[File:_media/foo.svg]]</code>", out)  # example verbatim
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
