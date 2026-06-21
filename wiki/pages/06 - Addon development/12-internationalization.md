@@ -7,7 +7,7 @@ categories:
 managed: true
 ---
 
-<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - Code Analysis|Gramps 6.0 Wiki Manual - Addon Development - Packaging|6.0}}-->
+[← Previous](wiki:Gramps 6.0 Wiki Manual - Addon Development - Code Analysis) · [Index](wiki:Gramps 6.0 Wiki Manual - Addon Development) · [Next →](wiki:Gramps 6.0 Wiki Manual - Addon Development - Packaging)
 
 ## Overview
 

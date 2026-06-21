@@ -7,7 +7,7 @@ categories:
 managed: true
 ---
 
-<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - Tutorials|Gramps 6.0 Wiki Manual - Addon Development - Fundamentals|6.0}}-->
+[← Previous](wiki:Gramps 6.0 Wiki Manual - Addon Development - Tutorials) · [Index](wiki:Gramps 6.0 Wiki Manual - Addon Development) · [Next →](wiki:Gramps 6.0 Wiki Manual - Addon Development - Fundamentals)
 
 <!--
   Index page over the addon kinds. Each kind gets:

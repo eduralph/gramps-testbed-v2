@@ -7,7 +7,7 @@ categories:
 managed: true
 ---
 
-<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - Data access|Gramps 6.0 Wiki Manual - Addon Development - Testing|6.0}}-->
+[← Previous](wiki:Gramps 6.0 Wiki Manual - Addon Development - Data access) · [Index](wiki:Gramps 6.0 Wiki Manual - Addon Development) · [Next →](wiki:Gramps 6.0 Wiki Manual - Addon Development - Testing)
 
 <!--
   Curated reference. Two principles:

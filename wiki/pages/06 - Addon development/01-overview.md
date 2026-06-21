@@ -4,7 +4,7 @@ categories: ["Addons", "Developers", "Gramps 6.0"]
 managed: true
 ---
 
-<!--wiki:{{man index||Gramps 6.0 Wiki Manual - Addon Development - Getting Started|6.0}}-->
+[Index](wiki:Gramps 6.0 Wiki Manual - Addon Development) · [Next →](wiki:Gramps 6.0 Wiki Manual - Addon Development - Getting Started)
 
 ## Overview
 

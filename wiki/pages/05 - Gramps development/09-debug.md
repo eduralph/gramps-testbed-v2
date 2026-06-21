@@ -4,7 +4,7 @@ categories: [Developers, Gramps 6.1]
 managed: true
 ---
 
-<!--wiki:{{man index|Gramps 6.1 Wiki Manual - Core Development - Testing|Gramps 6.1 Wiki Manual - Core Development - Triage & troubleshooting|6.1}}-->
+[← Previous](wiki:Gramps 6.1 Wiki Manual - Core Development - Testing) · [Index](wiki:Gramps 6.1 Wiki Manual - Core Development - Overview) · [Next →](wiki:Gramps 6.1 Wiki Manual - Core Development - Triage & troubleshooting)
 
 <!--
   Authoritative scraped source:

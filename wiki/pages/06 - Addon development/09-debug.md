@@ -7,7 +7,7 @@ categories:
 managed: true
 ---
 
-<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - Testing|Gramps 6.0 Wiki Manual - Addon Development - Troubleshoot|6.0}}-->
+[← Previous](wiki:Gramps 6.0 Wiki Manual - Addon Development - Testing) · [Index](wiki:Gramps 6.0 Wiki Manual - Addon Development) · [Next →](wiki:Gramps 6.0 Wiki Manual - Addon Development - Troubleshoot)
 
 <!--
   Authoritative scraped source:

@@ -3,7 +3,7 @@ title: "Gramps 6.1 Wiki Manual - Core Development - Code analysis"
 categories: [Developers, Gramps 6.1]
 managed: true
 ---
-<!--wiki:{{man index|Gramps 6.1 Wiki Manual - Core Development - Triage & troubleshooting|Gramps 6.1 Wiki Manual - Core Development - Internationalization|6.1}}-->
+[← Previous](wiki:Gramps 6.1 Wiki Manual - Core Development - Triage & troubleshooting) · [Index](wiki:Gramps 6.1 Wiki Manual - Core Development - Overview) · [Next →](wiki:Gramps 6.1 Wiki Manual - Core Development - Internationalization)
 
 ## Overview
 

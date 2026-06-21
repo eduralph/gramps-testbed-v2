@@ -4,7 +4,7 @@ categories: [Developers, Gramps 6.1]
 managed: true
 ---
 
-<!--wiki:{{man index||Gramps 6.1 Wiki Manual - Core Development - Getting Started|6.1}}-->
+[Index](wiki:Gramps 6.1 Wiki Manual - Core Development - Overview) · [Next →](wiki:Gramps 6.1 Wiki Manual - Core Development - Getting Started)
 
 ## Overview
 

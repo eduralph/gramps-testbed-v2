@@ -3,7 +3,7 @@ title: "Gramps 6.1 Wiki Manual - Core Development - API Reference"
 categories: [Developers, Gramps 6.1]
 managed: true
 ---
-<!--wiki:{{man index|Gramps 6.1 Wiki Manual - Core Development - Data access|Gramps 6.1 Wiki Manual - Core Development - Testing|6.1}}-->
+[← Previous](wiki:Gramps 6.1 Wiki Manual - Core Development - Data access) · [Index](wiki:Gramps 6.1 Wiki Manual - Core Development - Overview) · [Next →](wiki:Gramps 6.1 Wiki Manual - Core Development - Testing)
 
 ## Overview
 

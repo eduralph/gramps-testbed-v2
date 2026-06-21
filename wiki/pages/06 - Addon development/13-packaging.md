@@ -7,7 +7,7 @@ categories:
 managed: true
 ---
 
-<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - Internationalization|Gramps 6.0 Wiki Manual - Addon Development - Compatibility|6.0}}-->
+[← Previous](wiki:Gramps 6.0 Wiki Manual - Addon Development - Internationalization) · [Index](wiki:Gramps 6.0 Wiki Manual - Addon Development) · [Next →](wiki:Gramps 6.0 Wiki Manual - Addon Development - Compatibility)
 
 <!--
   This page covers the source-to-distribution PIPELINE only. The normative

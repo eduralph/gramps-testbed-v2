@@ -7,7 +7,7 @@ categories:
 managed: true
 ---
 
-<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - Fundamentals|Gramps 6.0 Wiki Manual - Addon Development - API Reference|6.0}}-->
+[← Previous](wiki:Gramps 6.0 Wiki Manual - Addon Development - Fundamentals) · [Index](wiki:Gramps 6.0 Wiki Manual - Addon Development) · [Next →](wiki:Gramps 6.0 Wiki Manual - Addon Development - API Reference)
 
 <!--
   Data access is the first non-trivial thing every addon does: read the
