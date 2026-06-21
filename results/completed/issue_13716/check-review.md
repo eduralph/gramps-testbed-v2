@@ -78,3 +78,33 @@ The human must confirm the fix resolves the reported scenario: starting Gramps, 
 ## §7 Overall gate status
 
 All gating checks pass (C4-verify gating PASS, T2-potfiles gating PASS). Non-gating items: C4-verify-interface blocked environmentally (§6.1); C2 inferential (§6.3). Four §6 items require human clearance before sign-off. The fix is technically sound; clearance is a process and environmental matter, not a correctness matter.
+
+---
+
+## §8 Addendum — PR #2396 review question (2026-06-21)
+
+After publication, reviewer prculley asked on PR #2396 how the selector recognizes
+custom-type changes from other editors/imports, observing that `_db_changed` only
+fires on a family-tree switch. This addendum records the verification; it does not
+change any §1 verdict.
+
+- **Mechanism confirmed.** `_db_changed`/`refresh()` (`_sidebarfilter.py:195`) is the
+  secondary, tree-switch trigger only. The live trigger is the `notify::popup-shown`
+  connection in `add_type_filter` (`_sidebarfilter.py:236`): opening a selector calls
+  `_type_popup_shown` → `refresh()` → `fetch` re-reads the live db, so a type added by
+  any editor/import since construction is offered on next open. This is the
+  pull-on-open contract already credited under C5/T5 — the question surfaced no gap.
+
+- **`popup-shown` reliability (the linchpin) verified against local GTK 3.24.52.** All
+  seven selectors are `Gtk.ComboBox(has_entry=True)`. Source: in `gtkcombobox.c`,
+  `popup-shown` is set+notified only by `gtk_combo_box_child_show()`/`child_hide()`,
+  which both menu-mode and list-mode popup setup wire to their popup toplevel's
+  `show`/`hide` — so the notify is independent of popup mode. Empirical: driving such a
+  combo through `popup()`/`popdown()` emitted `notify(popup-shown=True)` then `False`.
+
+- **Correction.** `has_entry=TRUE` does **not** force list mode;
+  `gtk_combo_box_check_appearance()` keys only off `wrap_width` and the
+  `appears-as-list` style property. On the test theme (`appears-as-list` False) these
+  combos use a GtkMenu popup, and the notify still fired — the mechanism is
+  theme-independent. Verification detail recorded in `build-notes.md`
+  ("PR #2396 follow-up").
