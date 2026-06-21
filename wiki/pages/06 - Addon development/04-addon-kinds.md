@@ -7,6 +7,8 @@ categories:
 managed: true
 ---
 
+<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - Tutorials|Gramps 6.0 Wiki Manual - Addon Development - Fundamentals|6.0}}-->
+
 <!--
   Index page over the addon kinds. Each kind gets:
     - the registration constant

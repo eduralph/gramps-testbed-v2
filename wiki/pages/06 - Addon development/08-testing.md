@@ -7,6 +7,8 @@ categories:
 managed: true
 ---
 
+<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - API Reference|Gramps 6.0 Wiki Manual - Addon Development - Debug|6.0}}-->
+
 <!--
   Sources:
     - per-OS filename prefixes from addons-source ci.yml

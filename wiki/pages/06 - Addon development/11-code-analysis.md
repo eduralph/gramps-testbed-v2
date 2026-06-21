@@ -7,6 +7,8 @@ categories:
 managed: true
 ---
 
+<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - Troubleshoot|Gramps 6.0 Wiki Manual - Addon Development - Internationalization|6.0}}-->
+
 <!--
   Authoritative scraped source:
   ../04 - Technical Documentation/programming-guidelines.md (165L) — PEP 8,

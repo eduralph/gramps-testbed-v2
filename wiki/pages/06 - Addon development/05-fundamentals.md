@@ -7,6 +7,8 @@ categories:
 managed: true
 ---
 
+<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - Addon Kinds|Gramps 6.0 Wiki Manual - Addon Development - Data access|6.0}}-->
+
 <!--
   Cross-cutting concerns every addon author hits regardless of kind.
   Ordered by the sequence an author actually meets them, not

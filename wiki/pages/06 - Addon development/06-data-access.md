@@ -7,6 +7,8 @@ categories:
 managed: true
 ---
 
+<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - Fundamentals|Gramps 6.0 Wiki Manual - Addon Development - API Reference|6.0}}-->
+
 <!--
   Data access is the first non-trivial thing every addon does: read the
   family tree the user has open. This chapter covers the shape of the

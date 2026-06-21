@@ -7,6 +7,8 @@ categories:
 managed: true
 ---
 
+<!--wiki:{{man index|Gramps 6.0 Wiki Manual - Addon Development - Packaging|Gramps 6.0 Wiki Manual - Addon Development - What's New|6.0}}-->
+
 <!--
   Cross-version porting for addon authors. Concrete deltas cited here
   are verified against gramps-project/gramps and gramps-project/addons-source.
