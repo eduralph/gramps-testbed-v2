@@ -68,9 +68,15 @@ publish:
 # ISOLATED throwaway bundle root so it never touches the real results/ a live run uses.
 # --no-act: Act is default-on in the flow (v0.30) but writes to the real
 # process/act-log.md, not the bundle root — so a rehearsal must skip it.
+# Single-id rehearsals seed the filled toy brief first: under v0.31 (#113) the stub Plan
+# copies the unfilled brief.md.tpl, which `is_placeholder()` routes to UNPLANNED — so a
+# real brief is needed to drive Do→Check→publish→COMPLETE. A CSV batch plans from the CSV.
 rehearse:
 	@test -n "$(ID)$(CSV)" || { echo 'usage: make rehearse ID=<issue-id> [CSV="<path>"]'; exit 2; }
 	@rm -rf .rehearse
+	@if [ -z "$(CSV)" ]; then \
+	  PDCA_BUNDLE_ROOT=.rehearse PDCA_LEAVES_MODE=stub PDCA_GATES_MODE=stub $(PDCA) init-issue $(ID) --from-brief examples/toy/brief.md; \
+	fi
 	PDCA_BUNDLE_ROOT=.rehearse PDCA_LEAVES_MODE=stub PDCA_GATES_MODE=stub $(PDCA) flow $(ID) $(if $(CSV),--from-csv "$(CSV)") --no-act
 	@printf '(rehearsal bundles in ./.rehearse — throwaway; real runs use results/)\n'
 
