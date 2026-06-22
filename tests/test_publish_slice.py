@@ -130,6 +130,27 @@ class PublishSlice(unittest.TestCase):
         # …but a standalone publish (no skip) treats the missing target as an error.
         self.assertEqual(publish.publish(self.cfg, "NOTGT", dry_run=True), 1)
 
+    def test_empty_patch_is_treated_as_close_disposition(self) -> None:
+        """Regression (#95): a 0-byte / whitespace-only patch.diff is a close, not a
+        broken contribution. `is_file()` alone let an empty patch past the guard, after
+        which `git apply` was a no-op and the commit failed with 'nothing to commit'.
+
+        The #95 shape is an *empty patch.diff present* — which the state machine reads
+        as past-Do, so the bundle is COMPLETE and reaches publish (unlike a missing
+        patch.diff + close marker, the issue #60 path). Both empty shapes must
+        short-circuit to a non-fatal 0 and plan nothing."""
+        for iid, content in (("CLOSE0", ""), ("CLOSE1", "\n  \n")):
+            d = _bundle(self.cfg, iid, brief_body=_FIX_BRIEF, accepted=True)
+            (d / "patch.diff").write_text(content, encoding="utf-8")
+            self.assertEqual(state.state(d), state.COMPLETE)  # empty patch ⇒ past-Do
+            buf = io.StringIO()
+            with redirect_stderr(buf):
+                self.assertEqual(publish.publish(self.cfg, iid, dry_run=True), 0)
+            self.assertIn("no (non-empty) patch.diff", buf.getvalue())
+            # the guard returns before any contribution is planned/recorded
+            self.assertFalse((d / "commit-msg.txt").exists())
+            self.assertFalse((d / "publish.json").exists())
+
     def test_commit_stages_patch_added_files(self) -> None:
         """Regression (#23a): the commit must stage patch-ADDED files (the new
         regression test), not only modified-tracked ones — `git apply` + `add --all`
@@ -154,6 +175,59 @@ class PublishSlice(unittest.TestCase):
             out = buf.getvalue()
             self.assertIn("commit -s -F", out, f"{iid}: commit not signed off")
             self.assertNotIn("commit -F", out)  # the unsigned form is gone
+
+    def test_base_remote_is_configurable(self) -> None:
+        # Own-repo (#83): branch the fix off `origin` (no `upstream` remote needed).
+        self.cfg.base_remote = "origin"
+        _bundle(self.cfg, "OWN", brief_body=_FIX_BRIEF, accepted=True)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            publish.publish(self.cfg, "OWN", dry_run=True)
+        out = buf.getvalue()
+        self.assertIn("fetch origin", out)
+        self.assertIn("checkout -B fix/OWN-my-fix origin/main", out)
+        self.assertNotIn("upstream", out)  # no upstream remote assumed
+
+    def test_publish_succeeds_with_dirty_target_tree(self) -> None:
+        # Own-repo, dirty tree (#83): Do/Check edit the target in place, so publish must
+        # stash → publish off a clean checkout → restore, not abort on the dirty tree.
+        import subprocess as sp
+        repo = self.tmp / "checkout"
+        origin = self.tmp / "origin.git"
+        sp.run(["git", "init", "-q", "--bare", str(origin)], check=True)
+        sp.run(["git", "clone", "-q", str(origin), str(repo)], check=True)
+        run = lambda *a: sp.run(["git", "-C", str(repo), *a], check=True, capture_output=True)
+        run("config", "user.email", "t@example.com")
+        run("config", "user.name", "T")
+        run("config", "commit.gpgsign", "false")
+        (repo / "file.txt").write_text("base\n", encoding="utf-8")
+        run("add", "-A"); run("commit", "-q", "-m", "base")
+        run("branch", "-M", "main"); run("push", "-q", "-u", "origin", "main")
+        # The builder edits in place + leaves an untracked file (the dirty cycle state).
+        (repo / "file.txt").write_text("base\nbuilder edit\n", encoding="utf-8")
+        (repo / "untracked.txt").write_text("u\n", encoding="utf-8")
+
+        self.cfg.base_remote = "origin"
+        self.cfg.repo_checkouts = {"example-org/example-repo": str(repo)}
+        d = _bundle(self.cfg, "DIRTY", brief_body=_FIX_BRIEF, accepted=True)
+        (d / "patch.diff").write_text(
+            "diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n"
+            "@@ -1 +1,2 @@\n base\n+fix line\n", encoding="utf-8")
+
+        buf = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(buf):
+            rc = publish.publish(self.cfg, "DIRTY", open_pr=False, by="T", today="2026-06-05")
+        self.assertEqual(rc, 0, buf.getvalue())
+        # The operator's dirty edits are restored — edit-in-place survives publish.
+        self.assertEqual((repo / "file.txt").read_text(encoding="utf-8"), "base\nbuilder edit\n")
+        self.assertTrue((repo / "untracked.txt").exists())
+        cur = sp.run(["git", "-C", str(repo), "branch", "--show-current"],
+                     capture_output=True, text=True).stdout.strip()
+        self.assertEqual(cur, "main")  # back on the original branch
+        # The fix branch was pushed to origin.
+        refs = sp.run(["git", "-C", str(repo), "ls-remote", "--heads", "origin"],
+                      capture_output=True, text=True).stdout
+        self.assertIn("fix/DIRTY-my-fix", refs)
 
     def test_pr_head_is_fork_owner_qualified(self) -> None:
         """Regression (#23b): a fork-based PR's --head must be OWNER:BRANCH, else gh
@@ -271,7 +345,7 @@ class PublishSlice(unittest.TestCase):
                         return_value=SimpleNamespace(returncode=1)):
             buf = io.StringIO()
             with redirect_stderr(buf):
-                rc = publish._preflight(repo, "org/repo", "nope", check_repo=False)
+                rc = publish._preflight(repo, "org/repo", "nope", "upstream", check_repo=False)
         self.assertEqual(rc, 1)
         self.assertIn("does not resolve", buf.getvalue())
         # base ok but repo not accessible (check_repo path) → rc 1
@@ -280,14 +354,14 @@ class PublishSlice(unittest.TestCase):
                                      SimpleNamespace(returncode=1)]):
             buf = io.StringIO()
             with redirect_stderr(buf):
-                rc = publish._preflight(repo, "org/repo", "main", check_repo=True)
+                rc = publish._preflight(repo, "org/repo", "main", "upstream", check_repo=True)
         self.assertEqual(rc, 1)
         self.assertIn("not found/accessible", buf.getvalue())
         # everything resolves → rc 0
         with mock.patch("pdca_harness.publish.subprocess.run",
                         return_value=SimpleNamespace(returncode=0)):
             self.assertEqual(
-                publish._preflight(repo, "org/repo", "main", check_repo=True), 0)
+                publish._preflight(repo, "org/repo", "main", "upstream", check_repo=True), 0)
 
     # --- stack mode (issue #54): commit onto an existing PR branch ---
 

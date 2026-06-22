@@ -16,7 +16,7 @@ templates_dir = "templates"
 # In-driver lane concurrency (docs 09 §parallel lanes). `lanes` is the worker-pool
 # size for the UNATTENDED Do+Check band only — Plan, sign-off, publish, and Act stay
 # serial. 1 (the default) is the strictly-serial driver. Override for a single run
-# with `PDCA_LANES=N` or `--lanes N` on `pdca flow` / `pdca batch`.
+# with `PDCA_LANES=N` or `--lanes N` on `pdca flow`.
 #
 # A pool > 1 runs N bundles concurrently in ONE workspace. Each worker is pinned to a
 # fixed lane slot 0..N-1 and exposes it to every gate command as `$PDCA_LANE`. A gate
@@ -33,6 +33,17 @@ templates_dir = "templates"
 # across them on a checkout lock. See docs/parallel-lanes.md §0.1 (issue #98).
 [driver]
 lanes = 6
+# Worktree isolation (issue #94). A cycle's Do/Check run in a dedicated git worktree off
+# the target's base, so the host's primary checkout is NEVER mutated in place. The harness
+# creates/resets it per cycle (per lane slot) and exposes its path as `$PDCA_WORKTREE` —
+# the builder edits there (granted access automatically), and gate commands should target
+# `$PDCA_WORKTREE` too (see the gate examples below). On by default; best-effort (a target
+# that isn't a worktree-capable git checkout falls back to in-place). Set false to disable.
+# OFF here: this testbed's Do never mutates the target in place — it emits a patch.diff the
+# C4 gate applies inside the engine's own per-version/per-lane verify worktrees (`make
+# worktrees`). So the per-cycle #94 worktree is moot and would only contend with the engine's
+# management of ../gramps + ../addons-source. Revisit if a leaf ever edits the target directly.
+worktree = false
 # Close-disposition fast path (issue #60). A bundle whose brief's `Disposition hint`
 # matches one of these close / no-fix classes skips the builder + reviewer model leaves
 # (the engine's only token spend) and routes straight to sign-off, where the human
@@ -72,6 +83,10 @@ notes_cmd = "./engine/scripts/scrape-mantis.sh {id}"
 [publisher]
 fix_branch_pattern = "fix/bug-{id}-{slug}"
 feature_branch_pattern = "enhancement/{id}-{slug}"
+# The remote the new-PR path branches the fix off of (issue #83). A fork branches off
+# `upstream` (canonical) and pushes to `origin` (the fork); an own-repo target has only
+# `origin`. Defaulted from contribution_model; change it if your remotes differ.
+base_remote = "upstream"
 
 [publisher.checkouts]
 # "<org/repo>" = "../<checkout-dir>"   # only the exceptions to the sibling default
@@ -162,11 +177,30 @@ family = "claude"
 interactive = true
 argv = ["claude", "--model", "claude-sonnet-4-6", "--effort", "medium", "--agent", "act", "--permission-mode", "acceptEdits"]
 
+# Optional advisory reviewer leaves (issue #64) — an OPEN list. The `reviewer` leaf above
+# judges fix ADEQUACY (causal adequacy, scope, validation); add role-distinct ADVISORY
+# reviewers here for other lenses (e.g. correctness bugs the patch introduces + reuse /
+# simplification / efficiency cleanups). Each writes check-advisory-<id>.md; its
+# `- NEEDS-HUMAN —` findings route into SUMMARY §6. Always advisory — never gates.
+# Decorrelate: prefer a `family` distinct from the builder AND the reviewer where you can.
+# `when = { field = "<brief field>", substring = "<v>" }` runs it only when that brief
+# field matches (e.g. a "Review depth" field an Act rule tunes) — omit to always run.
+# [[leaves.advisory]]
+# id = "code-review"
+# role = "correctness bugs introduced by the patch + reuse/simplification/efficiency cleanups"
+# mode = "stub"
+# family = "claude"
+# argv = ["claude", "-p", "--agent", "code-review", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Bash,Grep,Glob"]
+# when = { field = "review depth", substring = "deep" }
+
 # Deterministic Check gates (docs 04). Each check runs a shell command; it PASSES
 # iff the command exits 0. `scope = "repo"` runs against the working tree (and is
 # what CI re-runs via `pdca gates --working-tree`); `scope = "bundle"` needs the
 # bundle/patch context ($PDCA_BUNDLE is exported) and runs only locally. The
 # SAME commands run for the local driver and CI — single-sourced, no drift.
+# With worktree isolation on ([driver].worktree), $PDCA_WORKTREE is also exported —
+# the isolated tree Do edited; a bundle-scoped gate should test THAT, not the host
+# checkout (e.g. `cd "$PDCA_WORKTREE" && <run the test>`).
 #
 # The REAL gramps gate tiers (verified commands from the gramps-testbed reference
 # repo, see docs/INTEGRATION.md §4). The gramps verification engine lives under
