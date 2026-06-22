@@ -45,6 +45,7 @@ from . import act as act_mod
 from . import brief
 from . import gates
 from . import progress
+from . import sources
 from . import worktree
 from .config import Config, LeafConfig
 
@@ -140,7 +141,7 @@ def ensure_notes(cfg: Config, d: Path) -> None:
 # ----------------------------------------------------------------------------
 def do_plan(d: Path, cfg: Config, csv: str | None = None) -> None:
     d.mkdir(parents=True, exist_ok=True)
-    ensure_notes(cfg, d)  # seed notes.json from the tracker scraper if configured (#65)
+    sources.seed(cfg, d)  # seed notes.json + sources/ from the configured providers (#65/#102)
     if cfg.planner.mode == "command":
         _invoke(cfg.planner, cfg.root, _plan_prompt(cfg, csv, d))
         return
@@ -170,6 +171,11 @@ def _plan_prompt(cfg: Config, csv: str | None, d: Path) -> str:
         "discussion and it is absent, ask the human to produce it with the project's "
         "tracker-scrape tooling, and stop. "
     )
+    sources_line = (
+        f"Also read EVERY file under {d / 'sources'} if that directory exists — the Plan "
+        "sources (issue #102) compose the bundle's full context there (the tracker JSON, a "
+        "linked proposal / ADR / spec, a CSV row); brief from ALL of it, not just one. "
+    )
     citation_line = (
         "Cite the root cause against the target source with `git -C <checkout> log/show "
         "-- <file>` plus Read/Grep on the checkout — NEVER `cd <checkout> && git ...` "
@@ -178,7 +184,7 @@ def _plan_prompt(cfg: Config, csv: str | None, d: Path) -> str:
     )
     return (
         "You are the Plan leaf of a PDCA cycle. " + src_line + csv_line + notes_line
-        + citation_line
+        + sources_line + citation_line
         + f"Together with the human, write brief.md in the bundle directory {d}. Default "
         f"to {fix_tpl} — it fits bug fixes AND ordinary new functionality. Use {geps_tpl} "
         "(a design proposal) ONLY for the exception: a change significant enough to "
@@ -220,7 +226,7 @@ def do_plan_batch(cfg: Config, csv: str | None = None, ids: list[str] | None = N
     """
     cfg.bundle_root.mkdir(parents=True, exist_ok=True)
     for iid in ids or []:
-        ensure_notes(cfg, cfg.bundle(iid))  # seed notes.json before the session (#65)
+        sources.seed(cfg, cfg.bundle(iid))  # seed notes.json + sources/ per bundle (#65/#102)
     if cfg.planner.mode == "command":
         _invoke(cfg.planner, cfg.root, _plan_batch_prompt(cfg, csv, ids))
         return
@@ -697,8 +703,11 @@ def signoff_rationale(d: Path) -> str:
 def run_act(cfg: Config, date: str) -> None:
     if cfg.act.mode == "command":
         _invoke(cfg.act, cfg.root, _act_prompt(cfg, date))
-        return
-    _stub_act(cfg, date)
+    else:
+        _stub_act(cfg, date)
+    # Reset the cadence marker (issue #109) whenever the Act beat runs — even if a
+    # command-mode Act judged "no delta" and wrote no act-log entry, the review happened.
+    act_mod.mark_reviewed(cfg)
 
 
 def _act_prompt(cfg: Config, date: str) -> str:
@@ -765,8 +774,10 @@ def _publish_prompt(d: Path, cfg: Config) -> str:
 
 def _stub_publish(d: Path, cfg: Config) -> None:
     # Offline placeholders, shaped to pass a contribution (T4) gate: summary ≤70,
-    # blank line, body ≤80, the configured issue trailer last; PR body has the four
-    # sections that pr-description.md.tpl prescribes.
+    # blank line, body ≤80, the configured issue trailer last; PR body has the gramps
+    # doc16 sections (Root cause / Fix / Verified against / Test) the engine T4 gate
+    # enforces — NOT the template's generic #106 structure (which gramps maintainers
+    # don't use). See the leaves/templates note in the integration PR.
     issue_id = d.name.removeprefix("issue_")
     trailer = cfg.issue_trailer.format(id=issue_id) if cfg.issue_trailer else ""
     body = (
