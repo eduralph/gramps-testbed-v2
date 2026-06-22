@@ -49,13 +49,15 @@ PDCA := $(PYTHON) -m pdca_harness.cli
 # On an accept the flow publishes a draft PR; NO_PUBLISH=1 stops at COMPLETE.
 flow:
 	@test -n "$(ID)$(CSV)" || { echo 'usage: make flow ID=<issue-id> [CSV="<path>"] [ACT=1] [NO_PUBLISH=1] [BY=<name>]'; echo '   or: make flow CSV="<path>" [...]   (batch: Plan briefs several)'; exit 2; }
-	$(PDCA) flow $(ID) $(if $(CSV),--from-csv "$(CSV)") $(if $(NO_PUBLISH),--no-publish) $(if $(ACT),--act) $(if $(BY),--by "$(BY)")
+	$(PDCA) flow $(ID) $(if $(CSV),--from-csv "$(CSV)") $(if $(NO_PUBLISH),--no-publish) $(if $(ACT),,--no-act) $(if $(BY),--by "$(BY)")
 
-# Drive already-briefed issues through the full cycle, no Plan beat (Do → Check →
-# sign-off → publish → Act). NOACT=1 stops after sign-off; BY=<name> sets §9.
+# Drive several ids through the full cycle (Do → Check → sign-off → publish → Act).
+# v0.30 folded `batch` into `flow`: N ids fan out across lanes; unbriefed ids are
+# auto-planned (one shared Plan session), so PLAN= is no longer needed. NOACT=1 stops
+# after sign-off; BY=<name> sets §9.
 batch:
-	@test -n "$(IDS)" || { echo 'usage: make batch IDS="<id> <id> ..." [PLAN=1] [CSV="<path>"] [NOACT=1] [BY=<name>]'; exit 2; }
-	$(PDCA) batch $(IDS) $(if $(PLAN),--plan) $(if $(CSV),--from-csv "$(CSV)") $(if $(NOACT),--no-act) $(if $(BY),--by "$(BY)")
+	@test -n "$(IDS)" || { echo 'usage: make batch IDS="<id> <id> ..." [CSV="<path>"] [NOACT=1] [BY=<name>]'; exit 2; }
+	$(PDCA) flow $(IDS) $(if $(CSV),--from-csv "$(CSV)") $(if $(NOACT),--no-act) $(if $(BY),--by "$(BY)")
 
 # Re-publish an accepted bundle as a draft PR (the flow does this on accept).
 publish:
@@ -64,10 +66,12 @@ publish:
 
 # Same control flow with stub leaves + stub gates (no Claude / Docker / TTY), in an
 # ISOLATED throwaway bundle root so it never touches the real results/ a live run uses.
+# --no-act: Act is default-on in the flow (v0.30) but writes to the real
+# process/act-log.md, not the bundle root — so a rehearsal must skip it.
 rehearse:
 	@test -n "$(ID)$(CSV)" || { echo 'usage: make rehearse ID=<issue-id> [CSV="<path>"]'; exit 2; }
 	@rm -rf .rehearse
-	PDCA_BUNDLE_ROOT=.rehearse PDCA_LEAVES_MODE=stub PDCA_GATES_MODE=stub $(PDCA) flow $(ID) $(if $(CSV),--from-csv "$(CSV)")
+	PDCA_BUNDLE_ROOT=.rehearse PDCA_LEAVES_MODE=stub PDCA_GATES_MODE=stub $(PDCA) flow $(ID) $(if $(CSV),--from-csv "$(CSV)") --no-act
 	@printf '(rehearsal bundles in ./.rehearse — throwaway; real runs use results/)\n'
 
 status:

@@ -46,7 +46,7 @@ steps *within* Check):
 5. **Publish** (Check step, interactive, on accept) — Claude drafts the contribution
    artifacts (commit-msg + PR description) and the driver opens a **draft PR** — the
    closing work of Check. `NO_PUBLISH=1` skips it; offline `rehearse` dry-runs it.
-6. **Act** (interactive, only with `--act` / `ACT=1`) — Claude reviews the frozen
+6. **Act** (interactive, only with `ACT=1`) — Claude reviews the frozen
    cycle and suggests process improvements if any are warranted.
 
 When a Plan/sign-off/publish session ends, exit the Claude session (**Ctrl-D**) to

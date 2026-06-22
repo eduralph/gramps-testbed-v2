@@ -38,3 +38,8 @@ wiki/.wikiscrape/
 
 # git worktrees created by EnterWorktree
 .claude/worktrees/
+
+# Per-cycle Do/Check worktrees (issue #94) — created next to the target checkout;
+# ignored in case a checkout lives inside the project tree.
+*.pdca-wt/
+*.pdca-wt-l*/

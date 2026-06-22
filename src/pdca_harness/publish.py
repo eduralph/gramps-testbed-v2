@@ -113,9 +113,16 @@ def publish(
     # patch.diff, so there is nothing to `git apply` / open a PR for. This is not a
     # failure — close the tracker item by hand. Return 0 so the continuous flow's
     # publish-on-accept doesn't error (mirrors skip_if_no_target).
-    if not (d / "patch.diff").is_file():
-        print(f"publish: {d.name} has no patch.diff (close / no-fix disposition) — "
-              "nothing to contribute; close the tracker item by hand.", file=sys.stderr)
+    #
+    # A 0-byte / whitespace-only patch.diff counts as "no patch" too (issue #95): a
+    # verify-first close can leave an empty patch.diff behind, and `is_file()` alone
+    # would let it past this guard — after which `git apply` is a no-op and the commit
+    # fails with "nothing to commit". Treat empty content the same as a missing file.
+    patch = d / "patch.diff"
+    if not patch.is_file() or not patch.read_text(encoding="utf-8").strip():
+        print(f"publish: {d.name} has no (non-empty) patch.diff (close / no-fix "
+              "disposition) — nothing to contribute; close the tracker item by hand.",
+              file=sys.stderr)
         return 0
 
     # Resolve the target from the brief (the contribution's where).
@@ -166,9 +173,10 @@ def publish(
     repo = _checkout_path(cfg, repo_spec)
 
     git = lambda *a: ["git", "-C", str(repo), *a]
-    fetch = git("fetch", "upstream")
+    base_remote = cfg.base_remote
+    fetch = git("fetch", base_remote)
     steps = [
-        git("checkout", "-B", branch, f"upstream/{base}"),
+        git("checkout", "-B", branch, f"{base_remote}/{base}"),
         git("apply", str((d / "patch.diff").resolve())),
         # `commit -a` stages only modified-tracked files and would silently drop the
         # patch's NEW files (the regression test — the most important file in a fix
@@ -192,17 +200,19 @@ def publish(
 
     if dry_run:
         print(f"publish --dry-run — {d.name} → draft PR on {repo_spec} ({branch} → {base}):")
-        print(f"  # preflight: verify upstream/{base} resolves and {repo_spec} is accessible")
+        print(f"  # preflight {base_remote}/{base} resolves; stash the dirty target tree, restore after")
         for c in [fetch] + steps + ([pr_cmd] if open_pr else []):
             print("  " + " ".join(shlex.quote(x) for x in c))
         return 0
 
     # Real run: mutate the local checkout — guard it is present and clean first. Hold the
     # per-checkout lock across the whole check→push window so a concurrent publish queues
-    # rather than racing the dirty guard (issue #98). `commit` leaves the tree clean and
-    # `push` only touches origin, so the lock can release once the steps finish.
+    # rather than racing the dirty guard (issue #98). Do/Check edit the target in place, so
+    # the tree is normally dirty — stash it (publish re-applies the fix from patch.diff onto
+    # a fresh branch, it doesn't use the working tree) and restore it afterward, so
+    # edit-in-place and a clean publish checkout coexist (#83).
     with _checkout_lock(repo):
-        rc = _check_repo(repo, repo_spec)
+        rc = _check_repo(repo, repo_spec, required_remotes={base_remote, "origin"})
         if rc != 0:
             return rc
 
@@ -210,20 +220,25 @@ def publish(
         # field fails here with a clear message, not as a cryptic git/gh error mid-run.
         print("→ " + " ".join(fetch[3:]))
         if subprocess.run(fetch).returncode != 0:
-            print("publish: `git fetch upstream` failed — check the 'upstream' remote",
+            print(f"publish: `git fetch {base_remote}` failed — check the '{base_remote}' remote",
                   file=sys.stderr)
             return 1
-        rc = _preflight(repo, repo_spec, base, check_repo=open_pr)
+        rc = _preflight(repo, repo_spec, base, base_remote, check_repo=open_pr)
         if rc != 0:
             return rc
 
-        for c in steps:
-            print("→ " + " ".join(c[3:]))  # drop the `git -C <repo>` prefix in the echo
-            if subprocess.run(c).returncode != 0:
-                hint = " (patch may not apply against upstream/%s — rebase the fix)" % base \
-                    if c[3] == "apply" else ""
-                print(f"publish: step failed: {' '.join(c)}{hint}", file=sys.stderr)
-                return 1
+        orig_ref = _current_ref(repo)
+        stashed = _stash_worktree(repo)
+        try:
+            for c in steps:
+                print("→ " + " ".join(c[3:]))  # drop the `git -C <repo>` prefix in the echo
+                if subprocess.run(c).returncode != 0:
+                    hint = " (patch may not apply against %s/%s — rebase the fix)" % (base_remote, base) \
+                        if c[3] == "apply" else ""
+                    print(f"publish: step failed: {' '.join(c)}{hint}", file=sys.stderr)
+                    return 1
+        finally:
+            _restore_worktree(repo, orig_ref, stashed)
 
     pr_url = ""
     pr_failed = False
@@ -303,13 +318,14 @@ def _publish_stacked(
     if dry_run:
         print(f"publish --dry-run — {d.name} → commit stacked onto {repo_spec} "
               f"PR branch {branch} (base {base_ref}):")
+        print(f"  # stash the target working tree (Do/Check leave it dirty), restore it after")
         for c in steps:
             print("  " + " ".join(shlex.quote(x) for x in c))
         print("  " + " ".join(shlex.quote(x) for x in pr_list)
               + "   # resolve the existing open PR (no new PR is created)")
         return 0
 
-    rc = _check_repo(repo, repo_spec)
+    rc = _check_repo(repo, repo_spec, required_remotes={remote})
     if rc != 0:
         return rc
 
@@ -321,15 +337,21 @@ def _publish_stacked(
               "'Onto branch' brief field to use the default new-PR flow.", file=sys.stderr)
         return 1
 
-    for c in steps:
-        print("→ " + " ".join(c[3:]))  # drop the `git -C <repo>` prefix in the echo
-        if subprocess.run(c).returncode != 0:
-            hint = ""
-            if c[3:5] == ["apply", "--check"]:
-                hint = (f" — the patch no longer applies to {base_ref} (it advanced since "
-                        "the fix was built and tested; rebuild/re-Check against the PR branch)")
-            print(f"publish: step failed: {' '.join(c)}{hint}", file=sys.stderr)
-            return 1
+    # Stash the (Do/Check-dirtied) tree so checkout -B + apply run clean; restore after (#83).
+    orig_ref = _current_ref(repo)
+    stashed = _stash_worktree(repo)
+    try:
+        for c in steps:
+            print("→ " + " ".join(c[3:]))  # drop the `git -C <repo>` prefix in the echo
+            if subprocess.run(c).returncode != 0:
+                hint = ""
+                if c[3:5] == ["apply", "--check"]:
+                    hint = (f" — the patch no longer applies to {base_ref} (it advanced since "
+                            "the fix was built and tested; rebuild/re-Check against the PR branch)")
+                print(f"publish: step failed: {' '.join(c)}{hint}", file=sys.stderr)
+                return 1
+    finally:
+        _restore_worktree(repo, orig_ref, stashed)
 
     (d / "publish.json").write_text(json.dumps({
         "mode": "stacked",
@@ -408,14 +430,15 @@ def _canonical_repo(cfg: Config | None, token: str) -> str:
     return (getattr(cfg, "repo_aliases", None) or {}).get(token, token)
 
 
-def _preflight(repo: Path, repo_spec: str, base: str, check_repo: bool) -> int:
+def _preflight(repo: Path, repo_spec: str, base: str, base_remote: str, check_repo: bool) -> int:
     """Validate the parsed target against git/gh BEFORE any mutation, so a mis-parsed
     ``Repo + branch target`` fails fast with a clear message instead of a cryptic
     git/gh error mid-run (the recurring publish-failure class: #23, 8796). Assumes
-    ``git fetch upstream`` already ran, so ``upstream/<base>`` is current."""
+    ``git fetch <base_remote>`` already ran, so ``<base_remote>/<base>`` is current
+    (``base_remote`` is ``upstream`` for a fork, ``origin`` for own-repo — issue #83)."""
     if subprocess.run(["git", "-C", str(repo), "rev-parse", "--verify", "--quiet",
-                       f"upstream/{base}^{{commit}}"], stdout=subprocess.DEVNULL).returncode != 0:
-        print(f"publish: base ref 'upstream/{base}' does not resolve — check the brief's "
+                       f"{base_remote}/{base}^{{commit}}"], stdout=subprocess.DEVNULL).returncode != 0:
+        print(f"publish: base ref '{base_remote}/{base}' does not resolve — check the brief's "
               f"'Repo + branch target' (parsed base={base!r})", file=sys.stderr)
         return 1
     if check_repo and subprocess.run(["gh", "repo", "view", repo_spec],
@@ -480,26 +503,58 @@ def _t4_passes(cfg: Config, d: Path) -> bool:
     return True
 
 
-def _check_repo(repo: Path, repo_spec: str) -> int:
-    """The local checkout must exist, be clean, and have upstream + origin remotes."""
+def _check_repo(repo: Path, repo_spec: str, required_remotes=("upstream", "origin")) -> int:
+    """The local checkout must exist and have the remotes this publish path needs.
+
+    A dirty tree is NOT a failure (issue #83): Do/Check edit the target in place, so the
+    tree is normally dirty at publish time — :func:`_stash_worktree` cleans it for the
+    checkout and :func:`_restore_worktree` puts it back. ``required_remotes`` is the set
+    this path actually uses (base + push), so own-repo (no ``upstream``) is accepted.
+    """
     hint = (f"create/clone the checkout for '{repo_spec}' at {repo} "
             "(or set [publisher.checkouts] in pdca.toml if it lives elsewhere)")
     if not (repo / ".git").exists():
         print(f"publish: checkout not found: {repo} — {hint}", file=sys.stderr)
         return 1
-    porcelain = subprocess.run(["git", "-C", str(repo), "status", "--porcelain"],
-                               capture_output=True, text=True).stdout.strip()
-    if porcelain:
-        print(f"publish: {repo} has uncommitted changes — clean it first:\n{porcelain}",
-              file=sys.stderr)
-        return 1
     remotes = subprocess.run(["git", "-C", str(repo), "remote"],
                              capture_output=True, text=True).stdout.split()
-    for r in ("upstream", "origin"):
+    for r in required_remotes:
         if r not in remotes:
             print(f"publish: {repo} has no '{r}' remote — {hint}", file=sys.stderr)
             return 1
     return 0
+
+
+def _current_ref(repo: Path) -> str:
+    """The checkout's current branch (or commit SHA if detached) — to return to after publish."""
+    r = subprocess.run(["git", "-C", str(repo), "symbolic-ref", "--quiet", "--short", "HEAD"],
+                       capture_output=True, text=True)
+    ref = r.stdout.strip()
+    if ref:
+        return ref
+    return subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"],
+                          capture_output=True, text=True).stdout.strip()
+
+
+def _stash_worktree(repo: Path) -> bool:
+    """Stash the target's dirty tree (incl. untracked) so ``checkout -B`` + ``apply`` run on
+    a clean base; return True iff something was stashed (the caller restores it). Publish
+    re-applies the fix from ``patch.diff``, so the working-tree edits are not needed here."""
+    dirty = bool(subprocess.run(["git", "-C", str(repo), "status", "--porcelain"],
+                                capture_output=True, text=True).stdout.strip())
+    if dirty:
+        subprocess.run(["git", "-C", str(repo), "stash", "push", "--include-untracked",
+                        "-m", "pdca-publish"], capture_output=True, text=True)
+    return dirty
+
+
+def _restore_worktree(repo: Path, orig_ref: str, stashed: bool) -> None:
+    """Return the checkout to where publish found it: back on ``orig_ref`` with the stashed
+    edits popped — so Do/Check's edit-in-place survives a publish. Best-effort."""
+    subprocess.run(["git", "-C", str(repo), "checkout", "--quiet", orig_ref],
+                   capture_output=True, text=True)
+    if stashed:
+        subprocess.run(["git", "-C", str(repo), "stash", "pop"], capture_output=True, text=True)
 
 
 _BY_RE = re.compile(r"^- By / date:\s*(.+?)\s*/", re.MULTILINE)
