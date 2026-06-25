@@ -1,0 +1,80 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "gioto\n\n 2025-10-13 23:22\n\ndeveloper    ~0069842\n\nedit\ndelete\nmake private": "Can you recreate this using example.gramps or something simpler like a one person Gramps XML file that you can attach here please?\nhttps://gramps-project.org/wiki/index.php?title=Example.gramps",
+    "mattwenger\n\n 2025-10-14 22:22\n\nreporter    ~0069846\n\nedit\ndelete\nmake private": "No, I cannot reproduce this with example.gramps. Thank you for sending the link to the documentation. I was unaware of these steps before filing the report.\n\nIt seems then that there is corruption in my data. Seems unfortunate, as I have only used version 6.01 and above and mainly entering data via the Gramps Web UI. I did originally import a small amount of data from accestry.com a while back to get started on the tree.\n\nIt doesn't look like Gramps can detect the corruption in the data. It also looks like Gramps exports the data fine (or at least without detecting corruption). So, at this stage I'm able to continue to use Gramps without issues on both the desktop and web interface, I'm able to sync data between the two, but I'm unable to backup and restore the tree.\n\nIt looks like the corruption is causing a malformed XML file. Where can I go from here to determine where the corruption is? Maybe I could possibly find it by manually viewing the XML file and potentially manually editing the XML, as it appears to be a malformed date which is not being handled correctly.",
+    "daleathan\n\n 2025-10-14 22:40\n\ndeveloper    ~0069847\n\nedit\ndelete\nmake private": "Looking at the error trace it seems to be related to a [start_compound_date] and as you mention using Gramps-web in creating the initial family tree the hard part will be determining how gramps web allowed the date to be input as in the gramps-desktop gui the dates are sanitized.\n\nThe next step is narrowing down in your backup what data Gramps import xml is tripping over. And working out if it really is gramps-web not sanitizing the date data!\n\n@dstraub What do you suggest?",
+    "dstraub\n\n 2025-10-15 05:51\n\ndeveloper    ~0069853\n\nedit\ndelete\nmake private": "I don't think this has anything to do with Gramps Web - it looks like this uncaught exception in the case of stop being an empty string was introduced by a very recent fix by @prculley and @Nick_H here: https://github.com/gramps-project/gramps/commit/634e5ccc24b6feb641df382706d6a94a27a4e63f\n\nAs to why stop is empty, I don't knwo. @mattwenger it would be super helpful if you could isolate the problematic Gramps object, e.g. by deleting parts of the XML and triangulating where the error originates.",
+    "mattwenger\n\n 2025-10-15 16:22\n\nreporter    ~0069854\n\nedit\ndelete\nmake private": "OK, I will try and isolate the problematic XML and let you know what I find.",
+    "nick_h\n\n 2025-10-15 16:59\n\nadministrator    ~0069855\n\n last edited: 2025-10-15 17:04\n\nview 4 revisions\n\nedit\ndelete\nmake private": "I can reproduce this error if I deliberately corrupt a date. Create an empty database with a single event and then run:\n\nfrom gramps.gen.db import DbTxn\nfrom gramps.gen.datehandler import parser\n\nd = parser.parse('between 1 Jan 1900 and 2 Jan 1900')\nd.set2_yr_mon_day(0, 0, 0)\n\ne = self.dbstate.db.get_event_from_gramps_id('E0000')\ne.set_date_object(d)\n\nwith DbTxn('Set date', self.dbstate.db) as trans:\n    self.dbstate.db.commit_event(e, trans)\n\nExport the database and stop=\"\" will be visible in the XML. Obviously this can also be reproduced by removing stop dates from date ranges in the XML directly.\n\nI'm not sure where the corruption occurs though. Both the date editor and date parser convert these invalid dates into text-only dates.",
+    "mattwenger\n\n 2025-10-15 17:53\n\nreporter    ~0069856\n\nedit\ndelete\nmake private": "OK, I've tracked down the issue:\n\nThe offending XML was <daterange start=\"1911-09-01\" stop=\"\"/>. Note the empty 'stop' as indicated by the error trace.\n\nThis came about because I had chosen a date type of 'Range', but had only entered the beginning date. I left the ending date blank. I remember doing this, as this was the first time I had used the type 'Range' for a date. I was expecting to come back and enter the ending date once I had tracked down the data.\n\nThis was entered into my tree using Gramps Web (not Gramps desktop). However, I often sync between the Gramps Web and Gramps Desktop. The date was associated with a 'Residence' event. Opening up the event using Gramps Web indicated no error. Opening up the event using Gramps Desktop, the date field was clearly in error, shown in red text, the same in the 'Date selection' pane.\n\nTo further test this, I changed the type of date (from 'Range' to 'From'), exported again and reimported without errors. I tested by exporting from Gramps Desktop and Gramps Web and both were successful.\n\nFurther testing with Gramps Web, I found the following:\n\nI was able to create a new 'Residence' with a 'Range' date, enter in the beginning date only (omitting the ending date) and save it without issues.\nWhen attempting to edit the residence date as a 'Range', I note that I cannot save it without a valid ending date.\n\nPerforming the same test with Gramps Desktop shows an obvious error if the ending date is missing and the date reverts to 'Text only' upon creation.\n\nSo, it seems that Gramps Web is missing data validation on date type 'Range' when it's initially created. Validation works when editing.\n\nAlso, it would be nice if this type of error was detected when running Tools > Utilities > Verify the Data..., especially as there is a checkmark for 'Identify invalid dates'.\n\nPlease let me know if I should file further bug reports or feature requests.\n\nThanks for your help in resolving this issue!",
+    "dstraub\n\n 2025-10-15 18:11\n\ndeveloper    ~0069857\n\nedit\ndelete\nmake private": "So perhaps Gramps Web was the culprit after all �\n\nHowever, I'm puzzled because I used to make quite heavy use of \"Range\" with empty first or second date before open spans were introduced in Gramps 5.2. I think this used to work fine - some reports displayed it hs \"... until 0\", which I now think is due to the try/except in the code I linked. I still think it would be good to wrap the stop[0] in a try/except. I don't see why it should be illegal, in the Gramps data model, to have the second date be empty.\n\nBy the way, nowadays, the proper way to enter such a date is to use a date of type \"from\" (open span).",
+    "nick_h\n\n 2025-10-15 18:33\n\nadministrator    ~0069858\n\nedit\ndelete\nmake private": "I don't see why it should be illegal, in the Gramps data model, to have the second date be empty.\n\nWe have never allowed ranges with a single date. The date editor and date parser will prevent this.\n\nAlso, it would be nice if this type of error was detected when running Tools > Utilities > Verify the Data...\n\nIt would be easy to add an extra check.",
+    "dstraub\n\n 2025-10-15 19:02\n\ndeveloper    ~0069859\n\nedit\ndelete\nmake private": "I just tried (using 0-0-0 as second date) on Gramps 6.0.5 and apparently it's converted to a string-only date:\n\nI created an issue to add the same check to the Gramps Web date editor (which so far isn't there): https://github.com/gramps-project/gramps-web/issues/780\n\n\n\n\n image.png (8,373 bytes)  \n image.png (8,373 bytes)  \n image-2.png (27,969 bytes)  \n image-2.png (27,969 bytes)",
+    "daleathan\n\n 2025-10-15 20:44\n\ndeveloper    ~0069863\n\nedit\ndelete\nmake private": "So perhaps Gramps Web was the culprit after all �\n\n@mattwenger @dstraub Thanks for the confirmation of what I believed :D !\n\nmarking as a partial upstream issue with gramps-web"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Can you recreate this using example.gramps or something simpler like a one person Gramps XML file that you can attach here please?\nhttps://gramps-project.org/wiki/index.php?title=Example.gramps"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "No, I cannot reproduce this with example.gramps. Thank you for sending the link to the documentation. I was unaware of these steps before filing the report.\n\nIt seems then that there is corruption in my data. Seems unfortunate, as I have only used version 6.01 and above and mainly entering data via the Gramps Web UI. I did originally import a small amount of data from accestry.com a while back to get started on the tree.\n\nIt doesn't look like Gramps can detect the corruption in the data. It also looks like Gramps exports the data fine (or at least without detecting corruption). So, at this stage I'm able to continue to use Gramps without issues on both the desktop and web interface, I'm able to sync data between the two, but I'm unable to backup and restore the tree.\n\nIt looks like the corruption is causing a malformed XML file. Where can I go from here to determine where the corruption is? Maybe I could possibly find it by manually viewing the XML file and potentially manually editing the XML, as it appears to be a malformed date which is not being handled correctly."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Looking at the error trace it seems to be related to a [start_compound_date] and as you mention using Gramps-web in creating the initial family tree the hard part will be determining how gramps web allowed the date to be input as in the gramps-desktop gui the dates are sanitized.\n\nThe next step is narrowing down in your backup what data Gramps import xml is tripping over. And working out if it really is gramps-web not sanitizing the date data!\n\n@dstraub What do you suggest?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I don't think this has anything to do with Gramps Web - it looks like this uncaught exception in the case of stop being an empty string was introduced by a very recent fix by @prculley and @Nick_H here: https://github.com/gramps-project/gramps/commit/634e5ccc24b6feb641df382706d6a94a27a4e63f\n\nAs to why stop is empty, I don't knwo. @mattwenger it would be super helpful if you could isolate the problematic Gramps object, e.g. by deleting parts of the XML and triangulating where the error originates."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "OK, I will try and isolate the problematic XML and let you know what I find."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I can reproduce this error if I deliberately corrupt a date. Create an empty database with a single event and then run:\n\nfrom gramps.gen.db import DbTxn\nfrom gramps.gen.datehandler import parser\n\nd = parser.parse('between 1 Jan 1900 and 2 Jan 1900')\nd.set2_yr_mon_day(0, 0, 0)\n\ne = self.dbstate.db.get_event_from_gramps_id('E0000')\ne.set_date_object(d)\n\nwith DbTxn('Set date', self.dbstate.db) as trans:\n    self.dbstate.db.commit_event(e, trans)\n\nExport the database and stop=\"\" will be visible in the XML. Obviously this can also be reproduced by removing stop dates from date ranges in the XML directly.\n\nI'm not sure where the corruption occurs though. Both the date editor and date parser convert these invalid dates into text-only dates."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "OK, I've tracked down the issue:\n\nThe offending XML was <daterange start=\"1911-09-01\" stop=\"\"/>. Note the empty 'stop' as indicated by the error trace.\n\nThis came about because I had chosen a date type of 'Range', but had only entered the beginning date. I left the ending date blank. I remember doing this, as this was the first time I had used the type 'Range' for a date. I was expecting to come back and enter the ending date once I had tracked down the data.\n\nThis was entered into my tree using Gramps Web (not Gramps desktop). However, I often sync between the Gramps Web and Gramps Desktop. The date was associated with a 'Residence' event. Opening up the event using Gramps Web indicated no error. Opening up the event using Gramps Desktop, the date field was clearly in error, shown in red text, the same in the 'Date selection' pane.\n\nTo further test this, I changed the type of date (from 'Range' to 'From'), exported again and reimported without errors. I tested by exporting from Gramps Desktop and Gramps Web and both were successful.\n\nFurther testing with Gramps Web, I found the following:\n\nI was able to create a new 'Residence' with a 'Range' date, enter in the beginning date only (omitting the ending date) and save it without issues.\nWhen attempting to edit the residence date as a 'Range', I note that I cannot save it without a valid ending date.\n\nPerforming the same test with Gramps Desktop shows an obvious error if the ending date is missing and the date reverts to 'Text only' upon creation.\n\nSo, it seems that Gramps Web is missing data validation on date type 'Range' when it's initially created. Validation works when editing.\n\nAlso, it would be nice if this type of error was detected when running Tools > Utilities > Verify the Data..., especially as there is a checkmark for 'Identify invalid dates'.\n\nPlease let me know if I should file further bug reports or feature requests.\n\nThanks for your help in resolving this issue!"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "So perhaps Gramps Web was the culprit after all �\n\nHowever, I'm puzzled because I used to make quite heavy use of \"Range\" with empty first or second date before open spans were introduced in Gramps 5.2. I think this used to work fine - some reports displayed it hs \"... until 0\", which I now think is due to the try/except in the code I linked. I still think it would be good to wrap the stop[0] in a try/except. I don't see why it should be illegal, in the Gramps data model, to have the second date be empty.\n\nBy the way, nowadays, the proper way to enter such a date is to use a date of type \"from\" (open span)."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I don't see why it should be illegal, in the Gramps data model, to have the second date be empty.\n\nWe have never allowed ranges with a single date. The date editor and date parser will prevent this.\n\nAlso, it would be nice if this type of error was detected when running Tools > Utilities > Verify the Data...\n\nIt would be easy to add an extra check."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I just tried (using 0-0-0 as second date) on Gramps 6.0.5 and apparently it's converted to a string-only date:\n\nI created an issue to add the same check to the Gramps Web date editor (which so far isn't there): https://github.com/gramps-project/gramps-web/issues/780\n\n\n\n\n image.png (8,373 bytes)  \n image.png (8,373 bytes)  \n image-2.png (27,969 bytes)  \n image-2.png (27,969 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "So perhaps Gramps Web was the culprit after all �\n\n@mattwenger @dstraub Thanks for the confirmation of what I believed :D !\n\nmarking as a partial upstream issue with gramps-web"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "14014",
+  "url": "https://gramps-project.org/bugs/view.php?id=14014"
+}

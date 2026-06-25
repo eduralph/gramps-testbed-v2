@@ -1,0 +1,18 @@
+Fix ODF table column-style naming for tables with >63 columns
+
+The ODF docgen names table-column styles using chr(ord("A") + col),
+which produces non-letter characters for column ≥26 and invalid UTF-8
+for column ≥63, breaking reports with wide tables (e.g., the census
+report's 78-column US-1840 table). Additionally, the column-style
+definition loop was capped at 50 columns while the reference loop
+emitted all columns, leaving wider tables referencing undefined styles.
+
+Add a module-level helper _column_style_suffix() that generates
+spreadsheet-style bijective base-26 tokens (A, B, ... Z, AA, AB, ...)
+for any column count. Remove the 50-column definition cap and route
+both the definition (odfdoc.py:706) and reference (odfdoc.py:1096)
+sites through the new helper, ensuring valid, unique, and consistent
+column-style names for tables of any width. Add a regression test
+that verifies the production emission path for a >63-column table.
+
+Fixes #6549

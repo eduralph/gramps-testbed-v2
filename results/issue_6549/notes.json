@@ -1,0 +1,32 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "romjerome\n\n 2013-12-14 11:32\n\ndeveloper    ~0033314": "Should we move this bug record to trunk or as a feature request?",
+    "nick_h\n\n 2013-12-14 12:27\n\nadministrator    ~0033330": "This is still a bug in gramps34. No core plugin has more than 63 columns though, so I have changed this to low priority.",
+    "paulfranklin\n\n 2014-05-02 19:00\n\ndeveloper    ~0035982": "Low priority. Moving to 3.4.99."
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Should we move this bug record to trunk or as a feature request?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "This is still a bug in gramps34. No core plugin has more than 63 columns though, so I have changed this to low priority."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Low priority. Moving to 3.4.99."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "6549",
+  "url": "https://gramps-project.org/bugs/view.php?id=6549"
+}

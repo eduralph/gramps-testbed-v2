@@ -1,0 +1,62 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "lordemannd\n\n 2024-01-29 22:36\n\ndeveloper    ~0066220\n\nedit\ndelete\nmake private": "before we can try to reproduce this we need a few more bits of information:\n\nwhat version of Gramps are you using?\nwhat platform are you using Gramps on? (Windows, Linux, macOS,etc.)?\nare you running Gramps with the German language user interface, or English or something else?",
+    "lordemannd\n\n 2024-01-30 00:29\n\ndeveloper    ~0066224\n\nedit\ndelete\nmake private": "you are using \"bis\", Gramps understands \"vor\"\n\n\n\n\n using before dates in german.jpg (68,387 bytes)  \n using before dates in german.jpg (68,387 bytes)",
+    "geggi\n\n 2024-01-30 06:08\n\nreporter    ~0066225\n\nedit\ndelete\nmake private": "Gramps version: 5.1.6\nPlatform: Windows 11\nYes, Gramps with German language UE\n\n1) when I manually select type \"Art\" = \"Text\" I would not expect that Gramps still tries to convert it to a date. Like a put a apostrophe (') in Excel to force a text input.\n2) why does \"bis 1721\" convert to \"0.8.1721\", where does the August come from and why is the bis/vor removed?\n\nI tried some more: using \"vor 1721\" in the event editor, it keeps \"vor 1721\", i.e. no conversion. The problem only shows up using \"bis 1721\"\n\n\n\n\n dates issue.jpg (91,666 bytes)  \n dates issue.jpg (91,666 bytes)",
+    "lordemannd\n\n 2024-01-31 07:50\n\ndeveloper    ~0066232\n\nedit\ndelete\nmake private": "also effects Austrian, and also happens on debian/linux\n\nShort answer is that in German, Gramps recognizes \"vor\" in dates as a key word to mean before.\n\nGramps doesn't recognize \"bis\" as a key word.\nSo, Gramps attempts to parse the \"bis 1721\" using the wide array of date formats that Gramps accepts.\nGramps (or support libraries) interprets \"bis 1721\" as a partial date containing only a month and a year.\n\nIt isn't clear why Gramps allows \"bis\" as month 8, August.\n\nentering \"5 bis 1721\" results in a date of Aug 5, 1721 (1721-08-05)",
+    "lordemannd\n\n 2024-01-31 17:55\n\ndeveloper    ~0066234\n\n last edited: 2024-01-31 17:56\n\nview 2 revisions\n\nedit\ndelete\nmake private": "Ahhh, finally I see. Gramps silently overrides the users \"Text only\" date configuration.\n\nIssue # 1: on English Gramps User interface:\n\nadd an event\nclick the Date Editor button\nuse the \"Type\" pull down menu to select \"Text only\"\nin the \"Text comment\" field enter \"xxx 1760\"\nclick \"OK\" button\nnotice the date field for the event shows \"xxx 1760\" and is highlighted in red.\nuse Date Editor again\nin the \"Text comment\" field enter change the text to \"aug 1760\"\nnotice the the \"Type\" is still \"Text only\"\nclick \"OK\" button\nnotice the date field now shows \"aug 1760\" and red highlight is removed.\nclick the Date Editor button\nnotice that the \"Type\" field has been changed to \"Regular\"\nusers \"Text only\" configuration has been overridden because Gramps found a parse-able date, \"aug 1760\"\n\nissue # 2:\nthis is made more confusing in German user interface because,\nthe text \"bis 1760\" (i.e. German for \"until 1760\") is being interpreted as August 1760.\n\nIt isn't clear why \"bis\" is interpreted as the month of August.",
+    "snoiraud\n\n 2024-02-01 10:06\n\ndeveloper    ~0066237\n\nedit\ndelete\nmake private": "It isn't clear why \"bis\" is interpreted as the month of August.\n\nI don’t know if there is a report, but we have the following line in gramps/gen/datehandler/_date_de.py\n\n...\nmonth_to_int[\"erntemond\"] = 8\nmonth_to_int[\"bisemond\"] = 8\nmonth_to_int[\"holzing\"] = 9\n...",
+    "lordemannd\n\n 2024-02-01 17:32\n\ndeveloper    ~0066238\n\n last edited: 2024-02-02 18:17\n\nview 4 revisions\n\nedit\ndelete\nmake private": "Thanks to @SNoiraud, Issue # 2 is explained:\nWhen Gramps is configured to use German for the User Interface, Gramps allows many Old German & Latin names and abbreviations in parsing dates.\nmonth_to_int[\"erntemond\"] = 8 == harvest moon meaning the month of August\nmonth_to_int[\"bisemond\"] = 8 == alternate for harvest moon\nmonth_to_int[\"holzing\"] = 9 == alternate for holzmond, the wood moon meaning the month of September.\n\nthis allows the entry of the date related words directly from old documents.",
+    "geggi\n\n 2024-02-03 08:23\n\nreporter    ~0066239\n\nedit\ndelete\nmake private": "That's a weird behaviour. I would expect that only the full term \"erntemond\", \"bisemond\", etc is converted to a month.\nI now tested bit further.\n\"ern 1712\" --> August\n\"er 1712\" and \"e 1712\" --> September\n\"ho 1712\" --> Juli\n\"hol 1712\" --> September"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "before we can try to reproduce this we need a few more bits of information:\n\nwhat version of Gramps are you using?\nwhat platform are you using Gramps on? (Windows, Linux, macOS,etc.)?\nare you running Gramps with the German language user interface, or English or something else?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "you are using \"bis\", Gramps understands \"vor\"\n\n\n\n\n using before dates in german.jpg (68,387 bytes)  \n using before dates in german.jpg (68,387 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Gramps version: 5.1.6\nPlatform: Windows 11\nYes, Gramps with German language UE\n\n1) when I manually select type \"Art\" = \"Text\" I would not expect that Gramps still tries to convert it to a date. Like a put a apostrophe (') in Excel to force a text input.\n2) why does \"bis 1721\" convert to \"0.8.1721\", where does the August come from and why is the bis/vor removed?\n\nI tried some more: using \"vor 1721\" in the event editor, it keeps \"vor 1721\", i.e. no conversion. The problem only shows up using \"bis 1721\"\n\n\n\n\n dates issue.jpg (91,666 bytes)  \n dates issue.jpg (91,666 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "also effects Austrian, and also happens on debian/linux\n\nShort answer is that in German, Gramps recognizes \"vor\" in dates as a key word to mean before.\n\nGramps doesn't recognize \"bis\" as a key word.\nSo, Gramps attempts to parse the \"bis 1721\" using the wide array of date formats that Gramps accepts.\nGramps (or support libraries) interprets \"bis 1721\" as a partial date containing only a month and a year.\n\nIt isn't clear why Gramps allows \"bis\" as month 8, August.\n\nentering \"5 bis 1721\" results in a date of Aug 5, 1721 (1721-08-05)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Ahhh, finally I see. Gramps silently overrides the users \"Text only\" date configuration.\n\nIssue # 1: on English Gramps User interface:\n\nadd an event\nclick the Date Editor button\nuse the \"Type\" pull down menu to select \"Text only\"\nin the \"Text comment\" field enter \"xxx 1760\"\nclick \"OK\" button\nnotice the date field for the event shows \"xxx 1760\" and is highlighted in red.\nuse Date Editor again\nin the \"Text comment\" field enter change the text to \"aug 1760\"\nnotice the the \"Type\" is still \"Text only\"\nclick \"OK\" button\nnotice the date field now shows \"aug 1760\" and red highlight is removed.\nclick the Date Editor button\nnotice that the \"Type\" field has been changed to \"Regular\"\nusers \"Text only\" configuration has been overridden because Gramps found a parse-able date, \"aug 1760\"\n\nissue # 2:\nthis is made more confusing in German user interface because,\nthe text \"bis 1760\" (i.e. German for \"until 1760\") is being interpreted as August 1760.\n\nIt isn't clear why \"bis\" is interpreted as the month of August."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "It isn't clear why \"bis\" is interpreted as the month of August.\n\nI don’t know if there is a report, but we have the following line in gramps/gen/datehandler/_date_de.py\n\n...\nmonth_to_int[\"erntemond\"] = 8\nmonth_to_int[\"bisemond\"] = 8\nmonth_to_int[\"holzing\"] = 9\n..."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Thanks to @SNoiraud, Issue # 2 is explained:\nWhen Gramps is configured to use German for the User Interface, Gramps allows many Old German & Latin names and abbreviations in parsing dates.\nmonth_to_int[\"erntemond\"] = 8 == harvest moon meaning the month of August\nmonth_to_int[\"bisemond\"] = 8 == alternate for harvest moon\nmonth_to_int[\"holzing\"] = 9 == alternate for holzmond, the wood moon meaning the month of September.\n\nthis allows the entry of the date related words directly from old documents."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "That's a weird behaviour. I would expect that only the full term \"erntemond\", \"bisemond\", etc is converted to a month.\nI now tested bit further.\n\"ern 1712\" --> August\n\"er 1712\" and \"e 1712\" --> September\n\"ho 1712\" --> Juli\n\"hol 1712\" --> September"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "13163",
+  "url": "https://gramps-project.org/bugs/view.php?id=13163"
+}

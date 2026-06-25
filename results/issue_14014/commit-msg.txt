@@ -1,0 +1,13 @@
+Add regression test for daterange empty-bound XML import crash
+
+A Gramps XML backup can carry a <daterange> or <datespan> with an
+empty start or stop attribute (e.g. a Range date entered with only the
+begin filled in). Before commit 1c411ea3ed ("Catch IndexError in
+importxml"), the importer crashed with IndexError when indexing an
+empty bound. The fix guards each bound before access. This test
+exercises the real production import path and verifies the crash no
+longer occurs; the reported case (empty stop) now imports as an
+open-ended range, and the empty-start case degrades gracefully to a
+text-only date preserving the XML instead of crashing.
+
+Fixes #14014

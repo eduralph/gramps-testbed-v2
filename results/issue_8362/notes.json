@@ -1,0 +1,74 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "daniele\n\n 2015-02-18 13:45\n\nreporter  \n\ndelete": "correct_export.ged (650 bytes)",
+    "daniele\n\n 2015-02-18 13:46\n\nreporter  \n\ndelete": "wrong_export.ged (671 bytes)",
+    "ennoborg\n\n 2015-03-03 21:57\n\ndeveloper    ~0040573\n\nedit\ndelete\nmake private": "I can reproduce it here with a Dutch version of Gramps, and it may be designed that way. I will ask about that on the developers list.",
+    "nick_h\n\n 2015-03-11 19:13\n\nadministrator    ~0040697\n\nedit\ndelete\nmake private": "When exporting to GEDCOM, the PLAC tag should contain the place title.\n\nThe ADDR tag is used where the information is available. Please note that only a few GEDCOM tags exist for this purpose so the information is likely to be incomplete.\n\nIn English, \"City\" maps to \"CITY\", but there is no mapping for \"Town\". The functionality will depend on how the English place types have been translated.",
+    "ennoborg\n\n 2015-03-13 18:35\n\ndeveloper    ~0040779\n\nedit\ndelete\nmake private": "I agree, and according to the GEDCOM standard even more fields of the ADDR tag may be used, like the 1st line, i.e. ADDR itself, for the street, etc. In other words, I'd rather say that Gramps is wrong NOT exporting that street.\n\nBut given the lack of consistency in the way addresses are used in genealogy programs all over the world, I see no reason to change anything right away.",
+    "sam888\n\n 2016-04-12 04:09\n\nadministrator    ~0047401\n\nedit\ndelete\nmake private": "Confirmed/Reproduced in comment 0008362:0040573",
+    "nick_h\n\n 2016-05-20 20:42\n\nadministrator    ~0048126\n\nedit\ndelete\nmake private": "This is a translation issue, not a problem with the export.\n\nThe Italian translations of town and city in Gramps are:\n\nCity = Città\nTown = Cittadina/paese\n\nIs this incorrect?",
+    "nick_h\n\n 2016-05-20 20:45\n\nadministrator    ~0048127\n\nedit\ndelete\nmake private": "Reminder sent to: tosky\n\n\n\nLuigi, Is this translation correct?",
+    "tosky\n\n 2017-05-30 23:26\n\ndeveloper    ~0051878\n\nedit\ndelete\nmake private": "Yes, the translation is the probably the most accurate that can be done (even if, technically speaking, \"città\" has a special meaning and it is officially used by smaller towns due to historical reasons, but let's not go there).\n\n(As a personal note, it's weird that the translations influences the file format)",
+    "daniele\n\n 2017-05-31 07:32\n\nreporter    ~0051880\n\nedit\ndelete\nmake private": "I am not sure why my feedback is needed.\nWhat I can confirm is that \"City\" is \"Città\" and \"Town\" may be used for \"Città\" as weel as \"Cittadina\" or \"Comune\" or \"Borgo\".\nItaly is divided into about 8500 \"Comuni\" usually called in English \"Municipalities\". Big municipalities are sometimes called \"Città\".\n\nBut, IMHO, the problem is not in the translation as I am free to choose the one I like more for my places.\nThe problem is that if I choose a name withan accented char \"à\" the file format is unfluenced. It seems a encoding issue."
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "correct_export.ged (650 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "wrong_export.ged (671 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I can reproduce it here with a Dutch version of Gramps, and it may be designed that way. I will ask about that on the developers list."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "When exporting to GEDCOM, the PLAC tag should contain the place title.\n\nThe ADDR tag is used where the information is available. Please note that only a few GEDCOM tags exist for this purpose so the information is likely to be incomplete.\n\nIn English, \"City\" maps to \"CITY\", but there is no mapping for \"Town\". The functionality will depend on how the English place types have been translated."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I agree, and according to the GEDCOM standard even more fields of the ADDR tag may be used, like the 1st line, i.e. ADDR itself, for the street, etc. In other words, I'd rather say that Gramps is wrong NOT exporting that street.\n\nBut given the lack of consistency in the way addresses are used in genealogy programs all over the world, I see no reason to change anything right away."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Confirmed/Reproduced in comment 0008362:0040573"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "This is a translation issue, not a problem with the export.\n\nThe Italian translations of town and city in Gramps are:\n\nCity = Città\nTown = Cittadina/paese\n\nIs this incorrect?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Reminder sent to: tosky\n\n\n\nLuigi, Is this translation correct?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Yes, the translation is the probably the most accurate that can be done (even if, technically speaking, \"città\" has a special meaning and it is officially used by smaller towns due to historical reasons, but let's not go there).\n\n(As a personal note, it's weird that the translations influences the file format)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I am not sure why my feedback is needed.\nWhat I can confirm is that \"City\" is \"Città\" and \"Town\" may be used for \"Città\" as weel as \"Cittadina\" or \"Comune\" or \"Borgo\".\nItaly is divided into about 8500 \"Comuni\" usually called in English \"Municipalities\". Big municipalities are sometimes called \"Città\".\n\nBut, IMHO, the problem is not in the translation as I am free to choose the one I like more for my places.\nThe problem is that if I choose a name withan accented char \"à\" the file format is unfluenced. It seems a encoding issue."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "8362",
+  "url": "https://gramps-project.org/bugs/view.php?id=8362"
+}

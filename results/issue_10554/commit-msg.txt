@@ -1,0 +1,23 @@
+Distinguish adopted relationships from step relationships
+
+The relationship calculator previously collapsed every non-birth link
+to "step", so an adopted child was reported as a stepchild despite
+Gramps recording the relation explicitly as ChildRefType.ADOPTED. This
+change threads the ChildRefType through the relationship paths so the
+calculator can distinguish an adopted qualifier from "step", and
+introduces an adopted sibling type so siblings of an adopted child are
+correctly related through their adoptive parent.
+
+The fix introduces new path codes (REL_MOTHER_ADOPT, REL_FATHER_ADOPT,
+REL_FAM_ADOPT) and a sibling type (ADOPT_SIB), carries the ChildRefType
+to the naming decision point, and adds helper methods to detect adopted
+parent lists. The shared "adopted" qualifier is a single localizable
+choice (matching the brief's design goal), and non-adopted behavior is
+byte-for-byte unchanged—genuine stepchildren still render as "step".
+
+Adopted relationships now render as "adopted son/father/brother" across
+all relationship consumers (Narrative Web, relationship view, reports)
+where they were incorrectly called "stepson/stepfather/stepbrother"
+before.
+
+Fixes #10554

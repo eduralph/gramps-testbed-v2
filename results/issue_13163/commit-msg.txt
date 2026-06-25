@@ -1,0 +1,21 @@
+Add regression test for German date parser "bis" modifier
+
+The reported issue where entering "bis 1760" ("until 1760") was
+silently converted to August 1760 (month 8) is already fixed in the
+target branch. The problem was that "bis" was not recognized as a
+modifier, so the parser fell through to month-name matching and
+incorrectly matched "bisemond" (an old German month name for August).
+
+The fix—adding "bis" to the DateParserDE.modifier_to_int table mapping
+to Date.MOD_TO—is already in place at _date_de.py:219. This test
+ensures the behaviour does not regress: it verifies that parsing
+"bis 1760" yields a to/until date (MOD_TO) for year 1760 with no
+month, never month 8 (August).
+
+The test mirrors the structure of the existing Finnish parser test
+(date_fi_test.py) and imports only date handling, so it runs headless
+under plain unittest without GUI or D-Bus dependencies. The new test
+file is registered in po/POTFILES.skip as it contains no translatable
+strings.
+
+Fixes #13163

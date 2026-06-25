@@ -1,0 +1,110 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "lcc\n\n 2009-10-20 19:41\n\nreporter    ~0011229\n\nedit\ndelete\nmake private": "Yes I can see the offending code.\n<pre>\nif self.map[key] == self.map[dkey]:\nself.doc.writetext((\"%(name)s is the same person as [%(id_str)s].\") %\n{ 'name' : '', 'id_str' : str(dkey) })\nself.doc.end_paragraph()\nreturn\n</pre>\n\nI'll fix it. The problem you point out about the descendant number which is kept I had already noticed. I think the smallest number should be kept, which is the number which appears first in the report. In order to be able to do that we need to be able to compare them. Comparing Henry numbers is probably different from comparing d'Aboville numbers which is probably different from comparing Record numbers. Record/Modified-Register should be easy. d'Aboville not that hard. Henry perhaps with string comparison. (The report is DFS-based so it's not the number assigned first)",
+    "lcc\n\n 2009-10-20 19:51\n\nreporter    ~0011230\n\n last edited: 2009-10-20 19:54\n\nedit\ndelete\nmake private": "Hmm but you want the proper number every time. That's harder since the report assigns descendant-numbers for a person and not for a descendant-position. That makes it so that even a fix is not possible without this reworking.",
+    "2009-10-27 11:30\n\n \n\ndelete": "bug.gramps (3,237 bytes)",
+    "dsblank\n\n 2009-10-27 11:42\n\ndeveloper    ~0011287\n\nedit\ndelete\nmake private": "lcc, could you have another dict that maps key to a str_numbering? On the first mention, it gets assigned, and then reused on each use?",
+    "lcc\n\n 2009-10-27 13:12\n\nreporter    ~0011288\n\n last edited: 2009-10-27 13:13\n\nedit\ndelete\nmake private": "There are two dicts, map{} and dnumber{} with map{} mapping a DFS incremental index to a handle and dnumber{} mapping a handle to a descendent-number. There's also a 2-array gen_keys[][] mapping a descendent-position to the incremental index. So the reworking is dnumber{} must map the index to the descendent-number.",
+    "acraphae\n\n 2010-05-03 19:23\n\ndeveloper    ~0014339\n\nedit\ndelete\nmake private": "still the case with trunk",
+    "romjerome\n\n 2012-07-16 04:08     private\n\ndeveloper    ~0024848\n\nedit\ndelete\nmake public": "Reminder sent to: nickw\n\n\n\nNick,\n\nAn attachement is missing on this bug report.\nIt should be still somewhere into 'Gramps 3.1' folder/path/url!\n\nMaybe you can access to this old reference and to fix it?\n\nThank you!\n\nJérôme",
+    "nickw\n\n 2012-07-16 04:23     private\n\ndeveloper    ~0024849\n\nedit\ndelete\nmake public": "That attachment should now be available for you!",
+    "romjerome\n\n 2014-05-28 19:26     private\n\ndeveloper    ~0036593\n\nedit\ndelete\nmake public": "Thanks!",
+    "sam888\n\n 2015-06-18 00:10\n\nadministrator    ~0042672\n\nedit\ndelete\nmake private": "I'm unable to reproduce the report output in Gramps 4.1.3 even when I check or uncheck the \"Omit duplicate ancestors\" checkbox, or use any of any of the other \"numbering systems\"\n\n<pre>\nDescendant Report for a, Living\n\nGeneration 1\n\na, Living.\nHe married b, Living.\nChildren of b, Living and a, Living\n11 i. , Living.\n12 ii. , Living.\nGeneration 2\n, Living.\nHe is the son of a, Living and b, Living. He had a relationship\nwith Unknown.\nChildren of unknown and , Living\n111 i. , Living.\n, Living.\nHe is the son of a, Living and b, Living. He had a relationship\nwith Unknown.\nChildren of unknown and , Living\n121 i. , Living.\nGeneration 3\n, Living.\nHe is the son of , Living. He married , Living.\nChildren of , Living and , Living\n1211 i. , Living.\n, Living.\nShe is the daughter of , Living. She married , Living.\nChildren of , Living and , Living\n1211 i. , Living.\nGeneration 4\n, Living.\nHe is the son of , Living and , Living.\n</pre>",
+    "snoiraud\n\n 2016-01-29 10:58\n\ndeveloper    ~0046372\n\nedit\ndelete\nmake private": "I found something about this issue.\nIt must be tested on others databases. It works for my database, but I don't know if I have the same structure.\nattached patch : first-try.3068.patch",
+    "snoiraud\n\n 2016-01-29 10:59\n\ndeveloper  \n\ndelete": "first-try.3068.patch (805 bytes)  \ndiff --git a/gramps/plugins/textreport/detdescendantreport.py b/gramps/plugins/textreport/detdescendantreport.py\nindex cc1fdc6..a46037b 100644\n--- a/gramps/plugins/textreport/detdescendantreport.py\n+++ b/gramps/plugins/textreport/detdescendantreport.py\n@@ -195,7 +195,11 @@ class DetDescendantReport(Report):\n     def apply_henry_filter(self,person_handle, index, pid, cur_gen=1):\n         if (not person_handle) or (cur_gen > self.max_generations):\n             return\n-        self.dnumber[person_handle] = pid\n+        if person_handle in self.dnumber:\n+            if self.dnumber[person_handle] > pid:\n+                self.dnumber[person_handle] = pid\n+        else:\n+            self.dnumber[person_handle] = pid\n         self.map[index] = person_handle\n \n         if len(self.gen_keys) < cur_gen:\n\n first-try.3068.patch (805 bytes)",
+    "paulfranklin\n\n 2016-01-30 19:30\n\ndeveloper    ~0046398\n\nedit\ndelete\nmake private": "The file test_case_hg_dw-20110108.gramps is attached\nto 0003670 and has some non-standard families, but\nI don't know if it has the problem you are trying to\nfix in this bug or not.",
+    "snoiraud\n\n 2016-01-31 10:57\n\ndeveloper    ~0046403\n\nedit\ndelete\nmake private": "I tested this example. Here is the results :\nGeneration 1\n\nBartholomäus Brotzler\n...\nwith the new patch, the result is :\nGeneration 6\nTo Check Ancestors Center Person3, 2, 1.\n\nwithout the patch the result is :\nGeneration 6\n\nTo Check Ancestors Center Person3, 2, 1.\n\nWhat do you think of that ?",
+    "snoiraud\n\n 2016-02-17 11:01\n\ndeveloper    ~0046646\n\n last edited: 2016-02-19 18:47\n\nview 2 revisions\n\nedit\ndelete\nmake private": "https://github.com/gramps-project/gramps/pull/100",
+    "sam888\n\n 2016-05-24 23:06\n\nadministrator    ~0048216\n\nedit\ndelete\nmake private": "Merged on Gramps master as:\nhttps://github.com/gramps-project/gramps/commit/9a516b1058422123d1ae361f2433415419cc66df\n\nwith comment by:\ndsblank that:\nLet's go ahead and merge this, and check for correctness with a test later."
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Yes I can see the offending code.\n<pre>\nif self.map[key] == self.map[dkey]:\nself.doc.writetext((\"%(name)s is the same person as [%(id_str)s].\") %\n{ 'name' : '', 'id_str' : str(dkey) })\nself.doc.end_paragraph()\nreturn\n</pre>\n\nI'll fix it. The problem you point out about the descendant number which is kept I had already noticed. I think the smallest number should be kept, which is the number which appears first in the report. In order to be able to do that we need to be able to compare them. Comparing Henry numbers is probably different from comparing d'Aboville numbers which is probably different from comparing Record numbers. Record/Modified-Register should be easy. d'Aboville not that hard. Henry perhaps with string comparison. (The report is DFS-based so it's not the number assigned first)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Hmm but you want the proper number every time. That's harder since the report assigns descendant-numbers for a person and not for a descendant-position. That makes it so that even a fix is not possible without this reworking."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "bug.gramps (3,237 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "lcc, could you have another dict that maps key to a str_numbering? On the first mention, it gets assigned, and then reused on each use?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "There are two dicts, map{} and dnumber{} with map{} mapping a DFS incremental index to a handle and dnumber{} mapping a handle to a descendent-number. There's also a 2-array gen_keys[][] mapping a descendent-position to the incremental index. So the reworking is dnumber{} must map the index to the descendent-number."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "still the case with trunk"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Reminder sent to: nickw\n\n\n\nNick,\n\nAn attachement is missing on this bug report.\nIt should be still somewhere into 'Gramps 3.1' folder/path/url!\n\nMaybe you can access to this old reference and to fix it?\n\nThank you!\n\nJérôme"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "That attachment should now be available for you!"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Thanks!"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I'm unable to reproduce the report output in Gramps 4.1.3 even when I check or uncheck the \"Omit duplicate ancestors\" checkbox, or use any of any of the other \"numbering systems\"\n\n<pre>\nDescendant Report for a, Living\n\nGeneration 1\n\na, Living.\nHe married b, Living.\nChildren of b, Living and a, Living\n11 i. , Living.\n12 ii. , Living.\nGeneration 2\n, Living.\nHe is the son of a, Living and b, Living. He had a relationship\nwith Unknown.\nChildren of unknown and , Living\n111 i. , Living.\n, Living.\nHe is the son of a, Living and b, Living. He had a relationship\nwith Unknown.\nChildren of unknown and , Living\n121 i. , Living.\nGeneration 3\n, Living.\nHe is the son of , Living. He married , Living.\nChildren of , Living and , Living\n1211 i. , Living.\n, Living.\nShe is the daughter of , Living. She married , Living.\nChildren of , Living and , Living\n1211 i. , Living.\nGeneration 4\n, Living.\nHe is the son of , Living and , Living.\n</pre>"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I found something about this issue.\nIt must be tested on others databases. It works for my database, but I don't know if I have the same structure.\nattached patch : first-try.3068.patch"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "first-try.3068.patch (805 bytes)  \ndiff --git a/gramps/plugins/textreport/detdescendantreport.py b/gramps/plugins/textreport/detdescendantreport.py\nindex cc1fdc6..a46037b 100644\n--- a/gramps/plugins/textreport/detdescendantreport.py\n+++ b/gramps/plugins/textreport/detdescendantreport.py\n@@ -195,7 +195,11 @@ class DetDescendantReport(Report):\n     def apply_henry_filter(self,person_handle, index, pid, cur_gen=1):\n         if (not person_handle) or (cur_gen > self.max_generations):\n             return\n-        self.dnumber[person_handle] = pid\n+        if person_handle in self.dnumber:\n+            if self.dnumber[person_handle] > pid:\n+                self.dnumber[person_handle] = pid\n+        else:\n+            self.dnumber[person_handle] = pid\n         self.map[index] = person_handle\n \n         if len(self.gen_keys) < cur_gen:\n\n first-try.3068.patch (805 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "The file test_case_hg_dw-20110108.gramps is attached\nto 0003670 and has some non-standard families, but\nI don't know if it has the problem you are trying to\nfix in this bug or not."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I tested this example. Here is the results :\nGeneration 1\n\nBartholomäus Brotzler\n...\nwith the new patch, the result is :\nGeneration 6\nTo Check Ancestors Center Person3, 2, 1.\n\nwithout the patch the result is :\nGeneration 6\n\nTo Check Ancestors Center Person3, 2, 1.\n\nWhat do you think of that ?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "https://github.com/gramps-project/gramps/pull/100"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Merged on Gramps master as:\nhttps://github.com/gramps-project/gramps/commit/9a516b1058422123d1ae361f2433415419cc66df\n\nwith comment by:\ndsblank that:\nLet's go ahead and merge this, and check for correctness with a test later."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "3068",
+  "url": "https://gramps-project.org/bugs/view.php?id=3068"
+}

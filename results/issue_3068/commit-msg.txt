@@ -1,0 +1,16 @@
+Add regression test for duplicate descendant numbering
+
+When a descendant is reachable through multiple descent paths (e.g. the
+child of two first cousins), the Henry-numbering filter must keep the
+first/smaller reference number, not the number from the last path
+visited. This regression test exercises the production ``apply_henry_filter``
+method on a minimal in-memory tree and verifies the fix's behavior.
+
+The fix itself was merged in PR #100 (commit 9a516b1058, "Merge pull
+request #100 from SNoiraud/bug3068"). This test is added to
+``gramps/plugins/test/reports_test.py``, which is the established home
+for report-level regressions and already carries the
+``test_hourglass_graph_includes_spouse_mantis_9628`` regression in the
+same way.
+
+Fixes #3068
