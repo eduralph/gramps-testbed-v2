@@ -22,9 +22,17 @@
 - **Depends on (merged):** <id>[, <id>…]   (optional — ids only on the value line, any trailing note is ignored; stricter than Depends on: hold this bundle until each prereq's PR is MERGED, not merely COMPLETE. Use when this edits files a prereq also edits, so Do builds on the merged result instead of conflicting at merge; docs 09)
 - **Conflicts with:** <id>[, <id>…]   (optional — ids only on the value line, any trailing note is ignored; never co-schedule these in the same concurrent wave, e.g. they edit a shared file; docs 09)
 - **Verification base:** <remote>/<branch>   (optional, addon only — verify C4/T3 against a FORK PR branch instead of clean upstream, e.g. `origin/feature/ci-cd-pipeline-upstream` when the fix lives on the fork; needs `make fork-worktrees` + an engine/fork-bases.tsv row; issue #96)
+- **Stacks on:** <id>[, <id>…]   (optional — ids only on the value line, any trailing note is ignored; build THIS on top of the prereq's just-produced branch within the SAME flow run and publish a separate stacked PR (`gh --base <prereq-branch>`), so a file-overlapping chain completes in one run; the base is derived from the prereq, not written here; docs 09)
+- **Ordering note:** <optional free text — WHY the scheduling fields above are set as they are (e.g. "depends-on-merged 12 because both edit cache.py"). Not machine-parsed; it documents the human's sequencing decision next to the bare-id fields.>
 - **Surfaces:** <where the change is observable — `gui` (touches the frontend / an E2E
   through the app is needed), `data` (backend/logic only), or `both`. Drives which
   runtime gates apply (e.g. an E2E gate runs only when this is `gui`). Optional.>
+- **Difficulty:** <`low` | `medium` | `high` — the fix's **blast-radius / cross-file
+  reach**: how many files/call-sites it touches and how far its effects propagate (what a
+  diff-reviewer must hold in view), NOT edge-case density (the deterministic gates own
+  that). low = a localized one-site change; high = a wide, cross-cutting change. Routes
+  the Do backend and review depth (issues #133/#134). Optional; absent/unknown is the safe
+  default — no review or capability is skipped on a missing tag.>
 - **Scope:** <the defect to remove — one logical fix. MUST NOT name a probe/guard/helper
   (a capability check, `hasattr`, `try/except import`): naming a mechanism seats the fix
   shape for Do. Leave mechanism to Do; Do prefers removing the cause over guarding it

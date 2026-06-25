@@ -31,12 +31,29 @@ def parse_fields(brief_path: Path) -> dict[str, str]:
     return fields
 
 
+def _is_placeholder(value: str) -> bool:
+    """True if a value is still the template's unfilled ``<…>`` placeholder, so a
+    consumer treats it as absent. Without this, a substring gate matches the placeholder
+    text itself — e.g. an untouched ``Difficulty: <low | medium | high>`` would fire a
+    ``substring="high"`` advisory/variant, defeating the absent-is-safe default (#133).
+
+    A field value is parsed line-by-line, so a *multi-line* placeholder yields only its
+    first line — which opens with ``<`` but never closes. So a value counts as a
+    placeholder when it opens with ``<`` and either closes with ``>`` (a single-line
+    placeholder) or has no ``>`` at all (the unterminated first line of a multi-line one).
+    A partly-filled value (no leading ``<``, or a closed ``<x>`` mid-text) is kept."""
+    v = value.strip()
+    return v.startswith("<") and (v.endswith(">") or ">" not in v)
+
+
 def field(brief_path: Path, *labels: str, default: str = "") -> str:
-    """First matching field value among ``labels`` (lowercased), else ``default``."""
+    """First matching field value among ``labels`` (lowercased), else ``default``. A field
+    left as its ``<…>`` template placeholder reads as absent (falls through to ``default``)."""
     fields = parse_fields(brief_path)
     for label in labels:
-        if label.lower() in fields:
-            return fields[label.lower()]
+        val = fields.get(label.lower())
+        if val and not _is_placeholder(val):
+            return val
     return default
 
 
@@ -116,6 +133,20 @@ def conflicts_with(brief_path: Path) -> list[str]:
     that edits a shared resource and so cannot be co-scheduled across lanes.
     """
     return _id_list(field(brief_path, "conflicts with", "conflicts_with"))
+
+
+def stacks_on(brief_path: Path) -> list[str]:
+    """Issue ids whose just-produced branch this bundle stacks on (issue #123).
+
+    The optional ``- **Stacks on:** <id>[, <id>…]`` field: build this bundle on top of a
+    prerequisite's *produced patch branch* within the SAME ``flow`` run — not waiting for
+    a merge (unlike ``Depends on (merged)``) — and publish it as a separate stacked PR
+    (``gh pr create --base <prereq-branch>``). Use for a planned, file-overlapping refactor
+    sequence so the whole chain completes in one run. Names the immediate parent(s); the
+    worktree + PR base derive from the parent's ``publish.json`` (never hand-written — the
+    branch doesn't exist at Plan time). Absent ⇒ ``[]``.
+    """
+    return _id_list(field(brief_path, "stacks on", "stacks_on"))
 
 
 def onto_branch(brief_path: Path) -> tuple[str, str] | None:
