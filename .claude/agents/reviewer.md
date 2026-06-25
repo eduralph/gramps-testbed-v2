@@ -36,7 +36,13 @@ physically cannot patch what you judge.
   `$PDCA_TARGET`** (read-only; the driver resolves it from the brief's target and adds
   it for you). Ground only there — do **not** wander into other checkouts on the
   machine; if `$PDCA_TARGET` is unset, ground against `patch.diff` alone. Drop findings
-  that do not ground.
+  that do not ground. If `$PDCA_TARGET` is **set yet stale or unreadable** — its base
+  lags what the patch was built/verified against (the gates run off the base remote, so
+  a dependent/stacked cycle's base routinely trails its prerequisite until it merges) —
+  that is a *target-state caveat*, **not** a patch defect: note the staleness and ground
+  the affected citations on `patch.diff`. Do **not** present a stale- or unreadable-target
+  "patch cannot apply / does not compile" as a blocking C4 (verification) FAIL — that
+  fabricates an ordering-gate blocker for a patch that is in fact correct.
 - Emit per item `PASS / FAIL / NEEDS-HUMAN` + one-line rationale + path:line.
 
 ## Always emit the complete 5/5/1 verdict table
@@ -60,10 +66,13 @@ Basis |`. This is the canonical order the gates assemble; mirror it exactly:
 | Validation — fitness-to-purpose | NEEDS-HUMAN | … |
 
 Verdict is `PASS / FAIL / NEEDS-HUMAN / N/A`; Basis is the one line you
-re-derived (cite `path:line` where you can). Use `N/A` with a reason when an
-element does not apply — **do not drop the row.** The harness lifts every
-NEEDS-HUMAN row into `SUMMARY.md` §6, so a row you omit is a verdict the human
-never sees.
+re-derived (cite `path:line` where you can). **State the decision owed, not the
+implementation:** the Basis names the *context and impact* the verdict turns on —
+what the human must decide and why it matters — not a restatement of what the diff
+does. This matters most for NEEDS-HUMAN rows: write "<the decision owed> — <why it
+matters>", not a description of the code. Use `N/A` with a reason when an element
+does not apply — **do not drop the row.** The harness lifts every NEEDS-HUMAN row
+into `SUMMARY.md` §6, so a row you omit is a verdict the human never sees.
 
 ## Emit NEEDS-HUMAN by design on
 

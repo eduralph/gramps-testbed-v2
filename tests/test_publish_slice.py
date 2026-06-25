@@ -333,6 +333,58 @@ class PublishSlice(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("pending-id", err.getvalue().lower())
 
+    def test_stacked_pr_targets_the_parent_branch(self) -> None:
+        # #123: a `Stacks on:` dependent cuts its branch off the parent's PUBLISHED branch
+        # and targets the PR at it (a separate stacked PR); the base is derived from the
+        # parent's publish.json, never hand-written into the brief.
+        parent = self.cfg.bundle("PARENT")
+        parent.mkdir(parents=True)
+        (parent / "publish.json").write_text(json.dumps({"branch": "fix/PARENT-my-fix"}),
+                                             encoding="utf-8")
+        _bundle(self.cfg, "DEP", brief_body=_FIX_BRIEF + "- **Stacks on:** PARENT\n",
+                accepted=True)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = publish.publish(self.cfg, "DEP", dry_run=True, by="T", today="2026-06-05")
+        out = buf.getvalue()
+        self.assertEqual(rc, 0)
+        self.assertIn("checkout -B fix/DEP-my-fix origin/fix/PARENT-my-fix", out)  # off parent
+        self.assertIn("--base fix/PARENT-my-fix", out)                             # PR base = parent
+        self.assertIn("stacked draft PR", out)
+
+    def test_stacked_pr_without_published_parent_errors(self) -> None:
+        # The dependent can't stack until its parent has published a branch — a standalone
+        # publish before that is a loud error (the flow schedules so this can't happen).
+        self.cfg.bundle("PARENT2").mkdir(parents=True)   # no publish.json
+        _bundle(self.cfg, "DEP2", brief_body=_FIX_BRIEF + "- **Stacks on:** PARENT2\n",
+                accepted=True)
+        buf = io.StringIO()
+        with redirect_stderr(buf):
+            rc = publish.publish(self.cfg, "DEP2", dry_run=True, by="T", today="2026-06-05")
+        self.assertEqual(rc, 1)
+        self.assertIn("no published branch yet", buf.getvalue())
+
+    def test_resolve_target_tolerates_backticks_and_prose(self) -> None:
+        """Regression (#25): the brief target field is commonly written with markdown
+        backticks and/or trailing prose; _resolve_target must isolate owner/repo and a
+        clean base ref, not leak backticks or sentence text into the checkout/base."""
+        d = self.cfg.bundle("TGT")
+        d.mkdir(parents=True)
+        (d / "brief.md").write_text(
+            "- **Slug:** my-fix\n"
+            "- **Repo + branch target:** `example-org/example-repo` @ `main`. "
+            "Forward-merged later.\n", encoding="utf-8")
+        self.assertEqual(publish._resolve_target(d),
+                         ("example-org/example-repo", "main", "my-fix"))
+
+        # a base ref legitimately containing a slash survives backtick stripping
+        (d / "brief.md").write_text(
+            "- **Slug:** my-fix\n"
+            "- **Repo + branch target:** `addons-source` @ `maintenance/gramps60`\n",
+            encoding="utf-8")
+        self.assertEqual(publish._resolve_target(d),
+                         ("addons-source", "maintenance/gramps60", "my-fix"))
+
     def test_checkout_path_map_and_sibling_fallback(self) -> None:
         # sibling fallback: <root>/../<repo-last-segment>
         self.assertEqual(publish._checkout_path(self.cfg, "org/foo"),
