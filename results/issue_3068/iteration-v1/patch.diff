@@ -1,0 +1,180 @@
+diff --git a/gramps/plugins/textreport/test/__init__.py b/gramps/plugins/textreport/test/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/gramps/plugins/textreport/test/detdescendantreport_test.py b/gramps/plugins/textreport/test/detdescendantreport_test.py
+new file mode 100644
+index 0000000000..31bb797823
+--- /dev/null
++++ b/gramps/plugins/textreport/test/detdescendantreport_test.py
+@@ -0,0 +1,155 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  Gramps Development Team
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Regression test for Mantis 3068 -- "Wrong reference number for 'same person
++as' in the Detailed Descendant Report".
++
++When a descendant is reachable through more than one descent path (e.g. the
++child of two first cousins) the Henry-numbering filter must keep the *first /
++smaller* reference number for that person, not the number from the last path
++visited.  The "is the same person as [N]" line printed by ``write_person``
++cites ``self.dnumber[person_handle]``, so the value stored by the filter is
++exactly what the report prints.
++
++The unit under test is the production method
++``DetDescendantReport.apply_henry_filter`` itself (driven through a light
++probe object), not a re-implementation of its logic -- so any future drift in
++that method is caught here.  The module imports only ``gramps.gen`` /
++``gramps.plugins.lib`` code (no ``gi`` / ``gramps.gui``), so it loads under the
++headless test runner.
++"""
++
++import unittest
++
++from gramps.gen.db import DbTxn
++from gramps.gen.db.utils import make_database
++from gramps.gen.lib import ChildRef, Family, Person
++from gramps.plugins.textreport.detdescendantreport import DetDescendantReport
++
++
++class _HenryProbe:
++    """Minimal stand-in for ``DetDescendantReport`` that exposes only the
++    attributes ``apply_henry_filter`` touches, while reusing the *real*
++    production method (assigned below) so the test exercises shipping code."""
++
++    # Reuse the production implementation verbatim; the descriptor protocol
++    # binds it to the probe instance, and the method's recursive
++    # ``self.apply_henry_filter(...)`` calls resolve back to this same code.
++    apply_henry_filter = DetDescendantReport.apply_henry_filter
++
++    def __init__(self, db, max_generations=100):
++        self._db = db
++        self.max_generations = max_generations
++        self.dnumber = {}
++        self.map = {}
++        self.gen_keys = []
++
++
++def _make_db():
++    db = make_database("sqlite")
++    db.load(":memory:")
++    return db
++
++
++def _add_person(db, trans):
++    person = Person()
++    person.set_gender(Person.MALE)
++    return db.add_person(person, trans)
++
++
++def _add_family(db, trans, father=None, mother=None, children=()):
++    family = Family()
++    if father is not None:
++        family.set_father_handle(father)
++    if mother is not None:
++        family.set_mother_handle(mother)
++    for child_handle in children:
++        child_ref = ChildRef()
++        child_ref.set_reference_handle(child_handle)
++        family.add_child_ref(child_ref)
++    family_handle = db.add_family(family, trans)
++    # Link the family back onto its parents so apply_henry_filter can walk it.
++    for parent in (father, mother):
++        if parent is None:
++            continue
++        person = db.get_person_from_handle(parent)
++        person.add_family_handle(family_handle)
++        db.commit_person(person, trans)
++    return family_handle
++
++
++class TestDetDescendantDuplicateNumber(unittest.TestCase):
++    """Mantis 3068: a duplicated descendant keeps the first/smaller number."""
++
++    def setUp(self):
++        self.db = _make_db()
++        # Build the reported structure: a child reachable through two first
++        # cousins.
++        #
++        #   a (1)
++        #   |-- b (11) ----- d (111) --+
++        #   |-- c (12) ----- e (121) --+-- f (child of d & e)
++        #
++        # f is a child of the family formed by d and e, so apply_henry_filter
++        # reaches it first through d (number "1111") and again through e
++        # (number "1211").
++        with DbTxn("build 3068 tree", self.db) as trans:
++            self.a = _add_person(self.db, trans)
++            self.b = _add_person(self.db, trans)
++            self.c = _add_person(self.db, trans)
++            self.d = _add_person(self.db, trans)
++            self.e = _add_person(self.db, trans)
++            self.f = _add_person(self.db, trans)
++
++            _add_family(self.db, trans, father=self.a, children=(self.b, self.c))
++            _add_family(self.db, trans, father=self.b, children=(self.d,))
++            _add_family(self.db, trans, father=self.c, children=(self.e,))
++            # d and e (first cousins) have a child, f.
++            _add_family(
++                self.db, trans, father=self.d, mother=self.e, children=(self.f,)
++            )
++
++    def tearDown(self):
++        self.db.close()
++
++    def test_duplicate_descendant_keeps_smaller_number(self):
++        probe = _HenryProbe(self.db)
++        probe.apply_henry_filter(self.a, 1, "1")
++
++        # Sanity: the unambiguous descendants get their expected Henry numbers.
++        self.assertEqual(probe.dnumber[self.a], "1")
++        self.assertEqual(probe.dnumber[self.b], "11")
++        self.assertEqual(probe.dnumber[self.c], "12")
++        self.assertEqual(probe.dnumber[self.d], "111")
++        self.assertEqual(probe.dnumber[self.e], "121")
++
++        # The duplicated descendant f is reachable as "1111" (via d, visited
++        # first) and "1211" (via e, visited last).  Before the bug 3068 fix the
++        # filter assigned unconditionally and kept the *last* number ("1211");
++        # the fix keeps the first/smaller one.
++        self.assertEqual(
++            probe.dnumber[self.f],
++            "1111",
++            "duplicate descendant must keep the first/smaller reference number",
++        )
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index 0692f8a9b5..0e166aac76 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -678,6 +678,11 @@ gramps/plugins/test/reports_test.py
+ gramps/plugins/test/schema_validation_test.py
+ gramps/plugins/test/tools_test.py
+ #
++# plugins/textreport/test directory
++#
++gramps/plugins/textreport/test/__init__.py
++gramps/plugins/textreport/test/detdescendantreport_test.py
++#
+ # Thumbnailers
+ #
+ gramps/plugins/thumbnailer/__init__.py

@@ -1,0 +1,15 @@
+Fix TypeError when RCS subprocesses write to stderr in dbman.py
+
+The five RCS (archive) helpers in gramps/gui/dbman.py open their
+subprocess with stderr=subprocess.PIPE (binary mode), but then attempt
+to join the binary stderr.readlines() output directly into a string
+with "\n".join(), which raises TypeError: sequence item 0: expected str
+instance, bytes found. Extract the decode logic into a dedicated helper
+function read_subprocess_messages() in a new import-light module
+gramps/gui/dbman_utils.py so the message-assembly code can be tested
+headless without importing the GTK-dependent dbman.py. Each of the five
+affected call sites now routes through that function, which decodes
+bytes to str with errors="replace" to gracefully handle any
+locale-encoded diagnostic the RCS process may emit.
+
+Fixes #13518

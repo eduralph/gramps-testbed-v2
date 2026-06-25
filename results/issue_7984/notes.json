@@ -1,0 +1,74 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "pecc\n\n 2014-08-12 18:54\n\nreporter  \n\ndelete": "esmerkki.ged (26,382 bytes)",
+    "ennoborg\n\n 2014-08-13 21:50\n\ndeveloper    ~0037720\n\nedit\ndelete\nmake private": "You can, but you have to type a , and a space first, then the first letter of the given name. That works in Gramps 3.4.8.",
+    "pecc\n\n 2014-08-15 02:04\n\nreporter    ~0037726\n\nedit\ndelete\nmake private": "I tried that, it doesn't open the surname folder (where the given name list is) but if I open it manually the search works as you'd expect.",
+    "ennoborg\n\n 2014-08-15 19:40\n\ndeveloper    ~0037734\n\nedit\ndelete\nmake private": "You're right about that, so I guess it could be solved by making sure that typing a comma opens the empty surname folder. Would you agree with that? If so, I can put that as a solution to be built. That doesn't guarantee that it will be made that way soon, but helps to define what we are talking about.",
+    "pecc\n\n 2014-08-15 20:37\n\nreporter    ~0037735\n\nedit\ndelete\nmake private": "Sounds great!",
+    "pecc\n\n 2014-08-15 20:50\n\nreporter    ~0037736\n\nedit\ndelete\nmake private": "How about having the folder open automatically if it's the only one, or an option to automatically open all folders (up to a certain number of surnames perhaps)?",
+    "ennoborg\n\n 2014-08-16 12:20\n\ndeveloper    ~0037740\n\nedit\ndelete\nmake private": "Sounds good. Please note that I don't have Gramps user interface experience myself, so I won't solve this myself. I responded to analyze this issue, but I will remove my name from it now, because there is a long list of other things to take care of.",
+    "pecc\n\n 2014-08-20 00:48\n\nreporter    ~0037784\n\nedit\ndelete\nmake private": "Just another note: after I updated to 14.04 and 4.0.3-1 I have not been able to use Find like with the previous versions -- then I could just type by first name, now it indeed requires a \", \" first.",
+    "pecc\n\n 2015-09-18 12:01\n\nreporter    ~0044606\n\n last edited: 2015-09-22 07:54\n\nview 2 revisions\n\nedit\ndelete\nmake private": "Note: upgraded to 4.1.3 and still need to open the \"no surname\" list manually before the search works. Need to type \", \" before first name, as described in my last comment.\n\nAddendum: figured out I hand't configured my install as before; changed name display to Given name only and now there's no need to type \", \" to search on a name list. Glee. But the no-surname-list still needs to be opened manually.",
+    "user4182\n\n 2020-05-19 06:10\n\n   ~0059604\n\nedit\ndelete\nmake private": "I have this issue with womens maiden names that are blank/unknown"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "esmerkki.ged (26,382 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "You can, but you have to type a , and a space first, then the first letter of the given name. That works in Gramps 3.4.8."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I tried that, it doesn't open the surname folder (where the given name list is) but if I open it manually the search works as you'd expect."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "You're right about that, so I guess it could be solved by making sure that typing a comma opens the empty surname folder. Would you agree with that? If so, I can put that as a solution to be built. That doesn't guarantee that it will be made that way soon, but helps to define what we are talking about."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Sounds great!"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "How about having the folder open automatically if it's the only one, or an option to automatically open all folders (up to a certain number of surnames perhaps)?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Sounds good. Please note that I don't have Gramps user interface experience myself, so I won't solve this myself. I responded to analyze this issue, but I will remove my name from it now, because there is a long list of other things to take care of."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Just another note: after I updated to 14.04 and 4.0.3-1 I have not been able to use Find like with the previous versions -- then I could just type by first name, now it indeed requires a \", \" first."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Note: upgraded to 4.1.3 and still need to open the \"no surname\" list manually before the search works. Need to type \", \" before first name, as described in my last comment.\n\nAddendum: figured out I hand't configured my install as before; changed name display to Given name only and now there's no need to type \", \" to search on a name list. Glee. But the no-surname-list still needs to be opened manually."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I have this issue with womens maiden names that are blank/unknown"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "7984",
+  "url": "https://gramps-project.org/bugs/view.php?id=7984"
+}

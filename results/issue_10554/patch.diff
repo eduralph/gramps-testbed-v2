@@ -1,0 +1,409 @@
+diff --git a/gramps/gen/relationship.py b/gramps/gen/relationship.py
+index 03548284d0..a141eddf58 100644
+--- a/gramps/gen/relationship.py
++++ b/gramps/gen/relationship.py
+@@ -908,9 +908,12 @@ class RelationshipCalculator:
+     REL_FATHER = "f"  # going up to father
+     REL_MOTHER_NOTBIRTH = "M"  # going up to mother, not birth relation
+     REL_FATHER_NOTBIRTH = "F"  # going up to father, not birth relation
++    REL_MOTHER_ADOPT = "n"  # going up to mother, adopted relation
++    REL_FATHER_ADOPT = "d"  # going up to father, adopted relation
+     REL_SIBLING = "s"  # going sideways to sibling (no parents)
+     REL_FAM_BIRTH = "a"  # going up to family (mother and father)
+     REL_FAM_NONBIRTH = "A"  # going up to family, not birth relation
++    REL_FAM_ADOPT = "D"  # going up to family, adopted relation
+     REL_FAM_BIRTH_MOTH_ONLY = "b"  # going up to fam, only birth rel to mother
+     REL_FAM_BIRTH_FATH_ONLY = "c"  # going up to fam, only birth rel to father
+ 
+@@ -922,10 +925,15 @@ class RelationshipCalculator:
+     HALF_SIB_FATHER = 2  # same father, mother known to be different
+     STEP_SIB = 3  # birth parents known to be different
+     UNKNOWN_SIB = 4  # insufficient data to draw conclusion
++    ADOPT_SIB = 5  # connected through an adoptive (not birth) parent
+ 
+     # sibling strings
+     STEP = "step"
+     HALF = "half-"
++    # Adopted links are not "step": an adoptee is treated as born into the
++    # family (issue 10554). Kept as a single localizable qualifier so the
++    # exact wording stays a cheap, per-locale choice.
++    ADOPT = "adopted "
+ 
+     INLAW = "-in-law"
+ 
+@@ -1149,30 +1157,41 @@ class RelationshipCalculator:
+                 if motherother and motherother == motherorig:
+                     return self.HALF_SIB_MOTHER
+                 else:
+-                    return self.STEP_SIB
++                    return self._step_or_adopt_sib(db, orig, fatherother)
+             if motherother and motherother in orig_nb_par:
+                 # the birth parent of other is non-birth of orig
+                 if fatherother and fatherother == fatherorig:
+                     return self.HALF_SIB_FATHER
+                 else:
+-                    return self.STEP_SIB
++                    return self._step_or_adopt_sib(db, orig, motherother)
+             other_nb_par = self._get_nonbirth_parent_list(db, other)
+             if fatherorig and fatherorig in other_nb_par:
+                 # the one birth parent of other is non-birth of orig
+                 if motherorig and motherother == motherorig:
+                     return self.HALF_SIB_MOTHER
+                 else:
+-                    return self.STEP_SIB
++                    return self._step_or_adopt_sib(db, other, fatherorig)
+             if motherorig and motherorig in other_nb_par:
+                 # the one birth parent of other is non-birth of orig
+                 if fatherother and fatherother == fatherorig:
+                     return self.HALF_SIB_FATHER
+                 else:
+-                    return self.STEP_SIB
++                    return self._step_or_adopt_sib(db, other, motherorig)
+             # there is an unknown birth parent, it could be that this is the
+             # birth parent of the other person
+             return self.UNKNOWN_SIB
+ 
++    def _step_or_adopt_sib(self, db, person, parent_handle):
++        """
++        The two siblings are connected because ``parent_handle`` is a birth
++        parent of one of them and a non-birth parent of ``person``. If that
++        non-birth link is an *adoption*, they are adopted siblings rather than
++        stepsiblings (issue 10554); otherwise keep the "step" classification.
++        """
++        if parent_handle in self._get_adopted_parent_list(db, person):
++            return self.ADOPT_SIB
++        return self.STEP_SIB
++
+     def get_birth_parents(self, db, person):
+         """
+         Method that returns the birthparents of a person as tuple
+@@ -1231,6 +1250,30 @@ class RelationshipCalculator:
+         # make every person appear only once:
+         return list(set(nb_parents))
+ 
++    def _get_adopted_parent_list(self, db, person):
++        """
++        Returns a list of handles of parents to which ``person`` is linked by
++        an ADOPTED child reference (issue 10554).
++        """
++        ad_parents = []
++        for fam in person.get_parent_family_handle_list():
++            family = db.get_family_from_handle(fam)
++            if not family:
++                continue
++            childrel = [
++                (ref.get_mother_relation(), ref.get_father_relation())
++                for ref in family.get_child_ref_list()
++                if ref.ref == person.handle
++            ]
++            if not childrel:
++                continue
++            if childrel[0][0] == ChildRefType.ADOPTED:
++                ad_parents.append(family.get_mother_handle())
++            if childrel[0][1] == ChildRefType.ADOPTED:
++                ad_parents.append(family.get_father_handle())
++        # make every person appear only once:
++        return list(set(ad_parents))
++
+     def _get_spouse_type(self, db, orig, other, all_rel=False):
+         """
+         Translation free determination if orig and other are partners.
+@@ -1626,22 +1669,28 @@ class RelationshipCalculator:
+                         self.REL_FATHER,
+                         self.REL_FATHER_NOTBIRTH,
+                         childrel[0][1],
++                        self.REL_FATHER_ADOPT,
+                     ),
+                     (
+                         mhandle,
+                         self.REL_MOTHER,
+                         self.REL_MOTHER_NOTBIRTH,
+                         childrel[0][0],
++                        self.REL_MOTHER_ADOPT,
+                     ),
+                 ]:
+                     if data[0] and data[0] not in parentstodo:
+                         persontodo = db.get_person_from_handle(data[0])
+                         if data[3] == ChildRefType.BIRTH:
+                             addstr = data[1]
+-                        elif not self.__only_birth:
+-                            addstr = data[2]
+-                        else:
++                        elif self.__only_birth:
+                             addstr = ""
++                        elif data[3] == ChildRefType.ADOPTED:
++                            # adopted links are distinguished from "step" so the
++                            # naming path can pick an adopted qualifier (10554)
++                            addstr = data[4]
++                        else:
++                            addstr = data[2]
+                         if addstr:
+                             parentstodo[data[0]] = (
+                                 persontodo,
+@@ -1860,6 +1909,12 @@ class RelationshipCalculator:
+             persrelb == self.REL_FATHER and persrela == self.REL_MOTHER_NOTBIRTH
+         ):
+             return self.REL_FAM_BIRTH_FATH_ONLY
++        # both parents linked by adoption -> an adopted family relation (10554)
++        if persrela in (self.REL_MOTHER_ADOPT, self.REL_FATHER_ADOPT) and persrelb in (
++            self.REL_MOTHER_ADOPT,
++            self.REL_FATHER_ADOPT,
++        ):
++            return self.REL_FAM_ADOPT
+         # catch calling with family relations already, return val
+         if (
+             persrela == self.REL_FAM_BIRTH
+@@ -1887,10 +1942,36 @@ class RelationshipCalculator:
+                 self.REL_FAM_NONBIRTH,
+                 self.REL_FATHER_NOTBIRTH,
+                 self.REL_MOTHER_NOTBIRTH,
++                self.REL_FAM_ADOPT,
++                self.REL_FATHER_ADOPT,
++                self.REL_MOTHER_ADOPT,
+             ]:
+                 return False
+         return True
+ 
++    def only_adopt(self, path):
++        """
++        Given a path to a common ancestor, return True if it is a non-birth
++        path whose every non-birth hop is an *adopted* relation (no plain
++        "step"/non-birth hop). Used to choose an adopted qualifier instead of
++        "step" for the relationship label (issue 10554).
++        """
++        seen_adopt = False
++        for value in path:
++            if value in [
++                self.REL_FAM_NONBIRTH,
++                self.REL_FATHER_NOTBIRTH,
++                self.REL_MOTHER_NOTBIRTH,
++            ]:
++                return False
++            if value in [
++                self.REL_FAM_ADOPT,
++                self.REL_FATHER_ADOPT,
++                self.REL_MOTHER_ADOPT,
++            ]:
++                seen_adopt = True
++        return seen_adopt
++
+     def get_one_relationship(
+         self, db, orig_person, other_person, extra_info=False, olocale=glocale
+     ):
+@@ -1980,6 +2061,9 @@ class RelationshipCalculator:
+                 self.REL_MOTHER,
+                 self.REL_FATHER,
+                 self.REL_SIBLING,
++                self.REL_FAM_ADOPT,
++                self.REL_MOTHER_ADOPT,
++                self.REL_FATHER_ADOPT,
+                 self.REL_FAM_NONBIRTH,
+                 self.REL_MOTHER_NOTBIRTH,
+                 self.REL_FATHER_NOTBIRTH,
+@@ -2273,8 +2357,11 @@ class RelationshipCalculator:
+         REL_FATHER               # going up to father
+         REL_MOTHER_NOTBIRTH      # going up to mother, not birth relation
+         REL_FATHER_NOTBIRTH      # going up to father, not birth relation
++        REL_MOTHER_ADOPT         # going up to mother, adopted relation
++        REL_FATHER_ADOPT         # going up to father, adopted relation
+         REL_FAM_BIRTH            # going up to family (mother and father)
+         REL_FAM_NONBIRTH         # going up to family, not birth relation
++        REL_FAM_ADOPT            # going up to family, adopted relation
+         REL_FAM_BIRTH_MOTH_ONLY  # going up to fam, only birth rel to mother
+         REL_FAM_BIRTH_FATH_ONLY  # going up to fam, only birth rel to father
+         =======================  ===========================================
+@@ -2336,6 +2423,9 @@ class RelationshipCalculator:
+         """
+         if only_birth:
+             step = ""
++        elif self.only_adopt(reltocommon_a + reltocommon_b):
++            # adopted link(s) only -> an adopted qualifier, not "step" (10554)
++            step = self.ADOPT
+         else:
+             step = self.STEP
+ 
+@@ -2425,6 +2515,8 @@ class RelationshipCalculator:
+             typestr = self.HALF
+         elif sib_type == self.STEP_SIB:
+             typestr = self.STEP
++        elif sib_type == self.ADOPT_SIB:
++            typestr = self.ADOPT
+ 
+         if in_law_a or in_law_b:
+             inlaw = self.INLAW
+diff --git a/gramps/gen/test/relationship_test.py b/gramps/gen/test/relationship_test.py
+new file mode 100644
+index 0000000000..ff141878a5
+--- /dev/null
++++ b/gramps/gen/test/relationship_test.py
+@@ -0,0 +1,150 @@
++#!/usr/bin/env python
++# -*- coding: utf-8 -*-
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Unit test for the relationship calculator's handling of adopted vs. step
++links (issue 10554).
++
++An adoptee is treated, genealogically and legally, as born into the family;
++the database already records the relation explicitly with
++``ChildRefType.ADOPTED``.  Yet the calculator used to collapse every non-birth
++link to "step", so an adopted child was reported as a *stepchild* / *stepbrother*.
++These tests build an in-memory tree with a birth child, an adopted child and a
++genuine stepchild and assert that:
++
++* an adopted child is NOT labelled "step" (and reads as "adopted ..."), while
++* a genuine stepchild still IS labelled "step".
++
++The tests exercise the production path -- ``get_one_relationship`` -- which is
++what the Narrative Web report and every other relationship consumer route
++through; ``relationship.py`` is import-light (no GUI / gi), so this runs under
++the headless test runner.
++"""
++
++import unittest
++
++from ..db import DbTxn
++from ..db.utils import make_database
++from ..lib import ChildRef, ChildRefType, Family, Person
++from ..relationship import RelationshipCalculator
++
++
++def _make_db():
++    """Create and return a fresh in-memory SQLite database."""
++    db = make_database("sqlite")
++    db.load(":memory:")
++    return db
++
++
++class AdoptedVsStepTest(unittest.TestCase):
++    """
++    A father/mother couple with three sons sharing the same parents but
++    different child-reference types: birth, adopted and stepchild.
++    """
++
++    @classmethod
++    def setUpClass(cls):
++        cls.db = _make_db()
++        cls.calc = RelationshipCalculator()
++
++        with DbTxn("build tree", cls.db) as trans:
++            # the parents
++            cls.father = cls._add_person(trans, "I0001", Person.MALE)
++            cls.mother = cls._add_person(trans, "I0002", Person.FEMALE)
++            # the three children
++            cls.birth = cls._add_person(trans, "I0003", Person.MALE)
++            cls.adopted = cls._add_person(trans, "I0004", Person.MALE)
++            cls.step = cls._add_person(trans, "I0005", Person.MALE)
++
++            fam = Family()
++            fam.set_handle("F0001")
++            fam.set_gramps_id("F0001")
++            fam.set_father_handle(cls.father.handle)
++            fam.set_mother_handle(cls.mother.handle)
++            for child, reltype in (
++                (cls.birth, ChildRefType.BIRTH),
++                (cls.adopted, ChildRefType.ADOPTED),
++                (cls.step, ChildRefType.STEPCHILD),
++            ):
++                ref = ChildRef()
++                ref.set_reference_handle(child.handle)
++                ref.set_mother_relation(ChildRefType(reltype))
++                ref.set_father_relation(ChildRefType(reltype))
++                fam.add_child_ref(ref)
++                child.add_parent_family_handle(fam.handle)
++            cls.father.add_family_handle(fam.handle)
++            cls.mother.add_family_handle(fam.handle)
++
++            cls.db.add_family(fam, trans)
++            for person in (cls.father, cls.mother, cls.birth, cls.adopted, cls.step):
++                cls.db.commit_person(person, trans)
++
++    @classmethod
++    def _add_person(cls, trans, gramps_id, gender):
++        person = Person()
++        person.set_handle(gramps_id)
++        person.set_gramps_id(gramps_id)
++        person.set_gender(gender)
++        cls.db.add_person(person, trans)
++        return person
++
++    def _rel(self, orig, other):
++        return self.calc.get_one_relationship(self.db, orig, other)
++
++    # --- parent -> child --------------------------------------------------
++
++    def test_birth_child_has_no_qualifier(self):
++        rel = self._rel(self.father, self.birth)
++        self.assertNotIn("step", rel)
++        self.assertNotIn("adopted", rel)
++
++    def test_stepchild_is_step(self):
++        rel = self._rel(self.father, self.step)
++        self.assertIn("step", rel)
++
++    def test_adopted_child_is_not_step(self):
++        rel = self._rel(self.father, self.adopted)
++        self.assertNotIn("step", rel)
++
++    def test_adopted_child_reads_adopted(self):
++        rel = self._rel(self.father, self.adopted)
++        self.assertIn("adopted", rel)
++
++    # --- child -> adoptive parent (reciprocal) ----------------------------
++
++    def test_adoptive_parent_is_not_step(self):
++        rel = self._rel(self.adopted, self.father)
++        self.assertNotIn("step", rel)
++        self.assertIn("adopted", rel)
++
++    # --- siblings ---------------------------------------------------------
++
++    def test_step_sibling_is_step(self):
++        rel = self._rel(self.birth, self.step)
++        self.assertIn("step", rel)
++
++    def test_adopted_sibling_is_not_step(self):
++        rel = self._rel(self.birth, self.adopted)
++        self.assertNotIn("step", rel)
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index d4a15ea5b4..9fdf59fdae 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -299,6 +299,7 @@ gramps/gen/simple/_simpledoc.py
+ #
+ gramps/gen/test/config_test.py
+ gramps/gen/test/constfunc_test.py
++gramps/gen/test/relationship_test.py
+ #
+ # gen utils API
+ #
+@@ -598,6 +599,7 @@ gramps/plugins/importer/__init__.py
+ gramps/plugins/importer/test/importgedcom_ambiguous_date_test.py
+ gramps/plugins/importer/test/importgeneweb_test.py
+ gramps/plugins/importer/test/importvcard_test.py
++gramps/plugins/importer/test/importxml_daterange_test.py
+ #
+ # plugins/lib directory
+ #

@@ -1,0 +1,18 @@
+Add regression test for Top Surnames wrong-surname bug
+
+Issue #6826 reported that the Top Surnames gramplet selected a wrong
+representative for surnames, causing the Same Surnames quick view to open
+reports for a different surname than the one clicked. The root cause was
+unconditional representative assignment during iteration, favoring the
+last-iterated person regardless of whether the clicked surname was their
+primary or alternate name.
+
+This fix was already applied by commit e39dc09e2e, which refactored
+record_surnames() to prefer representatives whose primary surname matches
+the group name. This test verifies the reported scenario — a person with
+primary surname "A" plus alternate "B", and another with primary "B" —
+now correctly resolves "B" to the primary-B carrier regardless of
+iteration order. The test also confirms the fix remains stable across
+future refactors of representative selection.
+
+Fixes #6826

@@ -1,0 +1,87 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "davesch\n\n 2018-04-22 15:20\n\ndeveloper  \n\ndelete": "Adopted.png (23,235 bytes)  \n Adopted.png (23,235 bytes)",
+    "prculley\n\n 2018-11-26 16:32\n\nmanager    ~0055710\n\nedit\ndelete\nmake private": "@SNoiraud Do you want to handle this?",
+    "lordemannd\n\n 2018-11-26 18:44\n\ndeveloper    ~0055712\n\nedit\ndelete\nmake private": "@DaveSch, What do you suppose would be the correct terms to use?",
+    "davesch\n\n 2018-11-26 21:25\n\ndeveloper    ~0055714\n\nedit\ndelete\nmake private": "Using any variation of \"Step...\" should be reserved for a child born to one of the parents but not adopted by the new spouse. The same for \"Half-\" siblings.\n\nLegally, the relationship would be the same as if they where born into the family. So Father, mother, sister, brother. The \"Relation within this family (if not by birth)\" showing adopted makes it clear that the parents are not the birth parents.\n\nFather, Mother, Sister, Brother, Sibling would be my first choice. But I also know there are some that see genealogy as biological and may have problems with these titles.\n\nSecond option would be Adoptive Father, Adoptive Mother as the case may be, leaving Sister, Brother for siblings. I am not adverse to adding the Adoptive qualifier to the sibling titles. These would at least be accurate.",
+    "snoiraud\n\n 2019-01-19 12:12\n\ndeveloper    ~0056063\n\nedit\ndelete\nmake private": "Trying to look at that.\nI made a sample .gramps for that :\n\n\n\n 10554.gramps (5,012 bytes)",
+    "snoiraud\n\n 2019-01-19 12:15\n\ndeveloper    ~0056064\n\nedit\ndelete\nmake private": "Within the narrative web for this sample, if I select \"C,f\", I get the following :\n\n\n\n 10554.1.png (293,295 bytes)",
+    "snoiraud\n\n 2019-01-19 13:07\n\ndeveloper    ~0056065\n\nedit\ndelete\nmake private": "Related to this snapshot, We can see :\n\n1 - A,e is a stepbrother of C,f : C,f is adopted by A,a and B,b.\n2 - E,h is a stepbrother of C,f. E.h is a real stepbrother of A,e. A,e and E.h have the same mother.\n3 - E,h is a stepbrother of C.f. E.h is adopted by C,c and the son of D,d\n4 - C,j is a brother of C,f. This is FALSE. In reality, C.J is a stepfather of C.f. They have the same father and different mothers.\n\nFor all this cases, what could be the good relation name?",
+    "snoiraud\n\n 2019-01-19 14:02\n\ndeveloper    ~0056066\n\nedit\ndelete\nmake private": "It is not related to the narrativeweb, but to gramps/gen/relation.py",
+    "davesch\n\n 2019-01-19 19:54\n\ndeveloper  \n\ndelete": "C, j original.png (253,888 bytes) \n C, j altered.png (251,504 bytes)",
+    "davesch\n\n 2019-01-19 19:54\n\ndeveloper    ~0056070\n\nedit\ndelete\nmake private": "Looking at the individual pages of the three people that were adopted, I manually altered the relationship titles to reflect an ideal genealogical title. Legally, when a person is adopted, by law they would be treated as if they were naturally born into the family. Genealogically and by DNA, having the adjective “Adoptive” makes the most sense.\n\n\n\n C,f altered.png (371,496 bytes)",
+    "davesch\n\n 2019-01-19 19:57\n\ndeveloper    ~0056071\n\nedit\ndelete\nmake private": "I do not know what havoc E,h having two mother's identified as biological played. He had the birth mother B,b but in the adoption D,d is listed as the birth mother.\n\n\n\n E, h original.png (375,448 bytes) \n E, h altered.png (372,620 bytes)",
+    "davesch\n\n 2019-01-19 19:59\n\ndeveloper    ~0056072\n\nedit\ndelete\nmake private": "Yes, it is probably more an issue with relationship.py. The NarrativeWeb is just the most overt example of the issue. Especially when I was preparing a Narrated web for a cousin that had an adopted child.\n\nRelationship.py identifies children as either Birth or Non-birth and then applies “Step” to all non-birth children regardless of the child’s reference type. I do not know how difficult it would be to apply another adjective to the relationship based upon child’s reference type to the parent.",
+    "sam888\n\n 2020-02-29 01:56\n\nadministrator    ~0058942\n\nedit\ndelete\nmake private": "Confirmed in comment 0010554:0056066 as issue with \" gramps/gen/relation.py\""
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Adopted.png (23,235 bytes)  \n Adopted.png (23,235 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "@SNoiraud Do you want to handle this?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "@DaveSch, What do you suppose would be the correct terms to use?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Using any variation of \"Step...\" should be reserved for a child born to one of the parents but not adopted by the new spouse. The same for \"Half-\" siblings.\n\nLegally, the relationship would be the same as if they where born into the family. So Father, mother, sister, brother. The \"Relation within this family (if not by birth)\" showing adopted makes it clear that the parents are not the birth parents.\n\nFather, Mother, Sister, Brother, Sibling would be my first choice. But I also know there are some that see genealogy as biological and may have problems with these titles.\n\nSecond option would be Adoptive Father, Adoptive Mother as the case may be, leaving Sister, Brother for siblings. I am not adverse to adding the Adoptive qualifier to the sibling titles. These would at least be accurate."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Trying to look at that.\nI made a sample .gramps for that :\n\n\n\n 10554.gramps (5,012 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Within the narrative web for this sample, if I select \"C,f\", I get the following :\n\n\n\n 10554.1.png (293,295 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Related to this snapshot, We can see :\n\n1 - A,e is a stepbrother of C,f : C,f is adopted by A,a and B,b.\n2 - E,h is a stepbrother of C,f. E.h is a real stepbrother of A,e. A,e and E.h have the same mother.\n3 - E,h is a stepbrother of C.f. E.h is adopted by C,c and the son of D,d\n4 - C,j is a brother of C,f. This is FALSE. In reality, C.J is a stepfather of C.f. They have the same father and different mothers.\n\nFor all this cases, what could be the good relation name?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "It is not related to the narrativeweb, but to gramps/gen/relation.py"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "C,f original.png (377,855 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I do not know what havoc E,h having two mother's identified as biological played. He had the birth mother B,b but in the adoption D,d is listed as the birth mother.\n\n\n\n E, h original.png (375,448 bytes) \n E, h altered.png (372,620 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Yes, it is probably more an issue with relationship.py. The NarrativeWeb is just the most overt example of the issue. Especially when I was preparing a Narrated web for a cousin that had an adopted child.\n\nRelationship.py identifies children as either Birth or Non-birth and then applies “Step” to all non-birth children regardless of the child’s reference type. I do not know how difficult it would be to apply another adjective to the relationship based upon child’s reference type to the parent."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Confirmed in comment 0010554:0056066 as issue with \" gramps/gen/relation.py\""
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "10554",
+  "url": "https://gramps-project.org/bugs/view.php?id=10554"
+}

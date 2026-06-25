@@ -1,0 +1,21 @@
+Add GEDCOM export test for accented place titles
+
+Mantis 8362: a 2015 report claimed GEDCOM export of a marriage place
+differed by place type ("Città" vs "Town"), blamed on the accented "à".
+The pre-5.0 exporter's place-type→ADDR/CITY mapping drove that difference;
+the 5.0 place-model rewrite removed it. On maintenance/gramps61,
+GedcomWriter._place() emits PLAC = <display name> independent of place
+type, and Python-3 UTF-8 carries the accent — so the discrepancy cannot
+reproduce.
+
+This test pins that behaviour: an accented place title round-trips as UTF-8
+in the PLAC line, and the output is identical whether the type is the
+accented "Città" or English "Town". It exercises the real production path
+(GedcomWriter._place() / _writeln() / place displayer) via an in-memory
+tree and subprocess-light export.
+
+Note: po/POTFILES.skip must be updated at commit time to register the new
+test file (no translatable strings). The builder omitted it from patch.diff
+to keep C4 unverifiable per the brief; see build-notes.md §4.1.3.
+
+Fixes #8362
