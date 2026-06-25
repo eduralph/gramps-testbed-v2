@@ -157,12 +157,14 @@ timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
       fi
     done
     # Seed the trees the suite opens (TestTree = the canonical example fixture;
-    # the two minimal trees back the QuiltView / bug-14100 tests).
+    # the minimal trees back the QuiltView / bug-14100 / bug-7984 tests).
     gramps -C TestTree -i /workspace/gramps/example/gramps/example.gramps
     gramps -C QuiltViewTree \
            -i "/workspace/$TESTBED_NAME/engine/interface/data/quiltview_minimal.gramps"
     gramps -C Bug14100Tree \
            -i "/workspace/$TESTBED_NAME/engine/interface/data/bug_0014100_minimal.gramps"
+    gramps -C Bug7984NoSurname \
+           -i "/workspace/$TESTBED_NAME/engine/interface/data/Bug7984NoSurname.gramps"
     # Clear stale XMLs so accumulated runs do not pollute JUnit summaries.
     rm -rf "/workspace/$TESTBED_NAME/test-results"
     mkdir -p "/workspace/$TESTBED_NAME/test-results"
