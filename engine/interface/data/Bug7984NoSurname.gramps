@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE database PUBLIC "-//Gramps//DTD Gramps XML 1.7.2//EN"
+"http://gramps-project.org/xml/1.7.2/grampsxml.dtd">
+<!--
+  Seed tree for the Mantis #7984 interface regression test
+  (test_bug_7984_search_no_surname.py).
+
+  Every person in this tree has a GIVEN name but NO surname, so the
+  grouped People view collapses them all under a single
+  "[Missing Surname]" group (peoplemodel.column_header ->
+  preferences.no-surname-text). That single group is collapsed on a
+  fresh launch.
+
+  The #7984 complaint: Ctrl+F type-ahead could not reach a person inside
+  that collapsed group; the user had to expand the "no surname" folder
+  by hand first. The fix reworked
+  gramps/gui/widgets/interactivesearchbox.py:search_iter_slow so it
+  descends into collapsed group rows and calls expand_to_path() on the
+  match, revealing and selecting the person without a manual expand.
+
+  Given names are deliberately distinct and alphabetically ordered
+  (Aatos, Eero, Onni, Ukko); the test searches a NON-first one ("Onni")
+  so the match proves traversal INTO the collapsed group, not just a hit
+  on its first child.
+-->
+<database xmlns="http://gramps-project.org/xml/1.7.2/">
+  <header>
+    <created date="2026-06-25" version="6.1.0"/>
+    <researcher>
+    </researcher>
+  </header>
+  <people home="_bug7984person000000000001">
+    <person handle="_bug7984person000000000001" change="1747440000" id="I0001">
+      <gender>M</gender>
+      <name type="Birth Name">
+        <first>Aatos</first>
+      </name>
+    </person>
+    <person handle="_bug7984person000000000002" change="1747440000" id="I0002">
+      <gender>M</gender>
+      <name type="Birth Name">
+        <first>Eero</first>
+      </name>
+    </person>
+    <person handle="_bug7984person000000000003" change="1747440000" id="I0003">
+      <gender>M</gender>
+      <name type="Birth Name">
+        <first>Onni</first>
+      </name>
+    </person>
+    <person handle="_bug7984person000000000004" change="1747440000" id="I0004">
+      <gender>M</gender>
+      <name type="Birth Name">
+        <first>Ukko</first>
+      </name>
+    </person>
+  </people>
+</database>
