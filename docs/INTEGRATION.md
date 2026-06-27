@@ -50,6 +50,17 @@
 - **Comment voice / template:** `templates/tracker-comment.md.tpl`. The Mantis
   scraper is ported at `engine/scripts/mantis_notes.py` (+ `scrape-mantis.sh`) — a
   Mantis-specific scraper is required at this role; a different tracker needs its own.
+- **Merge → Mantis worklist:** `pdca merged` polls every published bundle's recorded PR
+  (`publish.json`) for merge state and lists the merged ones whose Mantis update is still
+  **outstanding**, each with a drafted `tracker-comment` (status → resolved, "Fixed in version"
+  from the base branch) to paste in by hand — detection is deterministic, the tracker edit
+  stays manual (no Mantis write API; writing a public tracker is the human's call). "Taken care
+  of" is an explicit, durable flag, **not** "seen once": `pdca merged --ack <id> [--version V]
+  [--by …] [--date …]` writes `tracker-update.json` into the bundle (an artifact recording the
+  disposition + who/when), so the item drops off the worklist and stays off across runs; `--all`
+  also lists the acked ones. A merged fix keeps surfacing until acked. Bundles with no Mantis
+  number (slug / `id_pending`, optional-ticket addons) are listed informational-only and can't
+  be acked. The `tracker-update.json` ships with the bundle in its record PR.
 
 ## 2. Branch-target rules
 > Generic doctrine in [`docs/fork-discipline.md`](fork-discipline.md) §1–§3
