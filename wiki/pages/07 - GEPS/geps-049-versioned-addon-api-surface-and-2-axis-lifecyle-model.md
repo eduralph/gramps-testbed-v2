@@ -3,8 +3,7 @@ title: 'GEPS 049: Versioned Addon API surface and 2 axis lifecyle model'
 categories:
 - Developers/General
 - GEPS
-- Pages with broken file links
-managed: false
+managed: true
 source: wiki-scrape
 wiki_revid: 131311
 wiki_fetched_at: '2026-06-27T17:58:11Z'
