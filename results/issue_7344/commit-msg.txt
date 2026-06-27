@@ -1,0 +1,14 @@
+Remove dead locale-slice assignment from addon build scripts
+
+In both make.py and setup.py, the function extracting addon translation
+languages contained dead code: a fixed-width slice assignment that
+immediately gets overwritten. The `locale = po[length-11:length-9]`
+statement (make.py:165, setup.py:787) extracts only 2 characters, which
+would mangle locales like `pt_BR` or `zh_CN`. However, the very next
+line (make.py:166, setup.py:788) overwrites `locale` using `po.rsplit()`,
+and the derived locale (make.py:167, setup.py:789) strips only the suffix
+`-local.po`, yielding the full code for any length. The slice never
+reaches any output; removing it clarifies the code path without changing
+behavior, confirmed by end-to-end testing with multi-char locales.
+
+Fixes #7344

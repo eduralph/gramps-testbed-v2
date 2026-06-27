@@ -1,0 +1,63 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "romjerome\n\n 2012-01-19 09:06\n\ndeveloper    ~0022852": "Is it not related to your localized date handler?",
+    "lcc\n\n 2012-01-19 10:59\n\nreporter    ~0022853": "English date handler then.",
+    "romjerome\n\n 2012-01-20 09:02\n\ndeveloper    ~0022857\n\n last edited: 2012-01-20 09:05\n\nview 5 revisions": "Is it not related to the 'Estimated date' parsing (_DateParser.py)?\nie. 'T<b>est </b>data' => 'Tdata'\n\n<pre>quality_to_int = {\n'estimated' : Date.QUAL_ESTIMATED,\n'est.' : Date.QUAL_ESTIMATED,\n'est' : Date.QUAL_ESTIMATED,\n'calc.' : Date.QUAL_CALCULATED,\n'calc' : Date.QUAL_CALCULATED,\n'calculated' : Date.QUAL_CALCULATED,\n}\n..\n\nregex\n    self._qual_str = self.re_longest_first(self.quality_to_int.keys())\n    self._qual     = re.compile(&quot;(.* ?)%s\\s+(.+)&quot; % self._qual_str,\n                                re.IGNORECASE)</pre>",
+    "romjerome\n\n 2012-01-20 18:39\n\ndeveloper    ~0022860": "Also on 3.3.x with the date handler into my locale.",
+    "dsblank\n\n 2012-01-26 14:30\n\ndeveloper    ~0022933": "Interesting. I wonder how many other strings are removed in error...",
+    "romjerome\n\n 2012-01-26 14:42\n\ndeveloper    ~0022935\n\n last edited: 2012-01-26 14:44\n\nview 2 revisions": "It seems to be related to letters sequences used as keys on quality_to_int:\nquality_to_int.keys()\n\nLocalized date handler used for my locale does not set alternate regex rule (self._qual_str, self._qual): it is using the same one.\nI assume this could be also fixed on _DateParser.py.",
+    "bmcage\n\n 2013-05-26 21:33\n\ndeveloper    ~0029165": "The code to match is likewise for many fields:\n\ndef match_quality(self, text, qual):\n    &quot;&quot;&quot;\n    Try matching quality.\n\n    Return quality index and the text with quality removed.\n    &quot;&quot;&quot;\n    match = self._qual.match(text)\n    if match:\n        qual = self.quality_to_int[match.group(2).lower()]\n        text = match.group(1) + match.group(3)\n    return (text, qual)\n\nIdea seems to be to match est at start or est at beginning in one test. Seems not correct.\n\nI would suggest:\n\n    self._qual     = re.compile(&quot;\\s*(.* ?)%s\\s+(.+)\\s*&quot; % self._qual_str,\n                                re.IGNORECASE)\n\nThen\n\ndef match_quality(self, text, qual):\n    &quot;&quot;&quot;\n    Try matching quality.\n\n    Return quality index and the text with quality removed.\n    &quot;&quot;&quot;\n    match = self._qual.match(text)\n    if match:\n        if match.group(1) and match.group(3):\n           0000003 groups, no qualifier\n           pass\n        else: \n           #est at start or end\n           if match.group(1) and match.group(1)[-1] != ' ':\n              #at end but previous part does not end with space\n              pass\n           elif match.group(3) and match.group(3)[0] != ' ':\n              #at start but next part does not start with space\n              pass\n           else:\n             qual = self.quality_to_int[match.group(2).lower()]\n             text = match.group(1) + match.group(3)\n    return (text, qual)\n\nAnybody feel like trying? Or do we want\nest2001 and 2001est to be parsed? If so, we don't want to check on the space, but allow for that ....\n\nLooking at it, bce only matches at end, so should actually be done likewise.\nCalendar can probably match if written against the date ...",
+    "sam888\n\n 2015-07-16 00:06\n\nadministrator    ~0043236": "Present in Gramps 4.2.0 beta2 and master",
+    "sam888\n\n 2017-01-14 03:41\n\nadministrator    ~0050779": "Present Gramps master"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Is it not related to your localized date handler?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "English date handler then."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Is it not related to the 'Estimated date' parsing (_DateParser.py)?\nie. 'T<b>est </b>data' => 'Tdata'\n\n<pre>quality_to_int = {\n'estimated' : Date.QUAL_ESTIMATED,\n'est.' : Date.QUAL_ESTIMATED,\n'est' : Date.QUAL_ESTIMATED,\n'calc.' : Date.QUAL_CALCULATED,\n'calc' : Date.QUAL_CALCULATED,\n'calculated' : Date.QUAL_CALCULATED,\n}\n..\n\nregex\n    self._qual_str = self.re_longest_first(self.quality_to_int.keys())\n    self._qual     = re.compile(&quot;(.* ?)%s\\s+(.+)&quot; % self._qual_str,\n                                re.IGNORECASE)</pre>"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Also on 3.3.x with the date handler into my locale."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Interesting. I wonder how many other strings are removed in error..."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "It seems to be related to letters sequences used as keys on quality_to_int:\nquality_to_int.keys()\n\nLocalized date handler used for my locale does not set alternate regex rule (self._qual_str, self._qual): it is using the same one.\nI assume this could be also fixed on _DateParser.py."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "The code to match is likewise for many fields:\n\ndef match_quality(self, text, qual):\n    &quot;&quot;&quot;\n    Try matching quality.\n\n    Return quality index and the text with quality removed.\n    &quot;&quot;&quot;\n    match = self._qual.match(text)\n    if match:\n        qual = self.quality_to_int[match.group(2).lower()]\n        text = match.group(1) + match.group(3)\n    return (text, qual)\n\nIdea seems to be to match est at start or est at beginning in one test. Seems not correct.\n\nI would suggest:\n\n    self._qual     = re.compile(&quot;\\s*(.* ?)%s\\s+(.+)\\s*&quot; % self._qual_str,\n                                re.IGNORECASE)\n\nThen\n\ndef match_quality(self, text, qual):\n    &quot;&quot;&quot;\n    Try matching quality.\n\n    Return quality index and the text with quality removed.\n    &quot;&quot;&quot;\n    match = self._qual.match(text)\n    if match:\n        if match.group(1) and match.group(3):\n           0000003 groups, no qualifier\n           pass\n        else: \n           #est at start or end\n           if match.group(1) and match.group(1)[-1] != ' ':\n              #at end but previous part does not end with space\n              pass\n           elif match.group(3) and match.group(3)[0] != ' ':\n              #at start but next part does not start with space\n              pass\n           else:\n             qual = self.quality_to_int[match.group(2).lower()]\n             text = match.group(1) + match.group(3)\n    return (text, qual)\n\nAnybody feel like trying? Or do we want\nest2001 and 2001est to be parsed? If so, we don't want to check on the space, but allow for that ....\n\nLooking at it, bce only matches at end, so should actually be done likewise.\nCalendar can probably match if written against the date ..."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Present in Gramps 4.2.0 beta2 and master"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Present Gramps master"
+    }
+  ],
+  "id": "5516",
+  "url": "https://gramps-project.org/bugs/view.php?id=5516"
+}

@@ -1,0 +1,24 @@
+Deep Connections: skip expanding target in path search
+
+When the Deep Connections path search finds the active/target person,
+it reports the connection path and pauses for user interaction. On
+resume ("Continue"), the search was falling through and expanding the
+target itself as a regular node, queuing the target's own relatives;
+those relatives then re-reach the target, causing the search to
+re-emit the same connection (now with the target re-entered as an
+interior step). This repeat happens with every "Continue" press while
+undiscovered distinct paths remain.
+
+The fix skips the target expansion by adding a `continue` statement
+after the pause/yield in the found-target branch, advancing directly
+to the next queued candidate. Genuinely distinct connections already
+queued before the target was first found remain reachable, preserving
+all independent paths the user should see.
+
+Verified by regression test driving the production path-search
+generator on a fixture with two node-disjoint Home→target connections
+plus a target child that triggered the bounce-back repeat; the test
+asserts no path re-enters the target, both independent paths remain
+reachable, and consecutive paths never repeat.
+
+Fixes #10628

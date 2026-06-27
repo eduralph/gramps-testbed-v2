@@ -1,0 +1,70 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "romjerome\n\n 2011-12-23 07:49\n\ndeveloper": "test.data.gramps (881 bytes)",
+    "sam888\n\n 2015-06-16 00:29\n\nadministrator    ~0042576": "Attempting to recreate this issue and I notice that your test.data.gramps example Person entry for \"Red, Agnes\" contains no entry for the surname \"White\" so the sample you have provided will never show \"White, Agnes\". (see screenshot).\n\nDo you have this issue with the current version of Gramps 4.1.3?",
+    "sam888\n\n 2015-06-16 00:29\n\nadministrator": "Person_ Red, Agnes - Gramps413.png (60,204 bytes)",
+    "diamant\n\n 2015-06-16 07:28\n\nreporter": "Names_tab.png (27,470 bytes)",
+    "diamant\n\n 2015-06-16 07:29\n\nreporter": "Events_tab.png (30,393 bytes)",
+    "diamant\n\n 2015-06-16 07:38\n\nreporter    ~0042602": "Your screenshot was created from Events tab. Look at the Names tab, you can see there \"White, Agnes\".\n\nI use Gramps 3.4.9-1. I uploaded these two tabs. I hope you can reproduce it under Gramps 4.1.3.",
+    "sam888\n\n 2015-06-16 22:26\n\nadministrator": "Person_ White, Agnes-_Names tab-Gramps413.png (53,535 bytes)",
+    "sam888\n\n 2015-06-16 22:29\n\nadministrator": "Birth_edit reference editor- Gramps413.png (119,956 bytes)",
+    "sam888\n\n 2015-06-16 22:37\n\nadministrator    ~0042628\n\n last edited: 2015-06-16 22:38\n\nview 2 revisions": "I can reproduce it, thanks for picking up I was on the wrong tab :(\n\nYou are right the report is using the \"preferred name\" that has been marked and does not take in to account the \"name event type\" for the sentence. Preferably the sentence should take the \"Event\" type into account.\n\nPS:\nOk, my expectation on where the information could be found in the interface did not meet the location in Gramps! When I checked for the White surname I clicked on the birth record to bring up the \"edit reference editor\" expecting to be able to see the \"Birth\" Name! The interface probably needs a tweak itself!",
+    "romjerome\n\n 2017-01-14 08:11\n\ndeveloper    ~0050783\n\n last edited: 2017-01-14 08:17\n\nview 4 revisions": "Does \"Preferred Name\" mean \"Maiden Name\"?\n\nThis seems handled by run_name_format_option() on 'gramps/gen/plug/report/stdoptions.py'.\n\n<pre>def run_name_format_option(report, menu):\n\"\"\"\nRun the option for changing the report's name format to a\nreport-specific format instead of the user's Edit=>Preferences choice\n\"\"\"\ncurrent_format = config.get('preferences.name-format')\nname_format = menu.get_option_by_name(\"name_format\").get_value()\nif name_format != current_format:\nreport._name_display.set_default_format(name_format)\nreturn name_format</pre>",
+    "romjerome\n\n 2017-01-14 08:21\n\ndeveloper    ~0050784\n\n last edited: 2017-01-14 08:23\n\nview 2 revisions": "Some reports (web, birthday, calendar) have a \"maiden name\" option.\n<pre>git grep \"maiden\"</pre>\nMaybe need one common option and refactoring?"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "test.data.gramps (881 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Attempting to recreate this issue and I notice that your test.data.gramps example Person entry for \"Red, Agnes\" contains no entry for the surname \"White\" so the sample you have provided will never show \"White, Agnes\". (see screenshot).\n\nDo you have this issue with the current version of Gramps 4.1.3?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Names_tab.png (27,470 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Events_tab.png (30,393 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Your screenshot was created from Events tab. Look at the Names tab, you can see there \"White, Agnes\".\n\nI use Gramps 3.4.9-1. I uploaded these two tabs. I hope you can reproduce it under Gramps 4.1.3."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Person_ White, Agnes-_Names tab-Gramps413.png (53,535 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Birth_edit reference editor- Gramps413.png (119,956 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I can reproduce it, thanks for picking up I was on the wrong tab :(\n\nYou are right the report is using the \"preferred name\" that has been marked and does not take in to account the \"name event type\" for the sentence. Preferably the sentence should take the \"Event\" type into account.\n\nPS:\nOk, my expectation on where the information could be found in the interface did not meet the location in Gramps! When I checked for the White surname I clicked on the birth record to bring up the \"edit reference editor\" expecting to be able to see the \"Birth\" Name! The interface probably needs a tweak itself!"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Does \"Preferred Name\" mean \"Maiden Name\"?\n\nThis seems handled by run_name_format_option() on 'gramps/gen/plug/report/stdoptions.py'.\n\n<pre>def run_name_format_option(report, menu):\n\"\"\"\nRun the option for changing the report's name format to a\nreport-specific format instead of the user's Edit=>Preferences choice\n\"\"\"\ncurrent_format = config.get('preferences.name-format')\nname_format = menu.get_option_by_name(\"name_format\").get_value()\nif name_format != current_format:\nreport._name_display.set_default_format(name_format)\nreturn name_format</pre>"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Some reports (web, birthday, calendar) have a \"maiden name\" option.\n<pre>git grep \"maiden\"</pre>\nMaybe need one common option and refactoring?"
+    }
+  ],
+  "id": "4862",
+  "url": "https://gramps-project.org/bugs/view.php?id=4862"
+}

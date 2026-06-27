@@ -1,0 +1,12 @@
+Fix date quality keyword matching inside words
+
+Free-text date input containing a quality keyword as a substring (e.g. "Test
+data" containing "est") was silently corrupted when the keyword appeared
+embedded inside an ordinary word. DateParser.match_quality used an
+unanchored regex that matched the keyword anywhere, stripping it and
+mangling the text. Add a word-boundary anchor to the regex so keywords are
+recognized only as whole tokens, never inside unrelated words. Genuine
+quality-prefixed dates (est 1900, calculated 1900) continue to parse
+correctly.
+
+Fixes #5516

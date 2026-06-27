@@ -1,0 +1,33 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "lordemannd\n\n 2018-02-08 20:30\n\ndeveloper": "exclude v2.pdf (9,428 bytes)\n include v2.pdf (13,401 bytes)\n direct line problem v2_2018-02-08.gramps (1,014 bytes)",
+    "lordemannd\n\n 2021-02-16 17:05\n\ndeveloper    ~0062016": "This problem is still present in Gramps 5.1.3-2 (GrampsAIO-5.1.3-2_win64.exe)",
+    "lordemannd\n\n 2025-01-01 07:15\n\ndeveloper    ~0067739\n\n last edited: 2025-01-01 09:55\n\nview 2 revisions": "This problem is still present in Gramps 5.2.3 (AIO64-5.2.3-r1-aa03f5a).\n\nThe issue is that if the \"Try to remove extra people and families\" option is selected,\ndirect line ancestors that have a different family name will be removed from the report.\n(for the original reporter of #0010400, the family name was the same name, just spelled differently)\n\nShould Direct line ancestors ever be considered \"extra\", to be excluded?\n\nNote that using the Name Editor \"Group as:\" feature to group both of the spellings\n(\"familyName\" and \"differentSpellingOfFamilyName\") does not overcome the issue,\ngrand father and grand mother are still excluded as \"extra\".",
+    "lordemannd\n\n 2025-02-10 00:06\n\ndeveloper    ~0068080": "no change, issue still present in 5.2.4 and 6.0.0 beta 3"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "exclude v2.pdf (9,428 bytes)\n include v2.pdf (13,401 bytes)\n direct line problem v2_2018-02-08.gramps (1,014 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "This problem is still present in Gramps 5.1.3-2 (GrampsAIO-5.1.3-2_win64.exe)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "This problem is still present in Gramps 5.2.3 (AIO64-5.2.3-r1-aa03f5a).\n\nThe issue is that if the \"Try to remove extra people and families\" option is selected,\ndirect line ancestors that have a different family name will be removed from the report.\n(for the original reporter of #0010400, the family name was the same name, just spelled differently)\n\nShould Direct line ancestors ever be considered \"extra\", to be excluded?\n\nNote that using the Name Editor \"Group as:\" feature to group both of the spellings\n(\"familyName\" and \"differentSpellingOfFamilyName\") does not overcome the issue,\ngrand father and grand mother are still excluded as \"extra\"."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "no change, issue still present in 5.2.4 and 6.0.0 beta 3"
+    }
+  ],
+  "id": "10415",
+  "url": "https://gramps-project.org/bugs/view.php?id=10415"
+}

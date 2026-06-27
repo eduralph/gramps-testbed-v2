@@ -1,0 +1,26 @@
+Use birth names in marriage narratives to prevent ambiguity
+
+In narrative text reports, the spouse in a marriage sentence ("He married
+<name> on <date>.") is rendered with the spouse's currently-preferred (primary)
+name. When that person later divorces and remarries, their preferred name
+becomes a later married name, so the past-tense sentence about the *earlier*
+marriage silently switches to that later name — ambiguous to the reader.
+
+This fix uses the spouse's Birth Name when one exists, preserving it as a
+stable reference unaffected by later name changes. When the spouse has no
+separate birth name (the common case), it falls back to the preferred name,
+preserving today's output for everyone else.
+
+Changes to gramps/plugins/lib/libnarrate.py:
+- Add NameType import (after existing imports)
+- Add helpers _get_birth_name() and _get_spouse_name() that select the birth
+  name when present, falling back to display(spouse) otherwise
+- Update get_married_string() to use _get_spouse_name() instead of the inline
+  display code
+
+The fix applies to all narrative reports that use the shared Narrator, not just
+one. New regression test added to gramps/plugins/lib/test/libnarrate_test.py
+verifies that the spouse is named by a stable birth name, staying the same
+even after a later preferred name change.
+
+Fixes #4862

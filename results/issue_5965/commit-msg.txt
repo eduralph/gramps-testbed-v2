@@ -1,0 +1,19 @@
+Fix DescendantsLines graphic name persisting across sessions
+
+The DescendantsLines report derives the graphic's output filename
+solely from its persisted "Destination" option, which retains the
+previous session's value across Gramps sessions. The graphic lands on
+that stale name rather than the filename chosen for the current run in
+the standard report dialog's "Document Options", ignoring the user's
+current selection entirely.
+
+Extract the filename derivation into a pure helper module
+(descendantslines_output.py, free of gi imports so it can be tested
+headlessly) and route production through derive_output_filename, which
+sources the current run's destination instead. Fall back to the
+persisted option only when no current destination is given (e.g. CLI
+without -O). When the derived name would equal the document's own
+output path, add a -chart suffix to avoid clobbering by the
+document's close().
+
+Fixes #5965

@@ -1,0 +1,87 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "peterl\n\n 2013-06-03 17:24\n\ndeveloper    ~0029255": "The algorithms for calculating these numbers are different in the two Gramplets. I have a difference of just 1; 1208 and 1209.\nWhat do you get in the Statistics Gramplet?",
+    "jduemes\n\n 2013-06-03 21:56\n\nreporter    ~0029257": "Unique surnames: 449",
+    "peterl\n\n 2013-06-04 07:33\n\ndeveloper    ~0029260": "Thank you. I will take a look and see what I can do.",
+    "peterl\n\n 2013-06-04 08:36\n\ndeveloper    ~0029261": "TopSurnames uses a different algorithm than Statistics and SurnameCloud, which uses identical algorithm.\n\nThe difference occurs when you have both primary and alternate surnames.\n\nDo you have many alternate surnames?",
+    "jduemes\n\n 2013-06-04 09:00\n\nreporter    ~0029262": "I would say yes.\n\nIf a woman, i.e. \"Paula Souza\" marries with \"Roberto Varela\" and she gives up her birth name Souza having only Paula Varela after marriage, I add a Alternative name as Married Name for her. This is very convenient to keep the information.\n\nDid I understand your question correctly ? Is this what you mean with \"alternate surnames\" ?",
+    "peterl\n\n 2013-06-04 12:22\n\ndeveloper    ~0029264\n\n last edited: 2022-01-22 21:58\n\nview 3 revisions": "Yes. However, I don't think that alternate name was intended to be used for \"Married Name\". There was a discussion recently in the Gramps UsersList about this. See:\n\nhttps://sourceforge.net/p/gramps/mailman/message/30922244/\n\nI have used alternate name only when a person changed its surname (not by marriage).",
+    "jduemes\n\n 2013-06-04 15:29\n\nreporter    ~0029266": "Thanks for pointing out that discussion.\n\nYou say you don't think alternate name was intended to be used for \"Married Name\", but two of the name types are in fact birth and married name. This made me automatically/intuitively think what the \"alternative name\" was intended for.\n\nAnyway, if I adopt the approach mentioned on that discussion - namely use the birth name as primary name - there will still be value discrepancies of the same term \"Total unique surnames\" between \"Surname Cloud\" and \"Top Surnames\". Maybe an idea would be to use different terms since they show different values.",
+    "peterl\n\n 2013-06-04 16:20\n\ndeveloper    ~0029267": "OK. I have not noticed that birth and married name was in the list of name types. Have only used alias.\n\nI will have look at the TopSurnames and see if I can define the result better.",
+    "vassilii\n\n 2013-06-11 21:48\n\ndeveloper    ~0029313": "First, it sounds that, no matter what, the two gramplets should have the same logic wrt what is counted and what is not, best if it's done using the same common code.\n\nThe easiest thing would probably be to change both gramplets to report \"total unique primary surnames\".\n\nAnother option would be to count each and every surname, but then you also have to consider special cases like patronymic/patronymic-without-actual-surname etc.\n\nFWIW, In my database, I use alias for two scenarios:\n1) Alternative spelling in a different source, most notably, Russian official name vs original Jewish rabbinical record. This sometimes can be as different, e.g., \"Michael\" vs \"Moshe\".\n\n2) Like you, when the person underwent a name change not through a marriage event.",
+    "peterl\n\n 2013-06-12 14:58\n\ndeveloper    ~0029324": "The gramplets \"SurnameCloudGramplet\" and \"StatsGramplet\" use the same algorithm.\n\n\"TopSurnameGramplet\" uses another algorithm.\n\nTested with my tree.\n\n\"TopSurnameGramplet\" counts empty surnames. This has been fixed.\n\n\"af Ekenstam\" in SurnameCloudGramplet/StatsGramplet\nis counted as \"Ekenstam\" in Stats, which is OK.\n\n\"Ersson Wänman\" in SurnameCloudGramplet/StatsGramplet is not counted in Stats.\nBoth \"Ersson\" and \"Wänman\" are counted in all three.\nErsson is a patronymicon, Wänman is a \"taken name\"\n\n\"Olofsson Landgren\" in SurnameCloudGramplet/StatsGramplet is not counted in Stats.\nBoth \"Olofsson\" and \"Landgren\" are counted in all three.\nOlofsson is name by birth and Landgren is new alias.\nUsing alternate nam.\n\nSurnameCloudGramplet gives 1209 names\nStatsGramplet gives 1209\nTopSurnameGramplet gives 1207, which is correct as the names\n\"Ersson Wänman\" and \"Olofsson Landgren\" are not counted in TopSurnameGramplet.\n\nThe correct number is 1209.",
+    "paulfranklin\n\n 2014-01-22 17:17\n\ndeveloper    ~0034347": "Hi Peter,\n\nThis is assigned to you.\n\nShould it be left at 3.4.7, or moved to 3.4.8, or\nmoved to 3.4.99?\n\nPlease let us know.\n\nThanks.",
+    "paulfranklin\n\n 2014-05-02 18:56\n\ndeveloper    ~0035981": "No answer. Moving to 3.4.99.",
+    "sam888\n\n 2015-06-15 03:53\n\nadministrator": "Gramplets _Surname Cloud_ and _Top Surnames_ with different counts of __gramps413.png (129,402 bytes)"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "The algorithms for calculating these numbers are different in the two Gramplets. I have a difference of just 1; 1208 and 1209.\nWhat do you get in the Statistics Gramplet?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Unique surnames: 449"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Thank you. I will take a look and see what I can do."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "TopSurnames uses a different algorithm than Statistics and SurnameCloud, which uses identical algorithm.\n\nThe difference occurs when you have both primary and alternate surnames.\n\nDo you have many alternate surnames?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I would say yes.\n\nIf a woman, i.e. \"Paula Souza\" marries with \"Roberto Varela\" and she gives up her birth name Souza having only Paula Varela after marriage, I add a Alternative name as Married Name for her. This is very convenient to keep the information.\n\nDid I understand your question correctly ? Is this what you mean with \"alternate surnames\" ?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Yes. However, I don't think that alternate name was intended to be used for \"Married Name\". There was a discussion recently in the Gramps UsersList about this. See:\n\nhttps://sourceforge.net/p/gramps/mailman/message/30922244/\n\nI have used alternate name only when a person changed its surname (not by marriage)."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Thanks for pointing out that discussion.\n\nYou say you don't think alternate name was intended to be used for \"Married Name\", but two of the name types are in fact birth and married name. This made me automatically/intuitively think what the \"alternative name\" was intended for.\n\nAnyway, if I adopt the approach mentioned on that discussion - namely use the birth name as primary name - there will still be value discrepancies of the same term \"Total unique surnames\" between \"Surname Cloud\" and \"Top Surnames\". Maybe an idea would be to use different terms since they show different values."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "OK. I have not noticed that birth and married name was in the list of name types. Have only used alias.\n\nI will have look at the TopSurnames and see if I can define the result better."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "First, it sounds that, no matter what, the two gramplets should have the same logic wrt what is counted and what is not, best if it's done using the same common code.\n\nThe easiest thing would probably be to change both gramplets to report \"total unique primary surnames\".\n\nAnother option would be to count each and every surname, but then you also have to consider special cases like patronymic/patronymic-without-actual-surname etc.\n\nFWIW, In my database, I use alias for two scenarios:\n1) Alternative spelling in a different source, most notably, Russian official name vs original Jewish rabbinical record. This sometimes can be as different, e.g., \"Michael\" vs \"Moshe\".\n\n2) Like you, when the person underwent a name change not through a marriage event."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "The gramplets \"SurnameCloudGramplet\" and \"StatsGramplet\" use the same algorithm.\n\n\"TopSurnameGramplet\" uses another algorithm.\n\nTested with my tree.\n\n\"TopSurnameGramplet\" counts empty surnames. This has been fixed.\n\n\"af Ekenstam\" in SurnameCloudGramplet/StatsGramplet\nis counted as \"Ekenstam\" in Stats, which is OK.\n\n\"Ersson Wänman\" in SurnameCloudGramplet/StatsGramplet is not counted in Stats.\nBoth \"Ersson\" and \"Wänman\" are counted in all three.\nErsson is a patronymicon, Wänman is a \"taken name\"\n\n\"Olofsson Landgren\" in SurnameCloudGramplet/StatsGramplet is not counted in Stats.\nBoth \"Olofsson\" and \"Landgren\" are counted in all three.\nOlofsson is name by birth and Landgren is new alias.\nUsing alternate nam.\n\nSurnameCloudGramplet gives 1209 names\nStatsGramplet gives 1209\nTopSurnameGramplet gives 1207, which is correct as the names\n\"Ersson Wänman\" and \"Olofsson Landgren\" are not counted in TopSurnameGramplet.\n\nThe correct number is 1209."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Hi Peter,\n\nThis is assigned to you.\n\nShould it be left at 3.4.7, or moved to 3.4.8, or\nmoved to 3.4.99?\n\nPlease let us know.\n\nThanks."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "No answer. Moving to 3.4.99."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Gramplets _Surname Cloud_ and _Top Surnames_ with different counts of __gramps413.png (129,402 bytes)"
+    }
+  ],
+  "id": "6793",
+  "url": "https://gramps-project.org/bugs/view.php?id=6793"
+}

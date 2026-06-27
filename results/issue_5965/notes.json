@@ -1,0 +1,33 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "romjerome\n\n 2012-08-04 12:56\n\ndeveloper    ~0025016\n\n last edited: 2012-08-04 12:59\n\nview 2 revisions": "Sorry, but 0005962 is fixed : no more crash ...\n\nYour comment 0005962:0025003 should be related to 0005488\nwhich is something different!\n\nThe design of this addon is very experimental...\nI was against to provide it as STABLE for this reason!\n\nAll remaining issues might be listed into 0005488 ?",
+    "dougbain\n\n 2012-08-04 13:30\n\nreporter    ~0025017": "OK.\nI do like this addon; it produces a very nice result.\n\nBut in the meantime, can you advise me how to get rid of the stale output filename which now seems to be fixed in gramps and overrides each new report?",
+    "user396\n\n 2013-07-27 09:25": "decendants lines gui.jpg (42,075 bytes)",
+    "user396\n\n 2013-07-27 09:26\n\n   ~0030240": "There are two possibilities to select the output file (see attached image: \"descendants lines gui.jpg\"):\n\nReport Options --> \"Output format\" and \"Destination\"\nno automatic file extend\ncorrect output if file extend is correct and the file is manually opened\nno automatic Open\nDocument Options --> \"Output format\" and Filename\nautomatic file extend\nempty output\noptional automatic Open\n\nSo it seems, the second option (Gramps standard) doesn't help the user at the moment"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Sorry, but 0005962 is fixed : no more crash ...\n\nYour comment 0005962:0025003 should be related to 0005488\nwhich is something different!\n\nThe design of this addon is very experimental...\nI was against to provide it as STABLE for this reason!\n\nAll remaining issues might be listed into 0005488 ?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "OK.\nI do like this addon; it produces a very nice result.\n\nBut in the meantime, can you advise me how to get rid of the stale output filename which now seems to be fixed in gramps and overrides each new report?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "decendants lines gui.jpg (42,075 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "There are two possibilities to select the output file (see attached image: \"descendants lines gui.jpg\"):\n\nReport Options --> \"Output format\" and \"Destination\"\nno automatic file extend\ncorrect output if file extend is correct and the file is manually opened\nno automatic Open\nDocument Options --> \"Output format\" and Filename\nautomatic file extend\nempty output\noptional automatic Open\n\nSo it seems, the second option (Gramps standard) doesn't help the user at the moment"
+    }
+  ],
+  "id": "5965",
+  "url": "https://gramps-project.org/bugs/view.php?id=5965"
+}

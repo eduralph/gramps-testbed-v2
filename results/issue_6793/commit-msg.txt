@@ -1,0 +1,29 @@
+Make surname gramplets count unique surnames consistently
+
+The Top Surnames, Surname Cloud, and Statistics gramplets each reported
+a "unique surnames" total but enumerated them by different rules, causing
+the same tree to show inconsistent counts (e.g., 244 vs 449).
+
+Introduce a canonical rule and route every gramplet through it:
+
+- New gramps/plugins/lib/libsurnames.py holds record_surnames() and
+  count_unique_surnames(), implementing one consistent definition: a
+  unique surname is a distinct surname *group name* from each person's
+  primary and alternate names (the rule Top Surnames already used).
+- gramps/plugins/gramplet/topsurnamesgramplet.py imports record_surnames
+  from libsurnames instead of defining it; its count is unchanged.
+- gramps/plugins/gramplet/surnamecloudgramplet.py now uses record_surnames
+  and reports len(surnames) instead of len(namelist), aligning its count
+  to the group names its cloud actually displays.
+- gramps/plugins/gramplet/statsgramplet.py calls count_unique_surnames()
+  instead of len(set(database.surname_list)), now counting alternate-name
+  surnames the old index silently dropped.
+- Added gramps/plugins/gramplet/test/surnamecount_test.py to verify the
+  three gramplets agree.
+- Registered the new .py files in po/POTFILES.skip.
+
+All three gramplets now derive the count from one implementation, so
+agreement is by construction. Alternate-name surnames (e.g., married
+names) are now counted consistently across all gramplets.
+
+Fixes #6793

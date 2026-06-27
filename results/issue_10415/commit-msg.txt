@@ -1,0 +1,22 @@
+graph: fix Family Lines ancestor pruning by surname
+
+The Family Lines Graph report's "remove extra people" option dropped
+direct-line ancestors when their surname spelling differed across
+generations. The `remove_uninteresting_parents` method kept ancestors
+only via a set of heuristics, including surname text matching; it had
+no lineage-based criterion independent of surname strings, so a
+top-of-tree ancestor whose surname spelling drifted (e.g. Smith →
+Smithe → Smyth) was pruned even though they were direct parents of a
+person of interest.
+
+Extract the people/family-selection logic into a GUI-free
+`FamilyLinesSelection` class so it can be unit-tested directly.
+Add a new `_direct_ancestors()` method that computes the transitive
+closure of parent links from the interest set, deciding membership
+purely by lineage. Check if a person is in the direct-ancestor set
+before applying the surname heuristic in `remove_uninteresting_parents`,
+ensuring surname spelling drift no longer prunes legitimate bloodline
+ancestors. The pre-existing heuristics remain unchanged and still apply
+to any non-ancestor a future code path might place in the set.
+
+Fixes #10415
