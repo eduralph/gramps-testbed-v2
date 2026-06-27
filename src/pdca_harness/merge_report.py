@@ -99,7 +99,8 @@ def is_acked(pub: Published) -> bool:
 def _gh_view(pr_url: str) -> dict | None:
     """``gh pr view`` merge fields for ``pr_url``, or None if it can't be read (fail-open)."""
     r = subprocess.run(
-        ["gh", "pr", "view", pr_url, "--json", "state,mergedAt,mergeCommit,title"],
+        ["gh", "pr", "view", pr_url, "--json",
+         "state,mergedAt,mergeCommit,title,baseRefName"],
         capture_output=True, text=True)
     if r.returncode != 0:
         return None
@@ -119,6 +120,11 @@ class PRState:
     merged_at: str
     merge_commit: str
     title: str
+    # GitHub's current base branch (``baseRefName``) at poll time. This is the AUTHORITATIVE
+    # merge target: when a stacked PR's parent merges, GitHub retargets the dependent to the
+    # parent's base, so by the time it reads MERGED this is the real upstream branch — unlike
+    # the publish-time ``Published.base``, which for a stacked publish is the parent PR branch.
+    base: str = ""
 
 
 def poll(items: list[Published], gh_view=_gh_view) -> dict[str, PRState]:
@@ -134,8 +140,21 @@ def poll(items: list[Published], gh_view=_gh_view) -> dict[str, PRState]:
         states[it.bundle] = PRState(
             pr_url=it.pr_url, known=True, merged=data.get("state") == "MERGED",
             merged_at=data.get("mergedAt") or "", merge_commit=commit[:12],
-            title=data.get("title") or "")
+            title=data.get("title") or "", base=data.get("baseRefName") or "")
     return states
+
+
+def merge_base(pub: Published, st: PRState | None = None) -> str:
+    """The branch the fix actually merged into — GitHub's post-merge ``baseRefName`` when known,
+    else the base recorded at publish time.
+
+    A stacked publish stores the PARENT PR branch in ``publish.json`` (``publish.py``
+    ``_publish_stacked`` records ``<remote>/<branch>``; the auto-stack path records the parent
+    branch), which is not an upstream release — so ``Published.base`` alone would yield a bogus
+    "Fixed in version" like ``origin/feature/x``. GitHub retargets a stacked dependent to the
+    parent's base when the parent merges, so ``PRState.base`` (read at poll time) is the
+    authoritative target. Falls back to the stored base when the PR is unreadable (fail-open)."""
+    return (st.base if st and st.base else "") or pub.base
 
 
 def draft_comment(cfg: Config, pub: Published, st: PRState) -> str:
@@ -146,19 +165,20 @@ def draft_comment(cfg: Config, pub: Published, st: PRState) -> str:
     """
     pr_ref = _pr_ref(pub)
     commit = f" (merge {st.merge_commit})" if st.merge_commit else ""
+    base = merge_base(pub, st)
     tpl = cfg.templates_dir / "tracker-comment.md.tpl"
     lines = [
         f"**Issue:** {pub.mantis_id}",
         "**Disposition:** Fixed",
         "",
-        f"Fixed upstream; the contribution was merged into `{pub.base}`{commit}.",
+        f"Fixed upstream; the contribution was merged into `{base}`{commit}.",
         "",
         "**Evidence:**",
         f"- {pr_ref}, merged {st.merged_at or '(date on GitHub)'}.",
         "",
         "**Set on this ticket:**",
         "- Status → resolved",
-        f"- Fixed in version → {fixed_in_version(pub.base)}",
+        f"- Fixed in version → {fixed_in_version(base)}",
     ]
     body = "\n".join(lines)
     if tpl.exists():
@@ -184,12 +204,18 @@ def resolve(items: list[Published], ident: str) -> Published | None:
 
 
 def ack(cfg: Config, ident: str, *, by: str, date: str, version: str = "",
-        out=print) -> int:
+        gh_view=_gh_view, out=print) -> int:
     """Flag a merged ticket's Mantis update as done — write ``tracker-update.json`` (#bundle).
 
     Records the disposition, the "Fixed in version" (derived from the base unless overridden),
     and who/when, so the worklist stops surfacing it. Refuses an unknown id or a bundle with
-    no Mantis number (nothing to update on the tracker)."""
+    no Mantis number (nothing to update on the tracker).
+
+    When no explicit ``version`` is given, the default is derived from the PR's CURRENT GitHub
+    base (``baseRefName``), not the publish-time ``Published.base`` — for a stacked PR the
+    stored base is the parent branch, not an upstream release (see ``merge_base``). The lookup
+    is skipped when ``version`` is supplied (stays offline) and falls back to the stored base
+    when the PR is unreadable."""
     items = collect(cfg)
     pub = resolve(items, ident)
     if pub is None:
@@ -198,11 +224,16 @@ def ack(cfg: Config, ident: str, *, by: str, date: str, version: str = "",
     if not pub.mantis_id:
         out(f"merged: {pub.bundle} has no Mantis number — nothing to record on the tracker")
         return 2
+    if version:
+        fixed = version
+    else:
+        st = poll([pub], gh_view=gh_view)[pub.bundle]
+        fixed = fixed_in_version(merge_base(pub, st))
     rec = {
         "mantis_id": pub.mantis_id,
         "pr_url": pub.pr_url,
         "status": "resolved",
-        "fixed_in_version": version or fixed_in_version(pub.base),
+        "fixed_in_version": fixed,
         "by": by,
         "date": date,
     }
@@ -242,7 +273,7 @@ def report(cfg: Config, *, show_all: bool = False, gh_view=_gh_view, out=print) 
         pub, st = by_bundle[b], states[b]
         out("")
         out(f"● Mantis {pub.mantis_id}  ·  {_pr_ref(pub)}  ·  merged {st.merged_at} "
-            f"·  base {pub.base}")
+            f"·  base {merge_base(pub, st)}")
         out(f"  {pub.repo}  ·  bundle {pub.bundle}")
         out(f"  flag done:  pdca merged --ack {pub.mantis_id}")
         out("  ── drafted tracker comment " + "─" * 30)

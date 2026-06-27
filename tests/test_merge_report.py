@@ -50,9 +50,10 @@ def _gh(states: dict[str, dict | None]):
     return lambda pr_url: states.get(pr_url)
 
 
-def _merged_gh(pr_url: str):
+def _merged_gh(pr_url: str, base: str = "maintenance/gramps61"):
     return _gh({pr_url: {"state": "MERGED", "mergedAt": "2026-06-26T00:00:00Z",
-                         "mergeCommit": {"oid": "deadbeefcafe0000"}, "title": "fix"}})
+                         "mergeCommit": {"oid": "deadbeefcafe0000"}, "title": "fix",
+                         "baseRefName": base}})
 
 
 class Collect(unittest.TestCase):
@@ -101,13 +102,15 @@ class Poll(unittest.TestCase):
         st = merge_report.poll(items, gh_view=_gh({
             "open": {"state": "OPEN"},
             "done": {"state": "MERGED", "mergedAt": "2026-06-26T00:00:00Z",
-                     "mergeCommit": {"oid": "abcdef1234567890"}, "title": "fix"},
+                     "mergeCommit": {"oid": "abcdef1234567890"}, "title": "fix",
+                     "baseRefName": "maintenance/gramps60"},
             "err": None,
         }))
         self.assertFalse(st["issue_1"].merged)
         self.assertTrue(st["issue_1"].known)
         self.assertTrue(st["issue_2"].merged)
         self.assertEqual(st["issue_2"].merge_commit, "abcdef123456")  # 12-char trim
+        self.assertEqual(st["issue_2"].base, "maintenance/gramps60")  # GitHub baseRefName
         self.assertFalse(st["issue_3"].known)
 
 
@@ -136,7 +139,7 @@ class Worklist(unittest.TestCase):
 
         # Ack it → durable tracker-update.json, then it drops off and stays off.
         rc = merge_report.ack(self.cfg, "13163", by="Tester", date="2026-06-27",
-                              out=lambda *_: None)
+                              gh_view=gh, out=lambda *_: None)
         self.assertEqual(rc, 0)
         rec = json.loads((self.cfg.bundle_root / "issue_13163"
                           / merge_report.ACK_FILE).read_text())
@@ -156,6 +159,26 @@ class Worklist(unittest.TestCase):
         rec = json.loads((self.cfg.bundle_root / "issue_7"
                           / merge_report.ACK_FILE).read_text())
         self.assertEqual(rec["fixed_in_version"], "6.1.4")
+
+    def test_ack_stacked_derives_version_from_github_base(self) -> None:
+        # Stored base is the parent PR branch; ack must default the version from GitHub's
+        # current base, not the stored branch (which `_VERSION_BY_BASE` can't map).
+        _publish(self.cfg, "issue_8", pr_url="p", repo="r", base="origin/fix/prereq")
+        merge_report.ack(self.cfg, "8", by="T", date="2026-06-27",
+                         gh_view=_merged_gh("p", base="maintenance/gramps60"),
+                         out=lambda *_: None)
+        rec = json.loads((self.cfg.bundle_root / "issue_8"
+                          / merge_report.ACK_FILE).read_text())
+        self.assertEqual(rec["fixed_in_version"], "6.0.x")
+
+    def test_ack_falls_back_to_stored_base_when_pr_unreadable(self) -> None:
+        # gh unreadable → default version from the publish-time base (fail-open, no override).
+        _publish(self.cfg, "issue_9", pr_url="p", repo="r", base="maintenance/gramps61")
+        merge_report.ack(self.cfg, "9", by="T", date="2026-06-27",
+                         gh_view=_gh({"p": None}), out=lambda *_: None)
+        rec = json.loads((self.cfg.bundle_root / "issue_9"
+                          / merge_report.ACK_FILE).read_text())
+        self.assertEqual(rec["fixed_in_version"], "6.1.x")
 
     def test_ack_refuses_no_ticket_bundle(self) -> None:
         _publish(self.cfg, "issue_glade-setattr", pr_url="p", repo="r", base="b")
@@ -199,6 +222,32 @@ class Draft(unittest.TestCase):
         self.assertIn("Fixed in version → 6.1.x", body)
         self.assertIn("upstream PR 2411", body)        # plain-text, not a link
         self.assertNotIn("https://x/pull/2411", body)  # no upstream cross-link
+
+    def test_stacked_base_uses_github_baseRefName_not_stored_parent_branch(self) -> None:
+        # A stacked publish records the PARENT PR branch as `base`; GitHub retargets the
+        # dependent to the real upstream branch on merge. The draft must use GitHub's base,
+        # else "Fixed in version" is a bogus branch name like origin/fix/prereq.
+        pub = merge_report.Published(
+            bundle="issue_13163", dir=self.tmp, pr_url="https://x/pull/2411",
+            repo="gramps-project/gramps", base="origin/fix/prereq", mantis_id="13163")
+        st = merge_report.PRState(pr_url=pub.pr_url, known=True, merged=True,
+                                  merged_at="2026-06-26T00:00:00Z", merge_commit="deadbeefcafe",
+                                  title="fix", base="maintenance/gramps60")
+        body = merge_report.draft_comment(self.cfg, pub, st)
+        self.assertIn("Fixed in version → 6.0.x", body)
+        self.assertIn("merged into `maintenance/gramps60`", body)
+        self.assertNotIn("origin/fix/prereq", body)
+
+    def test_draft_falls_back_to_stored_base_when_github_base_unknown(self) -> None:
+        # Unreadable / no baseRefName → fall back to the publish-time base (fail-open).
+        pub = merge_report.Published(
+            bundle="issue_13163", dir=self.tmp, pr_url="https://x/pull/2411",
+            repo="gramps-project/gramps", base="maintenance/gramps61", mantis_id="13163")
+        st = merge_report.PRState(pr_url=pub.pr_url, known=True, merged=True,
+                                  merged_at="2026-06-26T00:00:00Z", merge_commit="deadbeefcafe",
+                                  title="fix", base="")  # GitHub base missing
+        body = merge_report.draft_comment(self.cfg, pub, st)
+        self.assertIn("Fixed in version → 6.1.x", body)
 
 
 if __name__ == "__main__":
