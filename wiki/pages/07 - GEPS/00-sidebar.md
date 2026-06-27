@@ -25,3 +25,9 @@ managed: false
 
 `GEPS 049` is a draft under review (Discourse 9491 / GitHub Discussion 2311).
 Mirrored from the wiki at revid 131311 — refresh with `scrape_wiki.py`.
+
+## New proposal
+
+Copy [[geps]] (`02 - templates/geps.md`) into this folder, fill it in, and set
+the front-matter `title:` to the `GEPS NNN: …` page name. The template's header
+comment covers the publish steps (`publish.py` dry-run → `--apply`).
