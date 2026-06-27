@@ -18,8 +18,12 @@ managed: false
 Active change suggestions, one file per item. Lighter-weight than a formal
 GEPS ([[07 - GEPS]]); a suggestion that matures into a proposal graduates.
 
-<!-- Index is populated as suggestions are added (one [[..]] entry each). -->
+1. [[addon-translation-auto-discovery]] — Mantis Feature Request: `get_addon_translator()`
+   should resolve the addon root so translation works in nested-package addons.
+2. [[addon-typed-protocol-api]] — Mantis Feature Request: typed Protocol API for addons
+   (DB API first); the follow-on GEPS 049 enables.
 
 ## Status
 
-New section — add suggestions as Markdown files alongside this sidebar.
+Suggestions are authored as Markdown here and filed in the Gramps Mantis
+**Feature Requests** project; they are not published to the wiki.
