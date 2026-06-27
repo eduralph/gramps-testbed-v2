@@ -16,8 +16,8 @@ import shutil
 import sys
 from pathlib import Path
 
-from . import (act, brief, driver, flow, gates, lane, merged, publish, queue,
-               revalidate, signoff, state)
+from . import (act, brief, driver, flow, gates, lane, merge_report, merged,
+               publish, queue, revalidate, signoff, state)
 from .config import Config
 
 
@@ -115,6 +115,17 @@ def main(argv: list[str] | None = None) -> int:
     p_signoff.add_argument("--no-publish", action="store_true",
                            help="don't publish-on-accept (record §9, stop at COMPLETE)")
 
+    p_merged = sub.add_parser("merged",
+        help="monitor published PRs: report merged fixes whose Mantis update is still due")
+    p_merged.add_argument("--ack", metavar="ID",
+                          help="flag a ticket's Mantis update done (writes tracker-update.json)")
+    p_merged.add_argument("--version", default="",
+                          help="with --ack: 'Fixed in version' (default: derived from the base branch)")
+    p_merged.add_argument("--by", default="", help="with --ack: who updated the tracker")
+    p_merged.add_argument("--date", help="with --ack: ISO date of the update (default: today)")
+    p_merged.add_argument("--all", action="store_true",
+                          help="also list tickets already flagged done")
+
     p_publish = sub.add_parser("publish", help="Check's closing work: contribute an accepted fix as a draft PR")
     p_publish.add_argument("issue_id")
     p_publish.add_argument("--dry-run", action="store_true", help="print the git/gh commands without running them")
@@ -163,6 +174,11 @@ def main(argv: list[str] | None = None) -> int:
         return _act(cfg, args)
     if args.cmd == "signoff":
         return _signoff(cfg, args)
+    if args.cmd == "merged":
+        if args.ack:
+            return merge_report.ack(cfg, args.ack, by=args.by, version=args.version,
+                                    date=args.date or datetime.date.today().isoformat())
+        return merge_report.report(cfg, show_all=args.all)
     if args.cmd == "publish":
         return publish.publish(cfg, args.issue_id, dry_run=args.dry_run,
                                open_pr=not args.no_pr, by=args.by, pending_id=args.no_issue)
