@@ -1,0 +1,36 @@
+// Source for api_bump_flow.png — GEPS 049, Part 3 ("Building a new version").
+// Render: dot -Tpng -Gdpi=140 api_bump_flow.gv -o api_bump_flow.png
+digraph api_bump_flow {
+  rankdir=TB;
+  compound=true;
+  bgcolor="white";
+  graph [fontname="Helvetica", fontsize=13, labelloc="t",
+         label="API generation bump flow — one addon changes, ~140 untouched\n",
+         fontcolor="#222222"];
+  node  [fontname="Helvetica", fontsize=10, shape=box,
+         style="rounded,filled", margin="0.16,0.10", fillcolor="white", color="#5b8cc4"];
+  edge  [fontname="Helvetica", fontsize=10, color="#555555"];
+
+  trigger [shape=parallelogram, fillcolor="#fff4e0", color="#d6a13a",
+           label=<<b>External trigger</b><br align="left"/>a Gramps release implements a new API generation<br align="left"/>>];
+  update  [label=<<b>Author updates ONE addon</b><br align="left"/>MyAddon.gpr.py — addon_api range / version=<br align="left"/>then rebuilds<br align="left"/>>];
+  build   [fillcolor="#f1f1f1", color="#888888",
+           label=<<b>make.py build</b> MyAddon<br align="left"/><b>make.py listing</b> MyAddon<br align="left"/>>];
+
+  subgraph cluster_changed {
+    label="Changes — only MyAddon"; labeljust="l"; fontsize=11; fontcolor="#235e34";
+    style="rounded,filled"; fillcolor="#e9f8ec"; color="#3f9a57";
+    node [fillcolor="#cdeccf", color="#3f9a57"];
+    t1 [label=<<b>download/MyAddon-2.0.1.tgz</b>  &#8212; new tarball>];
+    t2 [label=<<b>metadata/MyAddon.json</b>  &#8212; v2.0.1 entry appended<br align="left"/>(v2.0.0 &amp; v1.5.0 entries remain)<br align="left"/>>];
+    t3 [label=<<b>index.json</b>  &#8212; MyAddon row timestamp updated>];
+    t1 -> t2 [style=invis]; t2 -> t3 [style=invis];
+  }
+
+  untouched [fillcolor="#f1f1f1", color="#999999", fontcolor="#555555",
+             label=<The other ~140 addons — source, tarballs, metadata — <b>UNTOUCHED</b><br align="left"/>No addons-source restructuring &#183; no new branches &#183; no per-API-version subdirectories<br align="left"/>>];
+
+  trigger -> update -> build;
+  build -> t1 [lhead=cluster_changed, label="  regenerates  "];
+  build -> untouched [style=dashed, color="#aaaaaa", label="  no change  "];
+}
