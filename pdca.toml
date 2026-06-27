@@ -169,19 +169,32 @@ argv = ["claude", "-p", "--model", "claude-opus-4-8", "--effort", "high", "--age
 # [[leaves.builder_variant]]
 # when = { field = "difficulty", substring = "high" }
 # argv = ["claude", "-p", "--agent", "builder", "--model", "opus", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Edit,Write,Bash,Grep,Glob"]
-# Check reviewer (advisory, build-notes withheld). Cross-vendor decorrelation is
-# the ideal (a DIFFERENT family from the builder); `--agent reviewer` is the
-# documented same-vendor fallback when codex isn't available — switch family/argv
-# to codex to restore independence (INTEGRATION §4).
-# Act 2026-06-19 (testbed #149, token-cost tiering): codex is still not on PATH, so the
-# reviewer stays Claude but drops to Sonnet + `--effort medium` — the advisory review's
-# cost did not justify opus/high while same-vendor. Restore codex (the decorrelation
-# ideal) over this Sonnet fallback the moment it is available.
+# Check reviewer (advisory, build-notes withheld). Cross-vendor decorrelation is the
+# ideal — a DIFFERENT family from the builder (INTEGRATION §4) — so the reviewer is
+# OpenAI Codex: an independent second read of the same diff, decorrelated from the claude
+# builder. How the harness drives a non-claude reviewer (leaves._run_review_sandboxed):
+# it feeds the review prompt on STDIN (codex exec reads it when no positional PROMPT is
+# given), exports $PDCA_TARGET for read-grounding the cited path:line (no `--add-dir` —
+# that is claude-only), and runs in a temp sandbox holding ONLY the reviewer inputs
+# (build-notes.md withheld → independence is mechanical). Hence the flags: `--sandbox
+# workspace-write` so codex can WRITE check-review.md into that cwd. workspace-write confines
+# WRITES (and network) to the workspace, NOT reads — so codex still READS $PDCA_TARGET outside
+# the sandbox to verify every cited path:line. (Verified: in `exec` mode codex grounds on an
+# absolute path outside its cwd; a Codex PR review claimed otherwise — #254 — but the read is
+# allowed, so no `--add-dir`/extra readable-root is needed.) `--skip-git-repo-check` because
+# the sandbox temp dir is not a git repo. Requires the `codex` CLI installed + authed (OPENAI_API_KEY or `codex login`);
+# a failure degrades to a §6 NEEDS-HUMAN placeholder, so the cycle still completes.
+# SAME-VENDOR FALLBACK if codex is unavailable — restore:
+#   family = "claude"
+#   argv = ["claude", "-p", "--model", "claude-sonnet-4-6", "--effort", "medium",
+#           "--agent", "reviewer", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Edit"]
+# History: Act 2026-06-19 (testbed #149) ran the Sonnet+medium same-vendor fallback for cost
+# while codex was off PATH; codex is now installed (codex-cli 0.142.3) → decorrelation restored.
 [leaves.reviewer]
 mode = "command"
-family = "claude"
+family = "codex"
 interactive = false
-argv = ["claude", "-p", "--model", "claude-sonnet-4-6", "--effort", "medium", "--agent", "reviewer", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Edit"]
+argv = ["codex", "exec", "--sandbox", "workspace-write", "--skip-git-repo-check"]
 
 # Interactive leaves — the human-in-the-loop touch points (Plan, Sign-off, Publish,
 # Act) hand the terminal to a seeded Claude REPL. Claude by design (a model+human
