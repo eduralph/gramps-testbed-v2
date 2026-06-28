@@ -1,0 +1,13 @@
+Fix gender_stats column swap on DBAPI save/read (bug 11314)
+
+The DBAPI backend's save_gender_stats and get_gender_stats both unpacked
+the in-memory GenderStats tuple (male, female, unknown) with swapped
+variable names, so each count landed in the opposite column. This produced
+correctly round-tripping in-memory data but persisted mislabeled columns
+visible to external SQL consumers. The fix unpacks in the correct order,
+stores counts into the like-named columns, and marks the table with a
+metadata flag. get_gender_stats branches on that flag to read corrected
+tables with the correct column order or legacy tables with the swapped order,
+ensuring existing databases are not silently inverted on read.
+
+Fixes #11314

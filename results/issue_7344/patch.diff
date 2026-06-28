@@ -1,0 +1,26 @@
+diff --git a/make.py b/make.py
+index 560f396a3..de7ad9e70 100755
+--- a/make.py
++++ b/make.py
+@@ -161,8 +161,6 @@ def get_all_languages():
+     languages = set(["en"])
+     for addon in [file for file in glob.glob("*") if os.path.isdir(file)]:
+         for po in glob.glob(f"{addon}/po/*-local.po"):
+-            length = len(po)
+-            locale = po[length - 11 : length - 9]
+             locale_path, locale = po.rsplit(os.sep, 1)
+             languages.add(locale[:-9])
+     return languages
+diff --git a/setup.py b/setup.py
+index 01eaa55ec..09c66e626 100644
+--- a/setup.py
++++ b/setup.py
+@@ -783,8 +783,6 @@ def is_listing(LANG):
+     for addon in [file for file in glob.glob('*')
+                   if os.path.isdir(file)]:
+         for po in glob.glob('%(addon)s/po/*-local.po' % {'addon': addon}):
+-            length = len(po)
+-            locale = po[length - 11:length - 9]
+             (locale_path, locale) = po.rsplit('/', 1)
+             languages.add(locale[:-9])
+ 

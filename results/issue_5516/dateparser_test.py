@@ -1,0 +1,190 @@
+# -*- coding: utf-8 -*-
+#
+# Gramps - a GTK+/GNOME based genealogy program
+#
+# Copyright (C) 2013       Vassilii Khachaturov
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, see <https://www.gnu.org/licenses/>.
+#
+
+"""
+Deeper testing of some DateParser internals.
+"""
+
+import unittest
+
+from ...utils.grampslocale import GrampsLocale
+from ...lib.date import Date
+
+
+class DateParserTest(unittest.TestCase):
+    def setUp(self):
+        from .._dateparser import DateParser
+
+        self.parser = DateParser()
+        self.parser_RU = GrampsLocale(lang="ru").date_parser
+
+    def assert_map_key_val(self, m, k, v):
+        try:
+            self.assertEqual(m[k], v)
+        except KeyError:
+            self.assertTrue(False, list(m.items()))
+
+    def test_month_to_int_jan_is_1(self):
+        self.assert_map_key_val(self.parser.month_to_int, "jan", 1)
+
+    def test_prefix_table_for_RU_built(self):
+        self.assertIn("ru_RU", self.parser._langs)
+
+    def test_month_to_int_septem_RU_is_9(self):
+        self.assert_map_key_val(self.parser.month_to_int, "сентяб", 9)
+
+    def test_hebrew_to_int_av_is_12(self):
+        self.assert_map_key_val(self.parser.hebrew_to_int, "av", 12)
+        self.assert_map_key_val(self.parser.hebrew_to_int, "ав", 12)  # RU
+
+    def test_french_to_int_thermidor_is_11(self):
+        self.assert_map_key_val(self.parser.french_to_int, "thermidor", 11)
+        self.assert_map_key_val(self.parser.french_to_int, "термидор", 11)  # RU
+
+    def test_islamic_to_int_ramadan_is_9(self):
+        self.assert_map_key_val(self.parser.islamic_to_int, "ramadan", 9)
+        self.assert_map_key_val(self.parser.islamic_to_int, "рамадан", 9)  # RU
+
+    def test_persian_to_int_tir_is_4(self):
+        self.assert_map_key_val(self.parser.persian_to_int, "tir", 4)
+        self.assert_map_key_val(self.parser.persian_to_int, "тир", 4)  # RU
+
+    def test_calendar_to_int_gregorian(self):
+        self.assert_map_key_val(
+            self.parser.calendar_to_int, "gregorian", Date.CAL_GREGORIAN
+        )
+        self.assert_map_key_val(self.parser.calendar_to_int, "g", Date.CAL_GREGORIAN)
+        self.assert_map_key_val(
+            self.parser.calendar_to_int, "григорианский", Date.CAL_GREGORIAN
+        )
+        self.assert_map_key_val(self.parser.calendar_to_int, "г", Date.CAL_GREGORIAN)
+
+    def test_calendar_to_int_julian(self):
+        self.assert_map_key_val(self.parser.calendar_to_int, "julian", Date.CAL_JULIAN)
+        self.assert_map_key_val(self.parser.calendar_to_int, "j", Date.CAL_JULIAN)
+        self.assert_map_key_val(
+            self.parser.calendar_to_int, "юлианский", Date.CAL_JULIAN
+        )
+        self.assert_map_key_val(self.parser.calendar_to_int, "ю", Date.CAL_JULIAN)
+
+    def test_quarter_1(self):
+        date = self.parser.parse("q1 1900")
+        self.assertTrue(date.is_equal(self.parser.parse("Q1 1900")))
+        self.assertEqual(date.get_ymd(), (1900, 1, 1))
+        self.assertEqual(date.get_stop_ymd(), (1900, 3, 31))
+        self.assertEqual(date.get_modifier(), Date.MOD_RANGE)
+
+    def test_quarter_2(self):
+        date = self.parser.parse("q2 1900")
+        self.assertTrue(date.is_equal(self.parser.parse("Q2 1900")))
+        self.assertEqual(date.get_ymd(), (1900, 4, 1))
+        self.assertEqual(date.get_stop_ymd(), (1900, 6, 30))
+        self.assertEqual(date.get_modifier(), Date.MOD_RANGE)
+
+    def test_quarter_3(self):
+        date = self.parser.parse("q3 1900")
+        self.assertTrue(date.is_equal(self.parser.parse("Q3 1900")))
+        self.assertEqual(date.get_ymd(), (1900, 7, 1))
+        self.assertEqual(date.get_stop_ymd(), (1900, 9, 30))
+        self.assertEqual(date.get_modifier(), Date.MOD_RANGE)
+
+    def test_quarter_4(self):
+        date = self.parser.parse("q4 1900")
+        self.assertTrue(date.is_equal(self.parser.parse("Q4 1900")))
+        self.assertEqual(date.get_ymd(), (1900, 10, 1))
+        self.assertEqual(date.get_stop_ymd(), (1900, 12, 31))
+        self.assertEqual(date.get_modifier(), Date.MOD_RANGE)
+
+    def test_quarter_quality_calendar(self):
+        date = self.parser.parse("calc q1 1900 (julian)")
+        self.assertEqual(date.get_quality(), Date.QUAL_CALCULATED)
+        self.assertEqual(date.get_calendar(), Date.CAL_JULIAN)
+
+    def test_quality_keyword_not_matched_inside_word(self):
+        # Regression (bug 5516): a free-text date that merely CONTAINS a quality
+        # keyword as a substring of an ordinary word must be preserved, not
+        # mangled. "Test data" was stored as "Tdata" (the "est" inside "Test"
+        # was stripped) and wrongly marked estimated.
+        date = self.parser.parse("Test data")
+        self.assertEqual(date.get_modifier(), Date.MOD_TEXTONLY)
+        self.assertEqual(date.get_text(), "Test data")
+        self.assertEqual(date.get_quality(), Date.QUAL_NONE)
+
+    def test_quality_keyword_whole_token_still_parses(self):
+        # The genuine quality-prefixed dates must keep parsing as before.
+        for text, qual in (
+            ("est 1900", Date.QUAL_ESTIMATED),
+            ("estimated 1900", Date.QUAL_ESTIMATED),
+            ("calc 1900", Date.QUAL_CALCULATED),
+        ):
+            date = self.parser.parse(text)
+            self.assertEqual(date.get_quality(), qual, msg=text)
+            self.assertEqual(date.get_year(), 1900, msg=text)
+
+
+class Test_generate_variants(unittest.TestCase):
+    def setUp(self):
+        from .. import _datestrings
+        from .._dateparser import _generate_variants
+
+        self.ds = ds = _datestrings.DateStrings(GrampsLocale(languages=("ru")))
+        self.month_variants = list(
+            _generate_variants(
+                zip(ds.long_months, ds.short_months, ds.swedish_SV, ds.alt_long_months)
+            )
+        )
+
+    def testVariantsSameLengthAsLongMonths(self):
+        self.assertEqual(len(self.ds.long_months), len(self.month_variants))
+
+    def testRussianHasDifferentVariantsForEachMonth(self):
+        for i in range(1, 13):
+            mvi = self.month_variants[i]
+            self.assertTrue(len(mvi) > 1, msg=mvi)
+
+    def testNoEmptyStringInVariants(self):
+        for i in range(1, 13):
+            mvi = self.month_variants[i]
+            self.assertNotIn("", mvi)
+
+    def testLongMonthsAppearInVariants(self):
+        for i in range(1, 13):
+            lmi = self.ds.long_months[i]
+            mvi = self.month_variants[i]
+            self.assertIn("{}".format(lmi), mvi)
+
+    def testShortMonthsAppearInVariants(self):
+        for i in range(1, 13):
+            smi = self.ds.short_months[i]
+            mvi = self.month_variants[i]
+            self.assertIn("{}".format(smi), mvi)
+
+    def testLongMonthVariantsUnique(self):
+        for i in range(1, 13):
+            mvi = self.month_variants[i]
+            self.assertEqual(len(mvi), len(set(mvi)), msg=mvi)
+
+    def testRuMayVariantsContainSvMaj(self):
+        v = self.month_variants[5]
+        self.assertIn("Maj", v)
+
+
+if __name__ == "__main__":
+    unittest.main()

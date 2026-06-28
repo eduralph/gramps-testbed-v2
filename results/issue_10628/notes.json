@@ -1,0 +1,15 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "sam888\n\n 2018-06-10 05:43\n\nadministrator    ~0054742": "repeatedly, that is it shows the same path every time I \"Press Continue to search for additional relations.\"\n\nThe expectation would be that if the path is identical it print the message \"No further Paths\" or something similar."
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "repeatedly, that is it shows the same path every time I \"Press Continue to search for additional relations.\"\n\nThe expectation would be that if the path is identical it print the message \"No further Paths\" or something similar."
+    }
+  ],
+  "id": "10628",
+  "url": "https://gramps-project.org/bugs/view.php?id=10628"
+}

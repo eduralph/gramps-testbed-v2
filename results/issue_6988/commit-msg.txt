@@ -1,0 +1,17 @@
+Fix patronymic surname fragmentation in gramplet counts
+
+The Surname Cloud and Statistics gramplets counted each patronymic
+variant as a separate surname entry, so people sharing "Иванов" with
+different patronymics ("Петрович", "Сергеевич") tallied as three
+surnames instead of one. Root cause: the gramplets enumerated the
+full multi-component surname string (via Name.get_surname()) without
+filtering origin, so patronymic components inflated the count.
+
+This change introduces a shared counting routine
+(get_counting_surname) that drops non-primary surname components of
+patronymic or matronymic origin before formatting, leaving every
+other secondary surname (e.g., a Spanish maternal name) untouched.
+Both gramplets route through it to collapse patronymic noise while
+preserving legitimate secondary family names.
+
+Fixes #6988

@@ -1,0 +1,69 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "vassilii\n\n 2013-08-10 15:32\n\ndeveloper    ~0030554": "Ugly indeed. How do you think this should be best handled? Exclude non-primary surnames altogether from the statistics count as an option? Exclude pa/matronymic only?",
+    "aglebov\n\n 2013-08-11 07:54\n\ndeveloper    ~0030564": "Well, shall I say that the concept of \"surnames of patronymic origin\" is puzzling for a Russian-speaking user in the first place? For instance, \"Иванов\" is exactly a surname of patronymic origin (i.e. a family name derived from an earlier patronymic name), but is not a patronymic name any more (not since the beginning of the 20th century). When I started using Gramps, I marked my own last name (Глебов) as being of patronymic origin, but then did not find the 'origin' field particularly useful, so stopped filling it. At the same time, I can imagine that somebody might use the 'origin' field for its intended purpose, that is marking the origin of family names, and would object to (or get surprised by) excluding some of them from the count of unique surnames.\nSpeculating on the best solution, I guess Gramps needs some sort of pluggable language/culture modules, that can be developed by people acquainted with the corresponding cultures independently, as one-solution-fits-all does not seem to be possible. I understand that this is not going to happen in 3.4.7, more likely in 5.0, 6.0, etc.",
+    "vassilii\n\n 2013-12-14 16:16\n\ndeveloper    ~0033362": "What does\ngramps -c preferences.patronimic-surname\nprint for you? If it is not False, you're getting what you asked for! If it is False, then your bug is valid...",
+    "vassilii\n\n 2013-12-14 16:34\n\ndeveloper    ~0033363": "I was too curious to wait for your answer. In my case, the preference is False, and I can observe the bug, with the attached 6988-repro.gramps\n\nIt is interesting to note that the \"Surname cloud\" correctly shows the \"Иванов\" surname only.",
+    "vassilii\n\n 2013-12-14 16:35\n\ndeveloper": "6988-repro.gramps (875 bytes)",
+    "vassilii\n\n 2013-12-14 16:39\n\ndeveloper    ~0033364\n\n last edited: 2013-12-14 16:40\n\nview 2 revisions": "For easier observations, it is a good idea to select the custom format from the database:\n<format number=\"-1\" name=\"Имя Отчество[им] Суффикс Главное[пр] ГЛАВНОЕ[ФАМ] ГЛАВНОЕ[СВ] БЕЗОТЧЕСТВА\" fmt_str=\"given patronymic[sur] suffix primary[pre] PRIMARY[SUR] PRIMARY[CON] NOTPATRONYMIC\" active=\"1\"/>\n\nAlso, for those looking at this bug later on, I want to say I agree with you that for Russian-speaking people the English GUI is a bit puzzling. However, if you use the Russian locale, you get (hopefully) better cues as to where to add the patronymic (Отчество)...",
+    "vassilii\n\n 2014-01-22 10:17\n\ndeveloper    ~0034299": "not a release-critical bug - already in 3.4.6 and should not hold other bugfixes",
+    "sam888\n\n 2015-07-12 05:44\n\nadministrator": "6988-repro.gramps-Gramps413.png (73,789 bytes)",
+    "sam888\n\n 2015-07-12 05:47\n\nadministrator    ~0043142\n\n last edited: 2015-07-12 06:01\n\nview 7 revisions": "In Gramps 4.1.3 I only imported \"6988-repro.gramps\" and viewed the Gramplets.\n\n<i>10. Notice that both gramplets now displays three 'unique' surnames</i>\n\nBehavior has changed see \"6988-repro.gramps-Gramps413.png\"\n\nGramplets\n\nTopSurnames - Shows - \"Total unique surnames: 2\"\nStatistics = Shows - \"Unique surnames: 3\"\n\n<i>7. Notice that \"Иванов Сергеевич, 100% (1)\" is displayed in the TopSurnames gramplet</i>\n\nTopSurnames gramplet - now shows \"Иванов, 75% (3)\"\n\n<i>8. Notice that \"Иванов Сергеевич\" appear in the list of \"Unique Surnames\" accessible from the Statistics gramplet</i>\n\nThe information displayed on the quick views for both gramplets do not match the information reported the gramplets.\n\nQuick views display:\n\nTopSurnames - Shows - \"People sharing surname \"xxxxxxxx\" There are 0 people with a matching name or alternate name.\nStatistics = Shows - \"Unique surnames\" only 2 records match.\n\nhttps://github.com/gramps-project/gramps/blob/master/gramps/plugins/gramplet/topsurnamesgramplet.py\n\nhttps://github.com/gramps-project/gramps/blob/master/gramps/plugins/gramplet/statsgramplet.py",
+    "sam888\n\n 2015-07-12 05:52\n\nadministrator": "uniquenames-statistics-Quick View - Gramps413.png (12,194 bytes)"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Ugly indeed. How do you think this should be best handled? Exclude non-primary surnames altogether from the statistics count as an option? Exclude pa/matronymic only?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Well, shall I say that the concept of \"surnames of patronymic origin\" is puzzling for a Russian-speaking user in the first place? For instance, \"Иванов\" is exactly a surname of patronymic origin (i.e. a family name derived from an earlier patronymic name), but is not a patronymic name any more (not since the beginning of the 20th century). When I started using Gramps, I marked my own last name (Глебов) as being of patronymic origin, but then did not find the 'origin' field particularly useful, so stopped filling it. At the same time, I can imagine that somebody might use the 'origin' field for its intended purpose, that is marking the origin of family names, and would object to (or get surprised by) excluding some of them from the count of unique surnames.\nSpeculating on the best solution, I guess Gramps needs some sort of pluggable language/culture modules, that can be developed by people acquainted with the corresponding cultures independently, as one-solution-fits-all does not seem to be possible. I understand that this is not going to happen in 3.4.7, more likely in 5.0, 6.0, etc."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "What does\ngramps -c preferences.patronimic-surname\nprint for you? If it is not False, you're getting what you asked for! If it is False, then your bug is valid..."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I was too curious to wait for your answer. In my case, the preference is False, and I can observe the bug, with the attached 6988-repro.gramps\n\nIt is interesting to note that the \"Surname cloud\" correctly shows the \"Иванов\" surname only."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "6988-repro.gramps (875 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "For easier observations, it is a good idea to select the custom format from the database:\n<format number=\"-1\" name=\"Имя Отчество[им] Суффикс Главное[пр] ГЛАВНОЕ[ФАМ] ГЛАВНОЕ[СВ] БЕЗОТЧЕСТВА\" fmt_str=\"given patronymic[sur] suffix primary[pre] PRIMARY[SUR] PRIMARY[CON] NOTPATRONYMIC\" active=\"1\"/>\n\nAlso, for those looking at this bug later on, I want to say I agree with you that for Russian-speaking people the English GUI is a bit puzzling. However, if you use the Russian locale, you get (hopefully) better cues as to where to add the patronymic (Отчество)..."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "not a release-critical bug - already in 3.4.6 and should not hold other bugfixes"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "6988-repro.gramps-Gramps413.png (73,789 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "In Gramps 4.1.3 I only imported \"6988-repro.gramps\" and viewed the Gramplets.\n\n<i>10. Notice that both gramplets now displays three 'unique' surnames</i>\n\nBehavior has changed see \"6988-repro.gramps-Gramps413.png\"\n\nGramplets\n\nTopSurnames - Shows - \"Total unique surnames: 2\"\nStatistics = Shows - \"Unique surnames: 3\"\n\n<i>7. Notice that \"Иванов Сергеевич, 100% (1)\" is displayed in the TopSurnames gramplet</i>\n\nTopSurnames gramplet - now shows \"Иванов, 75% (3)\"\n\n<i>8. Notice that \"Иванов Сергеевич\" appear in the list of \"Unique Surnames\" accessible from the Statistics gramplet</i>\n\nThe information displayed on the quick views for both gramplets do not match the information reported the gramplets.\n\nQuick views display:\n\nTopSurnames - Shows - \"People sharing surname \"xxxxxxxx\" There are 0 people with a matching name or alternate name.\nStatistics = Shows - \"Unique surnames\" only 2 records match.\n\nhttps://github.com/gramps-project/gramps/blob/master/gramps/plugins/gramplet/topsurnamesgramplet.py\n\nhttps://github.com/gramps-project/gramps/blob/master/gramps/plugins/gramplet/statsgramplet.py"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "uniquenames-topsurnames-Quick View - Gramps413.png (18,617 bytes)"
+    }
+  ],
+  "id": "6988",
+  "url": "https://gramps-project.org/bugs/view.php?id=6988"
+}

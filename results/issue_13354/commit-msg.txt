@@ -1,0 +1,11 @@
+Fix misspelling in Media Manager help text
+
+The Convert2Rel batch-op's help tooltip for the "Convert paths from
+absolute to relative" operation contained the misspelling "viz-a-viz".
+Corrected to "vis-à-vis", the standard form of the loanword, using
+UTF-8 accented typography consistent with the rest of Gramps.
+
+A regression test exercises the production class attribute to ensure the
+corrected string is present and the typo is gone.
+
+Fixes #13354

@@ -1,0 +1,26 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "bamaustin\n\n 2024-07-08 05:31\n\ndeveloper    ~0066951\n\n last edited: 2024-07-08 05:35\n\nview 3 revisions": "Perplexity.ai suggests the following grammar for that Tooltip:\n\nclass Convert2Rel(BatchOp):\ntitle = (\"Convert paths from absolute to relative\")\ndescription = (\n\"This tool allows converting absolute media paths \"\n\"to relative paths. The relative paths are calculated \"\n\"with respect to the base path specified in the Preferences, \"\n\"or, if not set, the user's directory. \"\n\"Using relative paths allows you to link file locations to \"\n\"a base path that can be changed according to your needs.\"\n)\n\nor for the 5th grade reading level (but referencing the specific feature label in Peferences):\n\nclass Convert2Rel(BatchOp):\ntitle = (\"Convert paths from absolute to relative\")\ndescription = (\n\"This tool helps simplify long file paths and consolidate Media collections. \"\n\"It uses something called a 'Relative base path' to do this. \"\n\"You can set this base path in the Preferences. \"\n\"If you don't set it, the tool will use your Gramps User Directory instead. \"\n\"Relative paths are helpful because they make it easier to move your files \"\n\"to a new computer or folder without breaking anything.\"\n)",
+    "bamaustin\n\n 2024-07-08 05:37\n\ndeveloper    ~0066952": "attached image from discourse thread suggesting Media Manager use:\n\nhttps://gramps.discourse.group/t/whats-the-best-way-to-ensure-media-path-cross-os-compatibility/5703/4\n\n\n\n image.png (118,178 bytes)"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Perplexity.ai suggests the following grammar for that Tooltip:\n\nclass Convert2Rel(BatchOp):\ntitle = (\"Convert paths from absolute to relative\")\ndescription = (\n\"This tool allows converting absolute media paths \"\n\"to relative paths. The relative paths are calculated \"\n\"with respect to the base path specified in the Preferences, \"\n\"or, if not set, the user's directory. \"\n\"Using relative paths allows you to link file locations to \"\n\"a base path that can be changed according to your needs.\"\n)\n\nor for the 5th grade reading level (but referencing the specific feature label in Peferences):\n\nclass Convert2Rel(BatchOp):\ntitle = (\"Convert paths from absolute to relative\")\ndescription = (\n\"This tool helps simplify long file paths and consolidate Media collections. \"\n\"It uses something called a 'Relative base path' to do this. \"\n\"You can set this base path in the Preferences. \"\n\"If you don't set it, the tool will use your Gramps User Directory instead. \"\n\"Relative paths are helpful because they make it easier to move your files \"\n\"to a new computer or folder without breaking anything.\"\n)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "attached image from discourse thread suggesting Media Manager use:\n\nhttps://gramps.discourse.group/t/whats-the-best-way-to-ensure-media-path-cross-os-compatibility/5703/4\n\n\n\n image.png (118,178 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "13354",
+  "url": "https://gramps-project.org/bugs/view.php?id=13354"
+}

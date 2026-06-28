@@ -1,0 +1,21 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "marchulsman\n\n 2014-06-18 20:42\n\nreporter": "0001-Require-date-in-get_age-for-birth-death-fallback.patch (4,328 bytes)",
+    "sam888\n\n 2016-04-16 04:35\n\nadministrator": "7832updatemaster.diff (3,982 bytes)"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "0001-Require-date-in-get_age-for-birth-death-fallback.patch (4,328 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "7832updatemaster.diff (3,982 bytes)"
+    }
+  ],
+  "id": "7832",
+  "url": "https://gramps-project.org/bugs/view.php?id=7832"
+}

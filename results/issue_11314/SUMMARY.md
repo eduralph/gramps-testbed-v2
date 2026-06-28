@@ -1,0 +1,91 @@
+# Result — issue 11314 / gender-stats-columns-swapped-on-dbapi
+
+## 1. Spec (from brief.md)              ← Check verifies against THIS
+- Defect / goal: After converting/saving a tree to the SQLite (DBAPI) backend, the on-disk
+- Success criterion: after `save_gender_stats`, the SQLite `gender_stats.female` column
+- Repo + branch target: gramps-project/gramps @ maintenance/gramps61
+- Scope (one logical fix) / out of scope: the gender-count column mislabeling in the DBAPI gender_stats persistence
+
+## 2. Disposition claimed               ← sign-off confirms or overrides
+- Outcome: likely-fix — **NEEDS-HUMAN (back-compat / migration):** existing SQLite
+- Confidence: medium
+- Recommendation: (set by Do)
+
+## 3. Correctness (Check — chain)
+- C1 Spec: none — brief.md
+- C2 Reproduction (red pre-fix): none — (no gate configured)
+- C3 Change: none — patch.diff
+- C4 fix verified: test red pre-fix, green post-fix: pass —   · cleared stale essential-dependency.json (now passes on clean upstream)
+- C5 Causal adequacy: none — reviewer + human sign-off
+
+## 4. Conformance (Check — stack)
+- T1 structure: addon layout vs doc 16 §Structure (folder==id, target_version, fname, no __init__.py): pass — T1 – N/A: no addons-source path in patch.diff (core-only change; §Structure is addon-only)
+- T2 shape: code shape vs doc 16 §Coding style (GPL header on touched files; print() advisory for reviewer): pass — T2 ✓ shape: 2 file(s) conform to doc 16 §Coding style
+- T2 potfiles: new/removed core .py registered in po/POTFILES.in|.skip (doc 16 §Adding and removing Python files): pass — T2 ✓ potfiles: new/removed core .py registered (doc 16 §Adding and removing Python files)
+- T3 runtime: gramps core unit suite (whole-suite baseline): fail — T3-baseline [delta]: DELTA: runner exited 1 producing NO JUnit XML — a pre-test crash (install / GI bootstrap / test col
+- T4 contribution: commit/PR wrapper vs doc 16 §Commit messages + §Contributor workflow: pass — T4 – N/A: no commit-msg.txt or pr-description.md in the bundle
+- T5 Judgment: none — reviewer + human sign-off
+- T5 judgment: → see §5.
+
+## 5. Advisory review (artifact-only, decorrelated)
+Reviewer ran without build-notes.md. Summary:
+
+# check-review.md — issue 11314 / gender-stats-columns-swapped-on-dbapi
+
+**Reviewer:** Claude (advisory, artifact-only)  
+**Grounding:** `$PDCA_TARGET` unset — all path:line citations grounded on `patch.diff`; target source is unavailable for independent re-run.  
+**C4 gate re-run:** accepted as stated in `check-gates.json` (`result: pass`, oracle `run-verify.sh`).
+
+---
+
+## Verdict Table
+
+| Item | Verdict | Basis |
+|------|---------|-------|
+| C1 Spec | PASS | brief.md is complete and actionable: defect (wrong tuple-unpack order in `save_gender_stats`), root cause (verified), success criterion (column semantics + round-trip + legacy-DB safety), scope boundaries (DBAPI only; genderstats.py tuple order and BSDDB out of scope), test file, prior-art search, and an explicit NEEDS-HUMAN flag on migration strategy all present. |
+| C2 Reproduction (red pre-fix) | PASS | No automated gate ran (check-gates.json `result: none`), but the `-` line in patch.diff (`female, male, unknown = gstats.stats[key]` at `dbapi.py` old line ~1114) is a direct textual transcript of the bug — the column swap is mechanically derivable from the wrong unpack order, and the brief's repro instruction (`SELECT given_name, female, male FROM gender_stats` in DB Browser) follows directly. Structural corroboration is sufficient at advisory level. |
+| C3 Change | PASS | `dbapi.py`: (1) `save_gender_stats` unpack corrected to `male, female, unknown` and INSERT column order/params corrected; (2) `get_gender_stats` branches on `gender_stats_fixed` metadata flag (new → correct column order; legacy → compensating swap). `db_test.py`: two new tests — raw-SQL column-semantics assertion and legacy-read safety. Scope is DBAPI only; genderstats.py and BSDDB untouched. diff:patch.diff lines 9–46 (production), 54–113 (tests). |
+| C4 Verification (red→green) | PASS | `check-gates.json` records `result: pass` on gating rule `C4-verify`, oracle `run-verify.sh`; path_line notes stale `essential-dependency.json` was cleared. Accepted as stated; independent re-run not possible without `$PDCA_TARGET`. |
+| C5 Causal adequacy | NEEDS-HUMAN | The immediate cause (wrong unpack order) is directly removed — that is adequate. The flag-based migration path (`gender_stats_fixed` metadata) is one viable strategy, but the brief explicitly defers the migration decision to human sign-off (brief.md line 46–49). Human must decide: is flag-in-metadata the accepted approach, or is a schema-version bump + cache-rebuild preferred? Additionally, `_set_metadata("gender_stats_fixed", True, use_txn=False)` is called **outside** the open transaction, before `_txn_commit()` (patch.diff line 46); if the process crashes between those two calls, the flag is persisted but the gender_stats rows are rolled back, leaving `gender_stats_fixed=True` on stale/old rows — decide whether the recomputable-cache nature of gender_stats makes this crash window acceptable. |
+| T1 Structure | N/A | Core-only change; §Structure (folder==id, target_version, fname, no `__init__.py`) applies only to addons. No addon path in patch.diff. Confirmed by check-gates.json `path_line: "T1 – N/A: no addons-source path in patch.diff"`. |
+| T2 Shape | PASS | check-gates.json records T2-shape `pass` (2 files conform to doc 16 §Coding style) and T2-potfiles `pass` (gating); no new Python files added so no POTFILES.in registration is needed; brief.md line 40 confirms "New/removed files: none." |
+| T3 Runtime | NEEDS-HUMAN | check-gates.json records T3-unit `result: fail` — runner exited 1 producing **no JUnit XML** (pre-test crash, likely GI bootstrap / install failure; path_line is truncated). Gate is non-gating, but the two new test cases (`test_gender_stats_column_semantics`, `test_gender_stats_legacy_not_inverted`) cannot be confirmed green from this evidence. Human must confirm: run T3 on a clean install and verify both new tests pass (or that the crash is an infra-only issue unrelated to the patch). |
+| T4 Contribution | N/A | No `commit-msg.txt` or `pr-description.md` in the bundle; doc 16 §Commit messages + §Contributor workflow cannot be evaluated. check-gates.json confirms `"T4 – N/A: no commit-msg.txt or pr-description.md in the bundle"`. |
+| T5 Judgment | NEEDS-HUMAN | Three concerns require human review: **(1) Transactional race on flag write** — `_set_metadata("gender_stats_fixed", True, use_txn=False)` (patch.diff line 46) commits metadata outside the current transaction before `_txn_commit()`; confirm the semantics of `_set_metadata(..., use_txn=False)` in this codebase and whether the gender_stats cache's recomputable nature makes the crash window acceptable. **(2) Flag bootstrapping for new databases** — new DBs never call `save_gender_stats` before first read; confirm `get_gender_stats` on an empty table via the legacy path is harmless (returns `{}`). **(3) Correctness of legacy test fixture** — `test_gender_stats_legacy_not_inverted` inserts `(female=5, male=2)` to simulate the pre-fix write of a 5-male/2-female person; the logic is correct (pre-fix stored male count in female col), but the in-code comment "5 male / 2 female / 1 unknown on disk" describes the *person counts*, not the *column values* — a reader could misread it. Recommend clarifying the comment to avoid future confusion. |
+| Validation — fitness-to-purpose | NEEDS-HUMAN | Per brief.md line 46–49: the migration strategy for existing trees (already holding swapped columns) is explicitly a human sign-off decision. Decide: (a) flag-in-metadata as implemented vs. schema-version bump + `gender_stats` cache rebuild on upgrade; (b) whether any user-facing migration notice or DB-upgrade step is required; (c) whether external SQL consumers (the original reporter's DB Browser use-case) need documentation or a one-time rebuild instruction. |
+
+---
+
+## Summary of NEEDS-HUMAN items for §6
+
+- [ ] **C5 / Migration strategy**: Confirm flag-in-metadata (`gender_stats_fixed`) is the accepted approach for back-compat migration vs. schema-version bump + rebuild. Decide whether the `use_txn=False` crash window is acceptable given that gender_stats is a recomputable cache.
+- [ ] **T3 / Runtime gate crash**: Re-run T3 on a clean install; confirm `test_gender_stats_column_semantics` and `test_gender_stats_legacy_not_inverted` both pass (current run produced no JUnit XML due to pre-test crash).
+- [ ] **T5 / `_set_metadata` transactional semantics**: Review `_set_metadata(..., use_txn=False)` implementation — confirm whether "outside the transaction" means "commits immediately" or "auto-committed by caller" — and rule on crash-window acceptability.
+- [ ] **T5 / Legacy test comment clarity**: Clarify the comment in `test_gender_stats_legacy_not_inverted` to distinguish column values from person counts, preventing future misreading of the fixture's intent.
+- [ ] **V / Fitness-to-purpose**: Approve migration strategy, decide on any user-facing upgrade notice, and confirm that the external SQL consumer use-case (DB Browser) is addressed by the fix or documented as requiring a one-time cache rebuild.
+
+
+## 6. NEEDS-HUMAN — items the human must clear before sign-off
+- [x] C1 Spec
+- [x] C5 Causal adequacy — The immediate cause (wrong unpack order) is directly removed — that is adequate. The flag-based migration path (`gender_stats_fixed` metadata) is one viable strategy, but the brief explicitly defers the migration decision to human sign-off (brief.md line 46–49). Human must decide: is flag-in-metadata the accepted approach, or is a schema-version bump + cache-rebuild preferred? Additionally, `_set_metadata("gender_stats_fixed", True, use_txn=False)` is called **outside** the open transaction, before `_txn_commit()` (patch.diff line 46); if the process crashes between those two calls, the flag is persisted but the gender_stats rows are rolled back, leaving `gender_stats_fixed=True` on stale/old rows — decide whether the recomputable-cache nature of gender_stats makes this crash window acceptable.
+- [x] T3 Runtime — check-gates.json records T3-unit `result: fail` — runner exited 1 producing **no JUnit XML** (pre-test crash, likely GI bootstrap / install failure; path_line is truncated). Gate is non-gating, but the two new test cases (`test_gender_stats_column_semantics`, `test_gender_stats_legacy_not_inverted`) cannot be confirmed green from this evidence. Human must confirm: run T3 on a clean install and verify both new tests pass (or that the crash is an infra-only issue unrelated to the patch).
+- [x] T5 Judgment — Three concerns require human review: **(1) Transactional race on flag write** — `_set_metadata("gender_stats_fixed", True, use_txn=False)` (patch.diff line 46) commits metadata outside the current transaction before `_txn_commit()`; confirm the semantics of `_set_metadata(..., use_txn=False)` in this codebase and whether the gender_stats cache's recomputable nature makes the crash window acceptable. **(2) Flag bootstrapping for new databases** — new DBs never call `save_gender_stats` before first read; confirm `get_gender_stats` on an empty table via the legacy path is harmless (returns `{}`). **(3) Correctness of legacy test fixture** — `test_gender_stats_legacy_not_inverted` inserts `(female=5, male=2)` to simulate the pre-fix write of a 5-male/2-female person; the logic is correct (pre-fix stored male count in female col), but the in-code comment "5 male / 2 female / 1 unknown on disk" describes the *person counts*, not the *column values* — a reader could misread it. Recommend clarifying the comment to avoid future confusion.
+- [x] Validation — fitness-to-purpose — Per brief.md line 46–49: the migration strategy for existing trees (already holding swapped columns) is explicitly a human sign-off decision. Decide: (a) flag-in-metadata as implemented vs. schema-version bump + `gender_stats` cache rebuild on upgrade; (b) whether any user-facing migration notice or DB-upgrade step is required; (c) whether external SQL consumers (the original reporter's DB Browser use-case) need documentation or a one-time rebuild instruction.
+
+## 7. Proven / not proven
+- Proven by which oracle: gates overall = pass (stub oracles).
+- Unproven / needs manual run: anything flagged in §6.
+
+## 8. Ready-to-ship attachments
+- patch.diff
+- tracker-comment.md     (ALWAYS, every tracker item)
+- build-notes.md         (builder rationale — for the human, not the reviewer)
+
+## 9. Check sign-off                     ← human completes Check here
+- Disposition confirmed / overridden:
+- Outcome: merged-wider
+- Iteration delta (if iterating):
+- By / date: Eduard Ralph / 2026-06-28
+
+## 10. Act candidates (hints for the next Act review)
+- (empty is the common case)

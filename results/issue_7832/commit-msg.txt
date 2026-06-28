@@ -1,0 +1,22 @@
+Fix get_age returning None when primary birth event has no date
+
+`get_age` delegates birth/death event selection to `get_birth_or_fallback`
+and `get_death_or_fallback` (gramps/gen/utils/db.py:53–74), both of which
+return the primary Birth/Death event as soon as one exists, regardless of
+whether it carries a usable date. A person with a dateless (place-only)
+primary Birth event therefore never reaches the dated Baptism fallback, and
+`get_age` returns None — breaking age-based features like Fan Chart
+colouring.
+
+Add an opt-in `require_date=False` parameter to both functions plus a
+`_has_usable_date(event)` helper that applies the exact test `get_age`
+already uses before computing a span. When `require_date=True`, a primary
+event without a usable date is skipped in favour of a dated fallback. Call
+both with `require_date=True` from the fallback branch of `get_age`
+(gramps/gen/utils/db.py:109–110). Existing callers remain unaffected.
+
+Add a regression test (gramps/gen/utils/test/db_test.py) verifying the fix
+for the dateless birth case while ensuring dated primary births remain
+untouched.
+
+Fixes #7832

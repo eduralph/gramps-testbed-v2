@@ -1,0 +1,56 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "prculley\n\n 2019-09-02 17:04\n\nmanager    ~0057466": "Looks like the GenderStats class holds the 'stats' dict elements as (male, female, unknown). This gets passed through generic.py to the dbapi code\nBut the dbapi code in get_gender_stats and save_gender_stats is storing in to the table as \"INSERT INTO gender_stats (given_name, female, male, unknown) VALUES (?, ?, ?, ?)\" so the males gets stored into female etc.\n\nDoesn't effect user functionality or anything else except the name of the column? in the db.\n@Nick_H can this be fixed without doing a db upgrade? If not I'd be inclined to put this on a TODO for when we do need to do an upgrade, like for 5.2.",
+    "nick_h\n\n 2019-09-07 20:14\n\nadministrator    ~0057524": "@prculley There is no need for a database upgrade. Just change the column order in the SELECT statement and the order of the variables returned from gstats.stats[key]. You could also swap the column order in the INSERT statement if you also changed the order of the values supplied. I wouldn't make any changes to the CREATE statement.",
+    "prculley\n\n 2019-09-07 20:38\n\nmanager    ~0057525": "@Nick_H If I swap the order in the SELECT and INSERT statements to properly match the stats, everything would be fine for new dbs. But wouldn't an already existing db start returning male/female swapped? After all the values in the male column were actually the female ones, and vice versa.\nOr I am missing something here.",
+    "nick_h\n\n 2019-09-07 21:22\n\nadministrator    ~0057526": "@prculley Yes. All users would have to rebuild the gender stats. Since this only affects people reading the database directly, I agree with your suggestion of waiting until the next major release.",
+    "user1563\n\n 2024-03-11 20:50\n\n   ~0066413": "@Nick_H was this fixed? or should the target version be changed? let me know and I'll remove the warning in the user manual\n\nhttps://gramps-project.org/wiki/index.php/Gramps_5.2_Wiki_Manual_-_Tools#Rebuild_Gender_Statistics",
+    "nick_h\n\n 2024-03-11 21:16\n\nadministrator    ~0066414": "It looks like this was just forgotten about.",
+    "user1563\n\n 2025-06-24 01:22\n\n   ~0069222": "@Nick_H Gentile reminder , thanks for the new release. :)\nhttps://gramps-project.org/wiki/index.php/Gramps_6.0_Wiki_Manual_-_Tools#Rebuild_Gender_Statistics"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Looks like the GenderStats class holds the 'stats' dict elements as (male, female, unknown). This gets passed through generic.py to the dbapi code\nBut the dbapi code in get_gender_stats and save_gender_stats is storing in to the table as \"INSERT INTO gender_stats (given_name, female, male, unknown) VALUES (?, ?, ?, ?)\" so the males gets stored into female etc.\n\nDoesn't effect user functionality or anything else except the name of the column? in the db.\n@Nick_H can this be fixed without doing a db upgrade? If not I'd be inclined to put this on a TODO for when we do need to do an upgrade, like for 5.2."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "@prculley There is no need for a database upgrade. Just change the column order in the SELECT statement and the order of the variables returned from gstats.stats[key]. You could also swap the column order in the INSERT statement if you also changed the order of the values supplied. I wouldn't make any changes to the CREATE statement."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "@Nick_H If I swap the order in the SELECT and INSERT statements to properly match the stats, everything would be fine for new dbs. But wouldn't an already existing db start returning male/female swapped? After all the values in the male column were actually the female ones, and vice versa.\nOr I am missing something here."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "@prculley Yes. All users would have to rebuild the gender stats. Since this only affects people reading the database directly, I agree with your suggestion of waiting until the next major release."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "@Nick_H was this fixed? or should the target version be changed? let me know and I'll remove the warning in the user manual\n\nhttps://gramps-project.org/wiki/index.php/Gramps_5.2_Wiki_Manual_-_Tools#Rebuild_Gender_Statistics"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "It looks like this was just forgotten about."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "@Nick_H Gentile reminder , thanks for the new release. :)\nhttps://gramps-project.org/wiki/index.php/Gramps_6.0_Wiki_Manual_-_Tools#Rebuild_Gender_Statistics"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "11314",
+  "url": "https://gramps-project.org/bugs/view.php?id=11314"
+}

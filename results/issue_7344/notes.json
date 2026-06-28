@@ -1,0 +1,45 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "romjerome\n\n 2013-12-30 15:04\n\ndeveloper    ~0033756": "<pre>\nprint(os.path.basename(po))\nprint(os.path.basename(po[:-3]))\nprint(os.path.basename(po[:-3])[:-6])</pre> will return:\n<pre>\npt_BR-local.po\npt_BR-local\npt_BR\nde-local.po\nde-local\nde\nnl-local.po\nnl-local\nnl\nsv-local.po\nsv-local\nsv\nfr-local.po\nfr-local\nfr\n...\n</pre>",
+    "romjerome\n\n 2013-12-30 15:06\n\ndeveloper    ~0033757\n\n last edited: 2013-12-30 15:06\n\nview 2 revisions": "OK,\n\nos.path.basename(po[:-9])\n\nsounds better ...\n\n;)",
+    "jralls\n\n 2013-12-30 15:43\n\ndeveloper    ~0033758": "Looks good to me.",
+    "romjerome\n\n 2013-12-30 17:30\n\ndeveloper": "locale.patch (7,809 bytes)",
+    "romjerome\n\n 2013-12-30 17:40\n\ndeveloper    ~0033759\n\n last edited: 2013-12-30 17:43\n\nview 2 revisions": "Should be fixed on make.py files for 34, 40, trunk, on revision 2337.\n\nhttp://sourceforge.net/p/gramps-addons/code/2337/\n\nOne section remains on 'listing' cmd:\n<pre> # Get all languages from all addons:\nlanguages = set(['en'])\nfor addon in [file for file in glob.glob(\"\") if os.path.isdir(file)]:\nfor po in glob.glob(r('''%(addon)s/po/-local.po''')):\nlength= len(po)\nlocale = po[length-11:length-9]\nlocale_path, locale = po.rsplit(\"/\", 1)\nlanguages.add(locale[:-9])</pre>\nbecause I do not know what is doing this line:\n<pre>locale_path, locale = po.rsplit(\"/\", 1)</pre>?",
+    "paulfranklin\n\n 2013-12-30 18:30\n\ndeveloper    ~0033760": "Well, I haven't run the code but just from looking,\nhttp://docs.python.org/2/library/string.html says\nthat string.rsplit is like string.split in this case,\nthat is the string will be split at that \"/\" and I\nguess the locale is the second part.\n\nI suppose you could put in print statements there\ntoo, to verify what is happening."
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "<pre>\nprint(os.path.basename(po))\nprint(os.path.basename(po[:-3]))\nprint(os.path.basename(po[:-3])[:-6])</pre> will return:\n<pre>\npt_BR-local.po\npt_BR-local\npt_BR\nde-local.po\nde-local\nde\nnl-local.po\nnl-local\nnl\nsv-local.po\nsv-local\nsv\nfr-local.po\nfr-local\nfr\n...\n</pre>"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "OK,\n\nos.path.basename(po[:-9])\n\nsounds better ...\n\n;)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Looks good to me."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "locale.patch (7,809 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Should be fixed on make.py files for 34, 40, trunk, on revision 2337.\n\nhttp://sourceforge.net/p/gramps-addons/code/2337/\n\nOne section remains on 'listing' cmd:\n<pre> # Get all languages from all addons:\nlanguages = set(['en'])\nfor addon in [file for file in glob.glob(\"\") if os.path.isdir(file)]:\nfor po in glob.glob(r('''%(addon)s/po/-local.po''')):\nlength= len(po)\nlocale = po[length-11:length-9]\nlocale_path, locale = po.rsplit(\"/\", 1)\nlanguages.add(locale[:-9])</pre>\nbecause I do not know what is doing this line:\n<pre>locale_path, locale = po.rsplit(\"/\", 1)</pre>?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Well, I haven't run the code but just from looking,\nhttp://docs.python.org/2/library/string.html says\nthat string.rsplit is like string.split in this case,\nthat is the string will be split at that \"/\" and I\nguess the locale is the second part.\n\nI suppose you could put in print statements there\ntoo, to verify what is happening."
+    }
+  ],
+  "id": "7344",
+  "url": "https://gramps-project.org/bugs/view.php?id=7344"
+}

@@ -1,0 +1,27 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "paulfranklin\n\n 2014-06-14 16:25\n\ndeveloper    ~0037016": "As a workaround, you can turn off the option to flag\nmissing information via those underline strings.",
+    "ronjohn\n\n 2014-06-14 16:57\n\nreporter    ~0037019": "But then it won't \"highlight\" missing birth and marriage information.\n\nIOW, \"missing\" marriage information is not asked for if there is no family, so why should death info be asked for if there's no death record and birth was less than \"Maximum age probably alive\"?",
+    "paulfranklin\n\n 2014-06-14 17:45\n\ndeveloper    ~0037022": "Yes, I'm not disputing it's a bug."
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "As a workaround, you can turn off the option to flag\nmissing information via those underline strings."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "But then it won't \"highlight\" missing birth and marriage information.\n\nIOW, \"missing\" marriage information is not asked for if there is no family, so why should death info be asked for if there's no death record and birth was less than \"Maximum age probably alive\"?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Yes, I'm not disputing it's a bug."
+    }
+  ],
+  "id": "7814",
+  "url": "https://gramps-project.org/bugs/view.php?id=7814"
+}
