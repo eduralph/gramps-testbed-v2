@@ -1,0 +1,88 @@
+diff --git a/gramps/plugins/tool/mediamanager.py b/gramps/plugins/tool/mediamanager.py
+index b50d8e16f5..711d717a33 100644
+--- a/gramps/plugins/tool/mediamanager.py
++++ b/gramps/plugins/tool/mediamanager.py
+@@ -637,7 +637,7 @@ class Convert2Rel(BatchOp):
+     description = _(
+         "This tool allows converting absolute media paths "
+         "to a relative path. The relative path is relative "
+-        "viz-a-viz the base path as given in the Preferences, "
++        "vis-à-vis the base path as given in the Preferences, "
+         "or if that is not set, user's directory. "
+         "A relative path allows to tie the file location to "
+         "a base path that can change to your needs."
+diff --git a/gramps/plugins/tool/test/__init__.py b/gramps/plugins/tool/test/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/gramps/plugins/tool/test/mediamanager_test.py b/gramps/plugins/tool/test/mediamanager_test.py
+new file mode 100644
+index 0000000000..90e871d25e
+--- /dev/null
++++ b/gramps/plugins/tool/test/mediamanager_test.py
+@@ -0,0 +1,53 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026       Eduard Ralph
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Unittest for the Media Manager "absolute to relative" help text (bug 13354).
++
++The Convert2Rel batch-op's ``description`` is the tooltip/help shown for the
++"Convert paths from absolute to relative" step. It contained the misspelling
++"viz-a-viz"; the correct form is "vis-à-vis". This asserts the corrected word
++on the production class attribute, so a regression that reintroduces the typo
++fails the build.
++"""
++
++import unittest
++
++from gramps.plugins.tool.mediamanager import Convert2Rel
++
++
++# ------------------------------------------------------------
++#
++# Convert2RelHelpTextTest
++#
++# ------------------------------------------------------------
++class Convert2RelHelpTextTest(unittest.TestCase):
++    """The 'absolute -> relative' help text is spelled correctly (bug 13354)."""
++
++    def test_no_viz_a_viz_typo(self):
++        """The misspelling 'viz-a-viz' is gone from the help text."""
++        self.assertNotIn("viz-a-viz", Convert2Rel.description)
++
++    def test_uses_vis_a_vis(self):
++        """The help text uses the correct word 'vis-à-vis'."""
++        self.assertIn("vis-à-vis", Convert2Rel.description)
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index d4a15ea5b4..260365efab 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -686,6 +686,8 @@ gramps/plugins/thumbnailer/imagethumb.py
+ # Development tools
+ #
+ gramps/plugins/tool/__init__.py
++gramps/plugins/tool/test/__init__.py
++gramps/plugins/tool/test/mediamanager_test.py
+ #
+ # plugins/view directory
+ #
