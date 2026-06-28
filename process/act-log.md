@@ -29,6 +29,132 @@
 - The next Do phases should not recreate <specific issue>. Watch the next K cycles.
 -->
 
+# Act review — 2026-06-27 — cycles considered: all 30 in index (issue_10415, issue_10554, issue_10628, issue_11166, issue_13163, issue_13387, issue_13518, issue_14014, issue_3068, issue_4862, issue_5516, issue_5965, issue_6128, issue_6549, issue_6571, issue_6698, issue_6793, issue_6825, issue_6826, issue_6988, issue_7084, issue_7230, issue_7344, issue_7761, issue_7814, issue_7832, issue_7984, issue_8362, issue_8850; plus prior 2026-06-21/06-20 bundles still in index)
+
+## What the cycles' records exposed
+
+- **Advisory reviewer leaf failed in 9/30 bundles (30%) — root cause: agent not found.**
+  All nine June-25 bundles (issue_10554, issue_13163, issue_13387, issue_13518, issue_14014,
+  issue_6549, issue_6826, issue_7984, issue_8362) carry the same `check-review.error.log`
+  entry across all three retry attempts:
+  ```
+  --agent 'reviewer' not found. Available agents: claude, Explore, general-purpose, Plan, statusline-setup
+  ```
+  The CLI discovered only global agents; the project-level `.claude/agents/reviewer.md` was
+  not in its search scope. The failure class reported in `check-review.md` — "transient infra,
+  safe to re-run" — was technically correct (safe to re-run) but the cause is structural, not
+  transient. All June-27 bundles have successful advisory reviews, consistent with the v0.33
+  harness integration (merged 2026-06-25 evening, commit 9de8859) including `#138
+  reviewer/advisory leaf capture-retry-classify`, which appears to have fixed the discovery
+  path. No new process delta needed at the engine level. Open Act item: re-run the reviewer on
+  all 9 affected bundles (they are still in `results/`).
+
+- **`Sqlite.tests.test_sqlite.ExportSQLTestCase::test_export_sql` is flaky — recurring T3
+  noise across 7+ bundles.**
+  This single test ID surfaces as a new T3 delta (NEEDS-HUMAN §6 item) in
+  issue_10415, issue_10628, issue_5516, issue_5965, issue_6793, issue_7344, and issue_7832.
+  The same §10 diagnosis is repeated verbatim in five of those bundles: hardcoded `/tmp`
+  paths, no `tearDown` cleanup. The test has no causal link to any of those patches; it
+  creates §6 noise every cycle. Both addon-unit baseline files (`run-addon-unit-60.json`,
+  `run-addon-unit-61.json`) currently have `known_failures: []` — the test was never
+  captured in either. Process delta: add it to both baselines. Long-term: fix the test.
+
+- **`LifeLineChartView.collection::import_or_collection` and PDFForms collection crashes —
+  recurring T3 noise across 3+ bundles each.**
+  `LifeLineChartView.collection::import_or_collection` appears in issue_5965, issue_6988, and
+  issue_7832 (gramps60 leg). Root cause: `lifelinechart.py` raises bare `Exception` (not
+  `ImportError`) when the `life_line_chart` pip package is absent; pytest's collector only
+  catches `ImportError`, so the bare `Exception` propagates as a collection crash. The PDFForms
+  collection crash (`The reportlab package is required`) surfaces in issue_7832 against the
+  gramps61 leg. Both should be captured in the matching addon-unit baseline.
+  
+  Both baseline files currently have `known_failures: []` and `run_level_signatures: []` —
+  neither collection crash has been captured. The baselines note: *"capture any residual
+  per-addon reds with `CORE_VERSION=<ver> t3_baseline.py … --update`"*; that step was never
+  run against the live addon matrix.
+
+- **C4-unverifiable NEEDS-HUMAN (6 test-only + 3 GUI-repro bundles) — oracle-by-design.**
+  The `C4 fix verified: test red pre-fix, green post-fix unverifiable` class (6 bundles) and
+  `C4 fix verified in GUI: interface repro … unverifiable` (3 bundles) are both by-design for
+  test-only patches and patches without headless-testable repros. INTEGRATION.md already
+  documents both paths. No delta warranted; pattern confirmed again.
+
+- **V / T5 / C5 NEEDS-HUMAN — oracle-by-design; confirmed again.**
+  Fitness-to-purpose (V), judgment (T5), and causal adequacy (C5) appear in most bundles by
+  oracle designation. Reconfirmed as intended system behaviour. No delta.
+
+## Process deltas
+
+- **Gate — populate addon-unit baselines (proposed, routed as maintenance action):**
+  Both `engine/baselines/run-addon-unit-60.json` and `engine/baselines/run-addon-unit-61.json`
+  have empty `known_failures` and `run_level_signatures`. The three recurring test-delta IDs —
+  `Sqlite.tests.test_sqlite.ExportSQLTestCase::test_export_sql` (both legs),
+  `LifeLineChartView.collection::import_or_collection` (gramps60 leg), and the PDFForms
+  collection crash (gramps61 leg) — should be captured. The mechanism is already documented in
+  the baseline files:
+  ```
+  CORE_VERSION=6.1 engine/conformance/t3_baseline.py \
+    ./engine/scripts/ubuntu/run-addon-unit.sh --update
+  ```
+  (and same for `CORE_VERSION=6.0`). Running `make preflight` (or the t3_baseline command
+  directly) against the live addon worktrees captures the current environmental reds and writes
+  them into `known_failures` / `run_level_signatures`, so they stop surfacing as new deltas in
+  every bundle. The exact IDs must come from the runner output; do not hand-edit the JSON.
+  (`engine/baselines/run-addon-unit-60.json`, `engine/baselines/run-addon-unit-61.json`)
+
+## Follow-ups routed (not process deltas — work handed to an owner)
+
+- **Open Act item — re-run the advisory reviewer on 9 June-25 bundles.**
+  Bundles: issue_10554, issue_13163, issue_13387, issue_13518, issue_14014, issue_6549,
+  issue_6826, issue_7984, issue_8362. Root cause (agent discovery failure) is fixed in v0.33.
+  Each bundle's §6 NEEDS-HUMAN "re-run the Check reviewer" can now be cleared by re-running
+  the reviewer leaf (e.g., `pdca run <id>` at the Check step) and then re-signing off.
+  Owner: human. Next step: pick up each bundle in turn; `check-review.md` will produce a real
+  verdict; clear the §6 item and proceed to sign-off.
+
+- **Addon bug — fix `test_export_sql` flakiness:**
+  Filed as suggestion page `wiki/pages/08 - Suggestions/sqlite-test-export-sql-flaky.md`;
+  cross-filed as **eduralph/addons-source #56**
+  https://github.com/eduralph/addons-source/issues/56
+  Fix: `tempfile.mkdtemp()` + `tearDown` cleanup. Confirmed in 7+ bundles. Owner: human.
+  Short-term mitigation: the baseline population step above (process delta) will suppress
+  it once `known_failures` is populated.
+
+- **Addon bugs — missing-dep guard pattern (LifeLineChartView, PDFForms, TMGimporter):**
+  Three specific instances plus a general audit suggestion filed as wiki suggestion pages:
+  - `wiki/pages/08 - Suggestions/lifelinechart-missing-dep-collection-crash.md`
+    (eduralph/addons-source #57: bare `Exception` → `ImportError`; gramps60 leg)
+  - `wiki/pages/08 - Suggestions/pdfforms-missing-reportlab-collection-crash.md`
+    (missing `reportlab` → collection crash; gramps61 leg; issue_7832 §10)
+  - `wiki/pages/08 - Suggestions/tmgimporter-dbf-silent-log-nameerror.md`
+    (silent `LOG.error` when `dbf` absent → `NameError` at runtime; gramps60 leg; issue_5965 §10)
+  - `wiki/pages/08 - Suggestions/addon-missing-dep-guard-audit.md`
+    (general: audit all addons with `requires_mod` entries; replace bare `Exception` /
+    silent `LOG.error` with `ImportError` re-raise or sentinel + `self.skipTest()`)
+  Owner: human.
+
+- **Testbed maintenance — run `make preflight` to capture addon-unit baseline reds.**
+  The process delta above proposes the change; this is the work item to execute it. Run
+  `make preflight` (or the t3_baseline `--update` commands for both CORE_VERSION legs) against
+  the live gramps60 and gramps61 addon worktrees, review the captured IDs against the known
+  causes (Sqlite `/tmp` flakiness, LifeLineChartView bare Exception, PDFForms missing
+  reportlab), commit the updated baseline JSONs to main. Owner: human.
+
+## How effectiveness will be judged
+
+- After the baseline population, T3 runs should stop producing §6 delta items for the three
+  recurring test IDs. At the next Act review, the "recurring signal" row for
+  `test_export_sql` should be absent. If it still surfaces after the baseline update,
+  the test is non-deterministic beyond just `/tmp` path collisions and the addon code fix
+  (#56) must land before the baseline entry is removed.
+- The 9 missing-reviewer bundles, once re-reviewed, should show no systemic pattern in
+  their advisory verdicts (the bundles were accepted by the human on substance; the
+  review is a belated formality). If a re-review reveals a reviewer concern the human
+  did not previously consider, record it in the bundle notes — not as a re-decision.
+- Future batches of bundles should show 0 reviewer-leaf failures with `--agent not found`
+  (the v0.33 fix in place). If it recurs, the CWD at leaf-invocation time is the first
+  place to check.
+
 # Act review — 2026-06-20 — cycles considered: all 19 in index (issue_11589, issue_11786, issue_12576, issue_13205, issue_13636, issue_13888, issue_46, issue_820-build-toolchain-coverage, issue_820-converge-requires-mod-dedup, issue_820-description-resync, issue_820-pluginloading-gate, issue_8653, issue_8796, issue_addon-tests-init-py-gramps60, issue_glade-setattr, issue_headless-ut-segfault, issue_skip-bsddb-tests-linux, issue_sqlite-export-6.1, issue_tmg-os-test-split-gramps61)
 
 ## What the cycles' records exposed
