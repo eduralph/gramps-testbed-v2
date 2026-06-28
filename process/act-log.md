@@ -29,6 +29,114 @@
 - The next Do phases should not recreate <specific issue>. Watch the next K cycles.
 -->
 
+# Act review — 2026-06-28 — cycles considered: 17 new bundles (issue_11314, issue_11437, issue_11991, issue_12018, issue_12110, issue_12164, issue_12260, issue_12539, issue_12932, issue_13354, issue_13532, issue_13876, issue_6250, issue_6583, issue_8597, issue_9267, issue_9491); 47 total in index
+
+## What the cycles' records exposed
+
+- **§10 "PR description / tracker-comment must include…" items accumulate but never
+  reach the publisher leaf — 8+ bundles (new pattern).**
+  The June-28 batch adds several §10 items that explicitly prescribe text to include in
+  `pr-description.md` or `tracker-comment.md`:
+  issue_12018 (why a recording stand-in test was used instead of dogtail),
+  issue_12110 (fix extended from `editname.py` to `editperson.py`),
+  issue_11437 (wrapping tradeoff for hyphenated names),
+  issue_12260 (Note/ToDo root-cause scope note). Combined with prior-batch items
+  (issue_3068, issue_4862, issue_5516, issue_6793, issue_6988) the total is 9 bundles
+  across two batches. The publisher leaf currently reads `brief.md`, `build-notes.md`,
+  and `patch.diff` — it does not read `SUMMARY.md`. As a result, §10 publisher-relevant
+  items sit frozen in the record and must be found manually before the PR is drafted,
+  which routinely does not happen. Process delta applied (see below).
+
+- **T3 core unit runner crashing before producing JUnit XML — 3 new bundles.**
+  issue_11314, issue_9267, and issue_12539 all report `T3-unit result: fail — runner
+  exited 1 producing NO JUnit XML — a pre-test crash (install / GI bootstrap)`. This is
+  the **core** unit runner (`run-unit.sh`), not the addon unit runner that testbed #176
+  tracks. It is non-gating in all three bundles and clears as an infrastructure issue,
+  not a patch regression; but at n=3 in a single batch the cause should be established.
+  Routed (see Follow-ups).
+
+- **SQLite test_export_sql baseline population — still pending from 2026-06-27 review.**
+  The flaky test continues to surface (issue_10415, issue_10628 remain in the index). The
+  action — run `make preflight` / `t3_baseline.py --update` to populate
+  `run-addon-unit-60.json` / `run-addon-unit-61.json` `known_failures` — was assigned to
+  the human in the prior entry. Still open. No new process delta; confirm it is pending.
+
+- **9 reviewer-missing bundles — still open from 2026-06-27.**
+  No change in status. The v0.33 harness fix is live; re-running the reviewer leaf on
+  each of the nine June-25 bundles will clear the §6 items.
+
+- **V / C4-GUI / C5 / T5 NEEDS-HUMAN — oracle-by-design, confirmed again.**
+  V (12×), C4-GUI-unverifiable (11×), test-only C4 (6×), C5 (4×), T5 (4×) appear
+  across the 47-bundle index. All are by oracle designation. The high C4-GUI frequency
+  partly reflects a positive signal: 7 of the June-28 bundles have interface test files
+  written (`engine/interface/test_bug_*.py`) but were SKIPPED because the AT-SPI
+  environment could not reproduce the bug on the unpatched tree. That is the expected
+  behaviour for those classes; no delta warranted.
+
+- **note-nav-label-hardcoded-40 follow-up from issue_8597 — needs Mantis routing.**
+  A wiki suggestion page was created
+  (`wiki/pages/08 - Suggestions/note-nav-label-hardcoded-40.md`) during the issue_8597
+  verify cycle, identifying a residual 40-character hardcoded truncation in
+  `gramps/gen/utils/db.py:353–360 navigation_label()` that is now inconsistent with the
+  configurable preview length fixed upstream. Three resolution paths are documented; the
+  choice is a project/maintainer call. Routed (see Follow-ups).
+
+## Process deltas
+
+- **Agent skill — publisher (applied):** `publisher.md` §How you work gains an
+  explicit step: before drafting `pr-description.md` and `tracker-comment.md`, read
+  `SUMMARY.md` §10 ("Act candidates"); if any item says "PR description must include X"
+  or "tracker-comment must include X", incorporate those items into the respective
+  artifact. This closes the gap where advisory-review context documented in §10 never
+  reached the published PR draft. Instance change applied; template feedback filed as
+  pdca-harness **#177** https://github.com/eduralph/pdca-harness/issues/177
+  (`.claude/agents/publisher.md` §How you work)
+
+## Follow-ups routed (not process deltas — work handed to an owner)
+
+- **Testbed issue — T3 core unit pre-test crash (no JUnit XML):** The three bundles
+  (issue_11314, issue_9267, issue_12539) where the **core** unit runner exits 1 before
+  producing any JUnit XML are a distinct path from testbed #176 (addon-unit runner). The
+  root cause should be established — likely a GI / dbus bootstrap failure in the Docker
+  container when the gramps package is re-installed for `run-unit.sh`. Confirm whether
+  testbed #176 already covers this symptom on the core-unit path; if not, file a
+  separate testbed engine issue.
+  Owner: human. Next step: check #176 scope; file new issue if the core-unit path is not
+  covered.
+
+- **Mantis enhancement — Note navigation-label hardcoded 40-char truncation:**
+  `wiki/pages/08 - Suggestions/note-nav-label-hardcoded-40.md` documents the residual
+  inconsistency between `Note.get_preview()` (now configurable) and
+  `navigation_label()` in `gramps/gen/utils/db.py:353–360` (still hardcoded 40). File
+  as a Mantis enhancement against `gramps-project/gramps`. The suggestion page gives
+  three implementation options (share existing config key / new key / raise constant);
+  the choice is a maintainer call.
+  Owner: human (Mantis login required, per INTEGRATION §1).
+
+- **Open Act item (carry-forward) — re-run the advisory reviewer on 9 June-25
+  bundles.** No change from 2026-06-27 entry. Owner: human.
+
+- **Open Act item (carry-forward) — populate addon-unit baselines via `make
+  preflight`.** SQLite test_export_sql, LifeLineChartView, PDFForms collection crashes
+  still appear. Owner: human.
+
+- **Open Act item (carry-forward) — §10 PR-description items for already-published
+  bundles.** Nine bundles (issue_3068, issue_4862, issue_5516, issue_6793, issue_6988,
+  issue_11437, issue_12018, issue_12110, issue_12260) have §10 items prescribing text
+  for `pr-description.md` or `tracker-comment.md`. The publisher-skill delta (above)
+  covers future bundles; for already-published bundles, the human should review each
+  §10 item and decide whether to amend the open draft PR description. Owner: human.
+
+## How effectiveness will be judged
+
+- Future publish sessions should produce `pr-description.md` files that include the §10
+  publisher-note text without the human having to carry it forward manually. Watch the
+  next 3 publishes for bundles that have §10 items: if the items appear in the draft PR
+  description without prompting, the delta worked.
+- The T3 core-unit crash should be diagnosed and either fixed (infra) or suppressed via
+  baseline. If it still appears as NEEDS-HUMAN in the next batch, escalate to a
+  filed testbed engine issue.
+
 # Act review — 2026-06-27 — cycles considered: all 30 in index (issue_10415, issue_10554, issue_10628, issue_11166, issue_13163, issue_13387, issue_13518, issue_14014, issue_3068, issue_4862, issue_5516, issue_5965, issue_6128, issue_6549, issue_6571, issue_6698, issue_6793, issue_6825, issue_6826, issue_6988, issue_7084, issue_7230, issue_7344, issue_7761, issue_7814, issue_7832, issue_7984, issue_8362, issue_8850; plus prior 2026-06-21/06-20 bundles still in index)
 
 ## What the cycles' records exposed
