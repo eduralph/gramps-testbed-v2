@@ -22,6 +22,18 @@ GEPS ([[07 - GEPS]]); a suggestion that matures into a proposal graduates.
    should resolve the addon root so translation works in nested-package addons.
 2. [[addon-typed-protocol-api]] — Mantis Feature Request: typed Protocol API for addons
    (DB API first); the follow-on GEPS 049 enables.
+3. [[sqlite-test-export-sql-flaky]] — addons-source bug: `test_export_sql` is flaky due
+   to hardcoded `/tmp` paths and no `tearDown`; fix with `tempfile.mkdtemp()`.
+4. [[lifelinechart-missing-dep-collection-crash]] — addons-source bug: `LifeLineChartView`
+   raises bare `Exception` (not `ImportError`) when `life_line_chart` is absent, crashing
+   pytest collection instead of producing a clean skip.
+5. [[pdfforms-missing-reportlab-collection-crash]] — addons-source bug: `PDFForms`
+   crashes pytest collection when `reportlab` is absent instead of skipping cleanly.
+6. [[tmgimporter-dbf-silent-log-nameerror]] — addons-source bug: `TMGimporter` silently
+   logs when `dbf` is absent, leaving `Table` undefined and causing `NameError` at runtime.
+7. [[addon-missing-dep-guard-audit]] — general: audit all addons with optional pip deps;
+   missing-dep guards must raise `ImportError` or `SkipTest`, never bare `Exception` or
+   silent `LOG.error`.
 
 ## Status
 
