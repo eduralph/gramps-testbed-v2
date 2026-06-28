@@ -1,0 +1,15 @@
+Toolbar Edit labels now consistent per GNOME HIG (bug 6583)
+
+Per the GNOME Human Interface Guidelines, a trailing ellipsis means
+"this command needs further input from the user before it can act".
+The Edit action opens an existing record in its editor (a
+state/properties window), so it must not carry an ellipsis. Add and
+Merge keep theirs, as they open dialogs that require user input
+before acting.
+
+Drop the trailing ellipsis from Edit toolbar/menu/popup labels in 11
+list-view and category-view source files (32 label sites total).
+Other ellipsis labels (Add, Merge, etc.) correctly retain theirs per
+the Input-Required rule.
+
+Fixes #6583

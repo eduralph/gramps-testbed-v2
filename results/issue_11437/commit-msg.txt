@@ -1,0 +1,25 @@
+DWR tree: preserve hyphens in displayed names
+
+The Dynamic Web Report (DWR) tree SVG view rewrites hyphens inside names
+to spaces — "Jan-Åke" renders as "Jan Åke" in the tree only, while every
+other DWR surface (indexes, tabs, mouse-over) shows the hyphen faithfully.
+
+The rewrite lives in dwr_svg.js:2939, where the tree-node name is split for
+line-wrapping using the regex /[ \-]+/g, which treats hyphens exactly like
+spaces. The fragments are then rejoined with a space (dwr_svg.js:2862),
+silently converting the hyphen to a space. The Python name export path
+(dynamicweb.py:1052–1055, 923–924) is faithful and is not the cause — only
+the tree passes the name through this splitter.
+
+Fix: split on spaces only (/ +/g), so hyphens become ordinary characters
+inside words and render intact. A hyphenated name is no longer a multi-word
+token and cannot wrap at its hyphen, but that layout nicety is explicitly
+out of scope, and preserving the name character outranks an internal wrap
+opportunity.
+
+Includes a regression test (DynamicWeb/tests/test_dwr_tree_names.py) that
+reads the production splitter regex live from dwr_svg.js and reproduces the
+tree's same-line join logic, asserting the hyphen survives for hyphenated
+names. The test fails red with the buggy regex and passes green with the fix.
+
+Fixes #11437

@@ -1,0 +1,32 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "sam888\n\n 2015-05-28 23:50\n\nadministrator  \n\ndelete": "200Charaterstringexample-NoteCategoryView-Gramps413win7-32bit.png (34,819 bytes)  \n 200Charaterstringexample-NoteCategoryView-Gramps413win7-32bit.png (34,819 bytes)",
+    "dsblank\n\n 2015-05-29 10:48\n\ndeveloper    ~0042032\n\nedit\ndelete\nmake private": "I guess that this is a memory problem: in the note view, all of that information is stored in memory. If you have 10k notes, and want to display 200 characters, that is 200 x 10k. I guess that that isn't too bad, but perhaps that should at least be a configurable option in case it is an issue on computers with less memory.",
+    "mxr4\n\n 2015-05-29 14:21\n\nreporter    ~0042038\n\nedit\ndelete\nmake private": "The other issue is consistency. All other locations display much more text, acting as there isn't nor will be truncation unless due to window size. One example is an Event with a long description. One I am looking at presently has 148 characters, acting in the manner I've described."
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "200Charaterstringexample-NoteCategoryView-Gramps413win7-32bit.png (34,819 bytes)  \n 200Charaterstringexample-NoteCategoryView-Gramps413win7-32bit.png (34,819 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I guess that this is a memory problem: in the note view, all of that information is stored in memory. If you have 10k notes, and want to display 200 characters, that is 200 x 10k. I guess that that isn't too bad, but perhaps that should at least be a configurable option in case it is an issue on computers with less memory."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "The other issue is consistency. All other locations display much more text, acting as there isn't nor will be truncation unless due to window size. One example is an Event with a long description. One I am looking at presently has 148 characters, acting in the manner I've described."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "8597",
+  "url": "https://gramps-project.org/bugs/view.php?id=8597"
+}

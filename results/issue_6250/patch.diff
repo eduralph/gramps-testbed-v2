@@ -1,0 +1,336 @@
+diff --git a/gramps/plugins/lib/libcairodoc.py b/gramps/plugins/lib/libcairodoc.py
+index a2da0fda15..056aac6ab4 100644
+--- a/gramps/plugins/lib/libcairodoc.py
++++ b/gramps/plugins/lib/libcairodoc.py
+@@ -61,6 +61,7 @@ from gramps.gen.plug.report import utils
+ from gramps.gen.errors import PluginError
+ from gramps.gen.plug.docbackend import CairoBackend
+ from gramps.gen.utils.image import resize_to_buffer
++from gramps.plugins.lib.libcairodocattr import reindex_split_attrlist
+ from gramps.gui.utils import SystemFonts
+ 
+ # ------------------------------------------------------------------------
+@@ -662,56 +663,13 @@ class GtkDocParagraph(GtkDocBaseElement):
+         new_paragraph = GtkDocParagraph(new_style)
+         # index is in bytecode in the text..
+         new_paragraph.__set_plaintext(self._plaintext.encode("utf-8")[index:])
+-        # now recalculate the attrilist:
+-        newattrlist = layout.get_attributes().copy()
+-        newattrlist.filter(self.filterattr, index)
+-
+-        ##      GTK3 PROBLEM: get_iterator no longer available!!
+-        ##      REFERENCES:
+-        ##          https://www.gramps-project.org/bugs/view.php?id=6208
+-        ##          https://bugzilla.gnome.org/show_bug.cgi?id=646788
+-        ##          workaround: https://github.com/matasbbb/pitivit/commit/da815339e5ce3631b122a72158ba9ffcc9ee4372
+-        ##      OLD EASY CODE:
+-        ##        oldattrlist = newattrlist.get_iterator()
+-        ##        while oldattrlist.next():
+-        ##            vals = oldattrlist.get_attrs()
+-        ##            #print (vals)
+-        ##            for attr in vals:
+-        ##                newattr = attr.copy()
+-        ##                newattr.start_index -= index if newattr.start_index > index \
+-        ##                                                else 0
+-        ##                newattr.end_index -= index
+-        ##                newattrlist.insert(newattr)
+-        ##      ## START OF WORKAROUND
+-        oldtext = self._text
+-        pos = 0
+-        realpos = 0
+-        markstarts = []
+-        # index is in bytecode in the text.. !!
+-        while pos < index:
+-            if realpos >= len(oldtext):
+-                break
+-            char = oldtext[realpos]
+-            if char == "<" and oldtext[realpos + 1] != "/":
+-                # a markup starts
+-                end = realpos + oldtext[realpos:].find(">") + 1
+-                markstarts += [oldtext[realpos:end]]
+-                realpos = end
+-            elif char == "<":
+-                # this is the closing tag, we did not stop yet, so remove tag!
+-                realpos = realpos + oldtext[realpos:].find(">") + 1
+-                markstarts.pop()
+-            else:
+-                pos += len(char.encode("utf-8"))
+-                realpos += 1
+-        # now construct the marked up text to use
+-        newtext = "".join(markstarts)
+-        newtext += oldtext[realpos:]
+-        # have it parsed
+-        parse_ok, newattrlist, _plaintext, accel_char = Pango.parse_markup(
+-            newtext, -1, "\000"
+-        )
+-        ##      ##END OF WORKAROUND
++        # Re-index the parsed attribute list onto the second part's plaintext
++        # byte offsets.  get_iterator() is introspectable again (bug 6208 is
++        # fixed on every supported GI stack), so we rebase the already-parsed
++        # runs directly instead of re-serialising the markup -- the old
++        # workaround walked the markup string and miscounted escaped entities
++        # (&amp;/&lt;/&gt;), which desynced the offsets (bug 6250).
++        newattrlist = reindex_split_attrlist(layout.get_attributes(), index)
+         new_paragraph.__set_attrlist(newattrlist)
+         # then update the first one
+         self.__set_plaintext(self._plaintext.encode("utf-8")[:index])
+@@ -731,14 +689,6 @@ class GtkDocParagraph(GtkDocBaseElement):
+         paragraph_height = endheight - startheight + spacing + t_margin + 2 * v_padding
+         return (self, new_paragraph), paragraph_height
+ 
+-    def filterattr(self, attr, index):
+-        """callback to filter out attributes in the removed piece at beginning"""
+-        if attr.start_index > index or (
+-            attr.start_index < index and attr.end_index > index
+-        ):
+-            return False
+-        return True
+-
+     def draw(self, cr, layout, width, dpi_x, dpi_y):
+         self.__parse_text()
+ 
+diff --git a/gramps/plugins/lib/libcairodocattr.py b/gramps/plugins/lib/libcairodocattr.py
+new file mode 100644
+index 0000000000..811d9bd2c3
+--- /dev/null
++++ b/gramps/plugins/lib/libcairodocattr.py
+@@ -0,0 +1,93 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2012       Craig Anderson
++# Copyright (C) 2026       Eduard Ralph
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Pango attribute-list helper for the Cairo docgen (:mod:`libcairodoc`).
++
++Split out so the paragraph-split re-indexing can be unit tested without
++importing the GUI-entangled :mod:`libcairodoc` module (which pulls in
++``gramps.gui`` and therefore Gdk at import time).  This module only needs
++Pango, which does not require a display.
++"""
++
++# -------------------------------------------------------------------------
++#
++# Pango modules
++#
++# -------------------------------------------------------------------------
++from gi.repository import Pango
++
++
++# -------------------------------------------------------------------------
++#
++# Attribute re-indexing
++#
++# -------------------------------------------------------------------------
++def reindex_split_attrlist(attrlist, index):
++    """
++    Rebase a paragraph's Pango attribute list onto the second part produced
++    when the paragraph is split at plaintext byte offset *index* (bug 6250).
++
++    *index* is a byte offset into the **parsed plaintext** (the Pango
++    ``start_index``/``end_index`` contract), so the result is correct
++    regardless of how the source markup serialised characters that are
++    escaped in markup (``&``, ``<``, ``>``).
++
++    Returns a fresh :class:`Pango.AttrList` in which every style run that
++    extends past *index* survives, with its offsets expressed relative to the
++    second part's plaintext:
++
++    * a run starting at or after the split has both offsets shifted by
++      ``index``;
++    * a run straddling the split (or starting exactly at it) is clamped to
++      start at 0;
++    * a run lying entirely before the split (``end_index <= index``) is
++      dropped.
++
++    This replaces the obsolete markup re-serialisation workaround that
++    miscounted escaped entities: ``get_iterator()`` is introspectable again,
++    so the already-parsed runs are re-indexed directly.
++    """
++    newattrlist = Pango.AttrList()
++    if attrlist is None:
++        return newattrlist
++
++    iterator = attrlist.get_iterator()
++    seen = set()
++    while True:
++        for attr in iterator.get_attrs():
++            # The iterator reports an attribute in every segment it spans, so
++            # collapse the repeats and insert each run exactly once.
++            key = (int(attr.klass.type), attr.start_index, attr.end_index)
++            if key in seen:
++                continue
++            seen.add(key)
++            if attr.end_index <= index:
++                # Run lies entirely in the first part: it has no presence in
++                # the second part, so drop it.
++                continue
++            newattr = attr.copy()
++            # Clamp a straddling run's start to the start of the second part.
++            newattr.start_index = max(attr.start_index - index, 0)
++            newattr.end_index = attr.end_index - index
++            newattrlist.insert(newattr)
++        if not iterator.next():
++            break
++    return newattrlist
+diff --git a/gramps/plugins/lib/test/__init__.py b/gramps/plugins/lib/test/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/gramps/plugins/lib/test/libcairodoc_test.py b/gramps/plugins/lib/test/libcairodoc_test.py
+new file mode 100644
+index 0000000000..52c8c537c3
+--- /dev/null
++++ b/gramps/plugins/lib/test/libcairodoc_test.py
+@@ -0,0 +1,113 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026       Eduard Ralph
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Unittest for the Cairo docgen paragraph-split attribute re-indexing (bug 6250).
++
++When ``GtkDocParagraph.divide`` splits a styled paragraph across a page break
++it rebuilds the second part's ``Pango.AttrList`` by re-indexing the parsed
++attribute runs onto the second part's plaintext byte offsets.  The old
++workaround re-serialised the markup and counted escaped entities
++(``&amp;``/``&lt;``/``&gt;``) as multiple plaintext bytes, so any paragraph
++whose plaintext contained ``&``, ``<`` or ``>`` before the split desynced the
++offsets and misplaced or dropped the style runs.
++
++These tests drive the production re-index seam (``reindex_split_attrlist``,
++the same function ``divide`` calls) on a ``Pango.AttrList`` obtained from
++``Pango.parse_markup`` -- no display or cairo surface required.
++"""
++
++import unittest
++
++import gi
++
++gi.require_version("Pango", "1.0")
++from gi.repository import Pango
++
++from gramps.plugins.lib.libcairodocattr import reindex_split_attrlist
++
++
++def _parse(markup):
++    """Parse markup, returning (attrlist, plaintext-as-str)."""
++    ok, attrlist, plaintext, _accel = Pango.parse_markup(markup, -1, "\000")
++    assert ok
++    return attrlist, plaintext
++
++
++def _runs(attrlist):
++    """Flatten an AttrList to a sorted set of (type, start, end) tuples."""
++    found = set()
++    iterator = attrlist.get_iterator()
++    while True:
++        for attr in iterator.get_attrs():
++            found.add((int(attr.klass.type), attr.start_index, attr.end_index))
++        if not iterator.next():
++            break
++    return found
++
++
++class ReindexSplitAttrListTest(unittest.TestCase):
++    """
++    The split point ``index`` is a byte offset into the parsed *plaintext*,
++    so re-indexing must be independent of how the markup serialised escaped
++    characters.  ``"A &amp; B <b>BOLD</b> tail"`` parses to plaintext
++    ``"A & B BOLD tail"`` (15 bytes) with a single weight run over the four
++    bytes of ``BOLD`` (plaintext bytes 6..10).  The ``&`` sits at byte 2,
++    before every split below -- exactly the case the old workaround got wrong.
++    """
++
++    MARKUP = "A &amp; B <b>BOLD</b> tail"
++
++    def setUp(self):
++        self.attrlist, self.plaintext = _parse(self.MARKUP)
++        self.assertEqual(self.plaintext, "A & B BOLD tail")
++        # sanity: the parsed run really is the bold over BOLD
++        self.assertEqual(_runs(self.attrlist), {(int(Pango.AttrType.WEIGHT), 6, 10)})
++
++    def test_split_at_run_start_rebases_to_zero(self):
++        # Split exactly at the start of the bold run (byte offset of "BOLD").
++        index = self.plaintext.encode("utf-8").index(b"BOLD")
++        self.assertEqual(index, 6)
++        result = reindex_split_attrlist(self.attrlist, index)
++        # The bold survives, rebased onto the second part's bytes 0..4 ("BOLD").
++        self.assertEqual(_runs(result), {(int(Pango.AttrType.WEIGHT), 0, 4)})
++
++    def test_split_inside_run_clamps_start_to_zero(self):
++        # Split inside the bold run (after "BO"); the straddling run clamps
++        # its start to 0 and keeps its tail.
++        index = 8
++        result = reindex_split_attrlist(self.attrlist, index)
++        self.assertEqual(_runs(result), {(int(Pango.AttrType.WEIGHT), 0, 2)})
++
++    def test_split_after_run_shifts_start(self):
++        # Split before the bold run (at the space after "B "); the run lies
++        # wholly in the second part and both offsets shift by index.
++        index = 5
++        result = reindex_split_attrlist(self.attrlist, index)
++        self.assertEqual(_runs(result), {(int(Pango.AttrType.WEIGHT), 1, 5)})
++
++    def test_run_entirely_before_split_is_dropped(self):
++        # Split past the end of the bold run; nothing survives into part two.
++        index = 11
++        result = reindex_split_attrlist(self.attrlist, index)
++        self.assertEqual(_runs(result), set())
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index 6164615dea..2dd1418022 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -604,6 +604,7 @@ gramps/plugins/importer/test/importvcard_test.py
+ # plugins/lib directory
+ #
+ gramps/plugins/lib/__init__.py
++gramps/plugins/lib/libcairodocattr.py
+ gramps/plugins/lib/libgrampsxml.py
+ gramps/plugins/lib/libhtml.py
+ gramps/plugins/lib/libmapservice.py
+@@ -612,6 +613,11 @@ gramps/plugins/lib/libodfbackend.py
+ gramps/plugins/lib/libplaceimport.py
+ gramps/plugins/lib/librecurse.py
+ #
++# plugins/lib/test directory
++#
++gramps/plugins/lib/test/__init__.py
++gramps/plugins/lib/test/libcairodoc_test.py
++#
+ # plugins/lib/maps directory
+ #
+ gramps/plugins/lib/maps/__init__.py

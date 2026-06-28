@@ -1,0 +1,32 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "user1563\n\n 2024-12-20 02:53\n\n   ~0067676\n\nedit\ndelete\nmake private": "Can you reproduce the issue in Gramps 5.2.3 (the latest version) using example.gramps please?\nhttps://gramps-project.org/wiki/index.php?title=Example.gramps\n\nIf so please provide person id used and steps.",
+    "petr.fedorov\n\n 2024-12-22 15:45\n\ndeveloper    ~0067694\n\nedit\ndelete\nmake private": "Hello,\nYes, the issue can be reproduced in 5.2.3 using ANY person from example.gramps. But my choice is ID: I1200 (Avis Fernandez) - because it is the only person with \"Patronymic\" surname (i discovered this bug while trying to show patronymic surnames correctly).\n\n\n\n\n изображение.png (80,045 bytes)  \n изображение.png (80,045 bytes)  \n изображение-2.png (256,439 bytes)",
+    "petr.fedorov\n\n 2024-12-22 15:49\n\ndeveloper    ~0067695\n\nedit\ndelete\nmake private": "Steps are:\n1) Edit->Preferences->Data->Name format: Given\n2) Go to People, enter I1200 into ID: field of Filter and press Find\n3) Choose \"Avis\"\n4) Then go to \"Charts\" . Chart shows: Fernandez El Fernancez Avis III, i.e. Name format is ignored"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Can you reproduce the issue in Gramps 5.2.3 (the latest version) using example.gramps please?\nhttps://gramps-project.org/wiki/index.php?title=Example.gramps\n\nIf so please provide person id used and steps."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Hello,\nYes, the issue can be reproduced in 5.2.3 using ANY person from example.gramps. But my choice is ID: I1200 (Avis Fernandez) - because it is the only person with \"Patronymic\" surname (i discovered this bug while trying to show patronymic surnames correctly).\n\n\n\n\n изображение.png (80,045 bytes)  \n изображение.png (80,045 bytes)  \n изображение-2.png (256,439 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Steps are:\n1) Edit->Preferences->Data->Name format: Given\n2) Go to People, enter I1200 into ID: field of Filter and press Find\n3) Choose \"Avis\"\n4) Then go to \"Charts\" . Chart shows: Fernandez El Fernancez Avis III, i.e. Name format is ignored"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "13532",
+  "url": "https://gramps-project.org/bugs/view.php?id=13532"
+}

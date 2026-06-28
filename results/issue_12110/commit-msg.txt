@@ -1,0 +1,20 @@
+Re-validate call name when given name changes (bug 12110)
+
+The Call field's red/black validity indicator is a function of both the call
+text and the given name, but was wired only to the Call field's validate
+signal. Editing the Given name left the indicator stale.
+
+Add _revalidate_call method to both EditName and EditPerson editors to
+re-fire the Call field's validate(force=True) when the Given field changes.
+Wire MonitoredEntry's changed callback for the given field to this method.
+
+The call-name validity predicate itself is unchanged; only its trigger is
+extended to cover changes to the given name, restoring the invariant that
+the red/black state reflects the current given name without forcing the user
+to re-touch the Call field.
+
+Headless C4 regression test confirms the re-validation fires on both red→black
+and black→red transitions when the given name changes. Manual GUI confirmation
+in example.gramps verified both editors (Name editor and Person editor).
+
+Fixes #12110

@@ -1,0 +1,227 @@
+diff --git a/gramps/plugins/view/familyview.py b/gramps/plugins/view/familyview.py
+index e2d04b6a5e..b4a8b986fa 100644
+--- a/gramps/plugins/view/familyview.py
++++ b/gramps/plugins/view/familyview.py
+@@ -57,6 +57,7 @@ from gramps.gui.filters.sidebar import FamilySidebarFilter
+ from gramps.gui.merge import MergeFamily
+ from gramps.gen.plug import CATEGORY_QR_FAMILY
+ from gramps.gui.ddtargets import DdTargets
++from gramps.plugins.view.familyview_selection import resolve_active_after_filter
+ 
+ 
+ # -------------------------------------------------------------------------
+@@ -144,6 +145,42 @@ class FamilyView(ListView):
+     def get_config_name(self):
+         return __name__
+ 
++    def build_tree(self, force_sidebar=False, preserve_col=True):
++        """
++        Rebuild the family list, then keep the active family on a visible row.
++
++        After a filter/Find narrows the list (Mantis 12539) the previously
++        active family can drop out of the filtered model.
++        ``ListView.build_tree`` leaves it active (it is no longer selectable),
++        so the bottombar "Children" tab keeps showing the now-hidden family
++        until the user re-clicks a row. Re-point the active family at the first
++        visible row so the ``active-changed`` signal fires and the detail tabs,
++        including the Children gramplet, are rebuilt for the now-current
++        selection.
++        """
++        ListView.build_tree(self, force_sidebar, preserve_col)
++        # Only resync when this view is the displayed page and a model exists;
++        # an inactive view is rebuilt lazily and carries no usable selection.
++        if not self.active or not self.model:
++            return
++        active_handle = self.get_active()
++        target = resolve_active_after_filter(active_handle, self._visible_handles())
++        if target and target != active_handle:
++            self.change_active(target)
++
++    def _visible_handles(self):
++        """
++        Return the family handles currently shown in the list, in display order.
++        """
++        handles = []
++        model = self.model
++        if model is not None:
++            for row in model:
++                handle = model.get_handle_from_iter(row.iter)
++                if handle is not None:
++                    handles.append(handle)
++        return handles
++
+     def navigation_type(self):
+         return "Family"
+ 
+diff --git a/gramps/plugins/view/familyview_selection.py b/gramps/plugins/view/familyview_selection.py
+new file mode 100644
+index 0000000000..23519b4e63
+--- /dev/null
++++ b/gramps/plugins/view/familyview_selection.py
+@@ -0,0 +1,58 @@
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2024  Gramps developers
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Selection-resolution helper for the Families view (Mantis 12539).
++
++Kept as a separate, ``gi``-free module so the filter -> detail-tab refresh
++decision can be reasoned about and unit-tested without importing Gtk.
++``FamilyView.build_tree`` routes through :func:`resolve_active_after_filter`
++after every (re)build of the family list so that the embedded "Children" tab
++follows the current *visible* selection once a filter/Find changes the list.
++"""
++
++
++def resolve_active_after_filter(active_handle, visible_handles):
++    """
++    Return the family handle that should be active after a list (re)build.
++
++    :param active_handle: the currently active family handle, or a falsy value
++        when no family is active.
++    :param visible_handles: the family handles currently shown in the
++        (possibly filtered) list, in display order.
++    :returns: the handle that should become/stay active, or ``None``.
++
++    Rules:
++
++    * No active family -> ``None``: never auto-select on a plain build or at
++      startup, preserving the existing "nothing selected" state.
++    * Active family still visible -> keep it, so no spurious active-changed
++      signal fires when the selection did not actually move.
++    * Active family filtered out while the list is non-empty -> the first
++      visible family, so the detail tabs track a valid, visible selection
++      instead of the now-hidden previous one (the Mantis 12539 symptom: the
++      Children tab kept showing the filtered-out family).
++    * Active family filtered out and nothing visible -> ``None``.
++    """
++    if not active_handle:
++        return None
++    if active_handle in visible_handles:
++        return active_handle
++    if visible_handles:
++        return visible_handles[0]
++    return None
+diff --git a/gramps/plugins/view/test/__init__.py b/gramps/plugins/view/test/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/gramps/plugins/view/test/familyview_selection_test.py b/gramps/plugins/view/test/familyview_selection_test.py
+new file mode 100644
+index 0000000000..cacd92cd97
+--- /dev/null
++++ b/gramps/plugins/view/test/familyview_selection_test.py
+@@ -0,0 +1,85 @@
++# -*- coding: utf-8 -*-
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2024  Gramps developers
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Regression test for Mantis 12539.
++
++In the Families view, after a filter/Find narrows the family list the
++previously active family can be filtered out.  ``ListView.build_tree`` left it
++active even though it was no longer selectable, so the bottombar "Children" tab
++kept showing the hidden family (or nothing) until the user manually re-clicked a
++row.
++
++``FamilyView.build_tree`` now routes the post-rebuild selection decision through
++:func:`gramps.plugins.view.familyview_selection.resolve_active_after_filter`
++(the exact function this test drives -- not a copy of it), then calls
++``change_active`` on the resolved handle so the ``active-changed`` signal fires
++and the Children gramplet rebuilds for the now-current, visible family.
++
++This unit covers that decision headlessly (no Gtk import); the end-to-end GUI
++behaviour is characterised by the committed AT-SPI repro
++``engine/interface/test_bug_12539_families-children-refresh.py``.
++"""
++
++import unittest
++
++from gramps.plugins.view.familyview_selection import resolve_active_after_filter
++
++
++class ResolveActiveAfterFilterTest(unittest.TestCase):
++    """The selection that the Children tab must follow after a list rebuild."""
++
++    def test_active_filtered_out_falls_back_to_first_visible(self):
++        # The Mantis 12539 scenario: the active family ("F_old") is no longer
++        # in the filtered list, so the active family must move to the first
++        # visible row -- NOT stay on the hidden family (which left the Children
++        # tab stale).
++        result = resolve_active_after_filter("F_old", ["F_a", "F_b", "F_c"])
++        self.assertEqual(result, "F_a")
++        self.assertNotEqual(
++            result,
++            "F_old",
++            "active family stayed on the filtered-out family -- the Children "
++            "tab would keep showing the hidden family (bug 12539)",
++        )
++
++    def test_active_still_visible_is_kept(self):
++        # When the active family survives the filter, it must stay active so no
++        # spurious active-changed fires and the selection does not jump.
++        result = resolve_active_after_filter("F_b", ["F_a", "F_b", "F_c"])
++        self.assertEqual(result, "F_b")
++
++    def test_no_active_does_not_autoselect(self):
++        # A plain build / startup with nothing active must not auto-select the
++        # first row.
++        self.assertIsNone(resolve_active_after_filter(None, ["F_a", "F_b"]))
++        self.assertIsNone(resolve_active_after_filter("", ["F_a", "F_b"]))
++
++    def test_active_filtered_out_with_empty_list_clears(self):
++        # A filter that matches nothing leaves no family to show.
++        self.assertIsNone(resolve_active_after_filter("F_old", []))
++
++    def test_active_visible_with_empty_list(self):
++        # Defensive: an active handle but an empty visible set yields None.
++        self.assertIsNone(resolve_active_after_filter("F_old", []))
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index 6164615dea..6ad7332fb8 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -692,6 +692,9 @@ gramps/plugins/tool/__init__.py
+ # plugins/view directory
+ #
+ gramps/plugins/view/__init__.py
++gramps/plugins/view/familyview_selection.py
++gramps/plugins/view/test/__init__.py
++gramps/plugins/view/test/familyview_selection_test.py
+ #
+ # plugins/webreport directory
+ #

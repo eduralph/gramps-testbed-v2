@@ -1,0 +1,32 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "prculley\n\n 2020-09-30 16:16\n\nmanager    ~0061087\n\nedit\ndelete\nmake private": "Are you in Sources View or in Citation Tree view? What exactly are you looking at when you say the Citation list doesn't update? The 'References' Gramplet?",
+    "moorob\n\n 2020-09-30 19:48\n\nreporter    ~0061089\n\nedit\ndelete\nmake private": "This is from the Sources screen. When I select a source and select a reference to edit the citation, after making changes to the citation and saving it, citation doesn't update in source reference list until you switch to another source and come back to it.",
+    "prculley\n\n 2020-10-02 16:29\n\nmanager    ~0061112\n\nedit\ndelete\nmake private": "I understand now. Unfortunately, fixing this would be fairly hard. The current code is pretty generalized to display for references in any type of object. To do a full time detection and display when references change, requires connecting to signals for the type of objects that could in fact change. In this case, for sources, the only objects that matter would be Citations (and notes with links to the sources, when the next version of Gramps starts monitoring those). For other object types, like Notes, we would have to connect to all kinds of other objects, since many objects in Gramps can have notes attached.\n\nWill give it some thought..."
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Are you in Sources View or in Citation Tree view? What exactly are you looking at when you say the Citation list doesn't update? The 'References' Gramplet?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "This is from the Sources screen. When I select a source and select a reference to edit the citation, after making changes to the citation and saving it, citation doesn't update in source reference list until you switch to another source and come back to it."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I understand now. Unfortunately, fixing this would be fairly hard. The current code is pretty generalized to display for references in any type of object. To do a full time detection and display when references change, requires connecting to signals for the type of objects that could in fact change. In this case, for sources, the only objects that matter would be Citations (and notes with links to the sources, when the next version of Gramps starts monitoring those). For other object types, like Notes, we would have to connect to all kinds of other objects, since many objects in Gramps can have notes attached.\n\nWill give it some thought..."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "11991",
+  "url": "https://gramps-project.org/bugs/view.php?id=11991"
+}

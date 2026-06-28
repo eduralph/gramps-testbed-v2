@@ -1,0 +1,1000 @@
+diff --git a/gramps/plugins/lib/libpersonview.py b/gramps/plugins/lib/libpersonview.py
+index f647f8d998..0e73d6b699 100644
+--- a/gramps/plugins/lib/libpersonview.py
++++ b/gramps/plugins/lib/libpersonview.py
+@@ -253,7 +253,7 @@ class BasePersonView(ListView):
+       <section id='CommonEdit' groups='RW'>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -265,10 +265,10 @@ class BasePersonView(ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -333,7 +333,7 @@ class BasePersonView(ListView):
+         <property name="icon-name">list-add</property>
+         <property name="action-name">win.Add</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">_Add...</property>
++        <property name="label" translatable="yes">_Add</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -345,7 +345,7 @@ class BasePersonView(ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -369,7 +369,7 @@ class BasePersonView(ListView):
+         <property name="icon-name">gramps-merge</property>
+         <property name="action-name">win.Merge</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">_Merge...</property>
++        <property name="label" translatable="yes">_Merge</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -404,7 +404,7 @@ class BasePersonView(ListView):
+       <section>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -416,7 +416,7 @@ class BasePersonView(ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+       <section>
+@@ -427,7 +427,7 @@ class BasePersonView(ListView):
+       </section>
+     </menu>
+     """
+-        % _("_Edit...", "action"),  # to use sgettext()
++        % _("_Edit", "action"),  # to use sgettext()
+     ]
+ 
+     def get_handle_from_gramps_id(self, gid):
+diff --git a/gramps/plugins/lib/libplaceview.py b/gramps/plugins/lib/libplaceview.py
+index 75d8d296f1..27b23f6eb7 100644
+--- a/gramps/plugins/lib/libplaceview.py
++++ b/gramps/plugins/lib/libplaceview.py
+@@ -332,7 +332,7 @@ class PlaceBaseView(ListView):
+       <section id='CommonEdit' groups='RW'>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -344,10 +344,10 @@ class PlaceBaseView(ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -394,7 +394,7 @@ class PlaceBaseView(ListView):
+         <property name="icon-name">list-add</property>
+         <property name="action-name">win.Add</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">_Add...</property>
++        <property name="label" translatable="yes">_Add</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -406,7 +406,7 @@ class PlaceBaseView(ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -430,7 +430,7 @@ class PlaceBaseView(ListView):
+         <property name="icon-name">gramps-merge</property>
+         <property name="action-name">win.Merge</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">_Merge...</property>
++        <property name="label" translatable="yes">_Merge</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -455,7 +455,7 @@ class PlaceBaseView(ListView):
+       <section>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -467,7 +467,7 @@ class PlaceBaseView(ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+       <section>
+@@ -485,7 +485,7 @@ class PlaceBaseView(ListView):
+       </section>
+     </menu>
+ """
+-        % _("_Edit...", "action"),
++        % _("_Edit", "action"),
+     ]  # to use sgettext()
+ 
+     map_ui_menu = """
+diff --git a/gramps/plugins/test/toolbar_label_ellipsis_test.py b/gramps/plugins/test/toolbar_label_ellipsis_test.py
+new file mode 100644
+index 0000000000..5fcdb65315
+--- /dev/null
++++ b/gramps/plugins/test/toolbar_label_ellipsis_test.py
+@@ -0,0 +1,109 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  Gramps developers
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Regression test for bug 6583.
++
++The list-view / category-view toolbar and its matching menu items used to
++label the Add / Edit / Merge actions with a trailing ellipsis ("_Add...",
++"Edit...", "_Merge...") while the Remove/Delete action carried none.  As the
++GNOME Human Interface Guidelines note (and Gramps maintainers agreed on the
++tracker), toolbar buttons "that correspond directly to menu items" should use
++"the text label the same as the menu item, but without any trailing ellipsis".
++The inconsistent ellipses were therefore removed from the Add/Edit/Merge action
++labels across the view definitions.
++
++This test parses the ``additional_ui`` UI-XML strings straight from each view's
++source file (no GTK / gramps.gui import, so it is headless-safe) and asserts
++that no Add/Edit/Merge action label keeps a trailing ellipsis.  It is RED before
++the fix (the ellipses are present) and GREEN after (they are stripped).
++"""
++
++import os
++import re
++import unittest
++
++# This file lives at gramps/plugins/test/<name>_test.py, so the gramps package
++# root is two directories up.  Resolve the view source files relative to it
++# instead of importing them (importing pulls in gramps.gui / gi → not headless).
++_GRAMPS_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
++
++# The category / list / relationship views whose toolbars carried the action
++# buttons reported in bug 6583.
++VIEW_FILES = [
++    "plugins/lib/libpersonview.py",
++    "plugins/lib/libplaceview.py",
++    "plugins/view/citationlistview.py",
++    "plugins/view/citationtreeview.py",
++    "plugins/view/eventview.py",
++    "plugins/view/familyview.py",
++    "plugins/view/mediaview.py",
++    "plugins/view/noteview.py",
++    "plugins/view/repoview.py",
++    "plugins/view/sourceview.py",
++    "plugins/view/relview.py",
++]
++
++# A GtkToolButton <property name="label">…</property> or a menu/popup
++# <attribute name="label">…</attribute> value.  DOTALL so a label split across
++# Python string concatenation is captured as one value too.
++_LABEL_RE = re.compile(
++    r'name="label"(?:\s+translatable="[^"]*")?\s*>([^<]*)<', re.DOTALL
++)
++# Labels supplied through sgettext, e.g.  _("_Edit...", "action").
++_SGETTEXT_RE = re.compile(r'_\(\s*"([^"]*)"\s*,\s*"action"\s*\)')
++
++# The Add / Edit / Merge action family (covers "_Add", "Edit...", "_Merge...",
++# "Add source...", "Add Partner...", "Add New Parents...", …).  Remove/Delete is
++# deliberately excluded — it never carried an ellipsis.
++_ACTION_FAMILY = re.compile(r"(Add|Edit|Merge|Partner)")
++
++
++def _iter_action_labels(text):
++    """Yield every Add/Edit/Merge-family label string defined in *text*."""
++    for value in _LABEL_RE.findall(text):
++        if _ACTION_FAMILY.search(value):
++            yield value
++    for value in _SGETTEXT_RE.findall(text):
++        if _ACTION_FAMILY.search(value):
++            yield value
++
++
++class ToolbarLabelEllipsisTest(unittest.TestCase):
++    """Bug 6583: Add/Edit/Merge toolbar+menu labels must not end with '...'."""
++
++    def test_no_trailing_ellipsis_on_action_labels(self):
++        offenders = []
++        for rel in VIEW_FILES:
++            path = os.path.join(_GRAMPS_ROOT, rel)
++            with open(path, encoding="utf-8") as handle:
++                text = handle.read()
++            for label in _iter_action_labels(text):
++                if label.endswith("..."):
++                    offenders.append("%s: %r" % (rel, label))
++        self.assertEqual(
++            offenders,
++            [],
++            "Add/Edit/Merge toolbar/menu labels still carry a trailing "
++            "ellipsis (bug 6583):\n  " + "\n  ".join(offenders),
++        )
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/gramps/plugins/view/citationlistview.py b/gramps/plugins/view/citationlistview.py
+index 8d328f17ec..8f09e0eea5 100644
+--- a/gramps/plugins/view/citationlistview.py
++++ b/gramps/plugins/view/citationlistview.py
+@@ -219,7 +219,7 @@ class CitationListView(ListView):
+       <section id='CommonEdit' groups='RW'>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -231,10 +231,10 @@ class CitationListView(ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -281,7 +281,7 @@ class CitationListView(ListView):
+         <property name="icon-name">list-add</property>
+         <property name="action-name">win.Add</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">_Add...</property>
++        <property name="label" translatable="yes">_Add</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -293,7 +293,7 @@ class CitationListView(ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -317,7 +317,7 @@ class CitationListView(ListView):
+         <property name="icon-name">gramps-merge</property>
+         <property name="action-name">win.Merge</property>
+         <property name="tooltip_text" >%s</property>
+-        <property name="label" translatable="yes">_Merge...</property>
++        <property name="label" translatable="yes">_Merge</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -343,7 +343,7 @@ class CitationListView(ListView):
+       <section>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -355,7 +355,7 @@ class CitationListView(ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+       <section>
+@@ -365,7 +365,7 @@ class CitationListView(ListView):
+         </placeholder>
+       </section>
+     </menu>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+     ]
+ 
+     def add(self, *obj):
+diff --git a/gramps/plugins/view/citationtreeview.py b/gramps/plugins/view/citationtreeview.py
+index 7202fb8f3f..7fa312ff69 100644
+--- a/gramps/plugins/view/citationtreeview.py
++++ b/gramps/plugins/view/citationtreeview.py
+@@ -362,15 +362,15 @@ class CitationTreeView(LibSourceView, ListView):
+       <section id='CommonEdit' groups='RW'>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.AddSource</attribute>
+-          <attribute name="label" translatable="yes">Add source...</attribute>
++          <attribute name="label" translatable="yes">Add source</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.AddCitation</attribute>
+-          <attribute name="label" translatable="yes">Add citation...</attribute>
++          <attribute name="label" translatable="yes">Add citation</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -382,10 +382,10 @@ class CitationTreeView(LibSourceView, ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -432,7 +432,7 @@ class CitationTreeView(LibSourceView, ListView):
+         <property name="icon-name">list-add</property>
+         <property name="action-name">win.Add</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">_Add...</property>
++        <property name="label" translatable="yes">_Add</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -444,7 +444,7 @@ class CitationTreeView(LibSourceView, ListView):
+         <property name="icon-name">gramps-source</property>
+         <property name="action-name">win.AddSource</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Add source...</property>
++        <property name="label" translatable="yes">Add source</property>
+       </object>
+       <packing>
+         <property name="homogeneous">False</property>
+@@ -455,7 +455,7 @@ class CitationTreeView(LibSourceView, ListView):
+         <property name="icon-name">gramps-citation</property>
+         <property name="action-name">win.AddCitation</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Add citation...</property>
++        <property name="label" translatable="yes">Add citation</property>
+       </object>
+       <packing>
+         <property name="homogeneous">False</property>
+@@ -466,7 +466,7 @@ class CitationTreeView(LibSourceView, ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -490,7 +490,7 @@ class CitationTreeView(LibSourceView, ListView):
+         <property name="icon-name">gramps-merge</property>
+         <property name="action-name">win.Merge</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">_Merge...</property>
++        <property name="label" translatable="yes">_Merge</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -526,12 +526,12 @@ class CitationTreeView(LibSourceView, ListView):
+        <section>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.AddCitation</attribute>
+           <attribute name="label" translatable="yes">"""
+-        """Add citation...</attribute>
++        """Add citation</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -543,7 +543,7 @@ class CitationTreeView(LibSourceView, ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+       <section>
+@@ -554,7 +554,7 @@ class CitationTreeView(LibSourceView, ListView):
+       </section>
+     </menu>
+ """
+-        % _("_Edit...", "action"),  # to use sgettext()
++        % _("_Edit", "action"),  # to use sgettext()
+     ]
+ 
+     def add_source(self, *obj):
+diff --git a/gramps/plugins/view/eventview.py b/gramps/plugins/view/eventview.py
+index 2cf54fc3df..c38b8fe543 100644
+--- a/gramps/plugins/view/eventview.py
++++ b/gramps/plugins/view/eventview.py
+@@ -232,7 +232,7 @@ class EventView(ListView):
+       <section id='CommonEdit' groups='RW'>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -244,10 +244,10 @@ class EventView(ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -294,7 +294,7 @@ class EventView(ListView):
+         <property name="icon-name">list-add</property>
+         <property name="action-name">win.Add</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">_Add...</property>
++        <property name="label" translatable="yes">_Add</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -306,7 +306,7 @@ class EventView(ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -330,7 +330,7 @@ class EventView(ListView):
+         <property name="icon-name">gramps-merge</property>
+         <property name="action-name">win.Merge</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">_Merge...</property>
++        <property name="label" translatable="yes">_Merge</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -356,7 +356,7 @@ class EventView(ListView):
+       <section>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -368,7 +368,7 @@ class EventView(ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+       <section>
+@@ -378,7 +378,7 @@ class EventView(ListView):
+         </placeholder>
+       </section>
+     </menu>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+     ]
+ 
+     def get_handle_from_gramps_id(self, gid):
+diff --git a/gramps/plugins/view/familyview.py b/gramps/plugins/view/familyview.py
+index e2d04b6a5e..d9e1e5b71d 100644
+--- a/gramps/plugins/view/familyview.py
++++ b/gramps/plugins/view/familyview.py
+@@ -189,7 +189,7 @@ class FamilyView(ListView):
+       <section id='CommonEdit' groups='RW'>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -201,10 +201,10 @@ class FamilyView(ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -251,7 +251,7 @@ class FamilyView(ListView):
+         <property name="icon-name">list-add</property>
+         <property name="action-name">win.Add</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">_Add...</property>
++        <property name="label" translatable="yes">_Add</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -263,7 +263,7 @@ class FamilyView(ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -287,7 +287,7 @@ class FamilyView(ListView):
+         <property name="icon-name">gramps-merge</property>
+         <property name="action-name">win.Merge</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">_Merge...</property>
++        <property name="label" translatable="yes">_Merge</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -313,7 +313,7 @@ class FamilyView(ListView):
+       <section>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -325,7 +325,7 @@ class FamilyView(ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+       <section>
+@@ -348,7 +348,7 @@ class FamilyView(ListView):
+       </section>
+     </menu>
+ """
+-        % _("_Edit...", "action"),  # to use sgettext()
++        % _("_Edit", "action"),  # to use sgettext()
+     ]
+ 
+     def define_actions(self):
+diff --git a/gramps/plugins/view/mediaview.py b/gramps/plugins/view/mediaview.py
+index 259c3aed5b..1ef13e1aa3 100644
+--- a/gramps/plugins/view/mediaview.py
++++ b/gramps/plugins/view/mediaview.py
+@@ -296,7 +296,7 @@ class MediaView(ListView):
+       <section id='CommonEdit' groups='RW'>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -308,10 +308,10 @@ class MediaView(ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -358,7 +358,7 @@ class MediaView(ListView):
+         <property name="icon-name">list-add</property>
+         <property name="action-name">win.Add</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">_Add...</property>
++        <property name="label" translatable="yes">_Add</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -370,7 +370,7 @@ class MediaView(ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -394,7 +394,7 @@ class MediaView(ListView):
+         <property name="icon-name">gramps-merge</property>
+         <property name="action-name">win.Merge</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">_Merge...</property>
++        <property name="label" translatable="yes">_Merge</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -445,7 +445,7 @@ class MediaView(ListView):
+       <section>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -457,7 +457,7 @@ class MediaView(ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+       <section>
+@@ -472,7 +472,7 @@ class MediaView(ListView):
+       </section>
+     </menu>
+ """
+-        % _("_Edit...", "action"),  # to use sgettext()
++        % _("_Edit", "action"),  # to use sgettext()
+     ]
+ 
+     def add(self, *obj):
+diff --git a/gramps/plugins/view/noteview.py b/gramps/plugins/view/noteview.py
+index 9efc24e9c9..a930e077e7 100644
+--- a/gramps/plugins/view/noteview.py
++++ b/gramps/plugins/view/noteview.py
+@@ -178,7 +178,7 @@ class NoteView(ListView):
+       <section id='CommonEdit' groups='RW'>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -190,10 +190,10 @@ class NoteView(ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -240,7 +240,7 @@ class NoteView(ListView):
+         <property name="icon-name">list-add</property>
+         <property name="action-name">win.Add</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">_Add...</property>
++        <property name="label" translatable="yes">_Add</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -252,7 +252,7 @@ class NoteView(ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -276,7 +276,7 @@ class NoteView(ListView):
+         <property name="icon-name">gramps-merge</property>
+         <property name="action-name">win.Merge</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">_Merge...</property>
++        <property name="label" translatable="yes">_Merge</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -302,7 +302,7 @@ class NoteView(ListView):
+       <section>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -314,7 +314,7 @@ class NoteView(ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+       <section>
+@@ -324,7 +324,7 @@ class NoteView(ListView):
+         </placeholder>
+       </section>
+     </menu>
+-    """ % _("_Edit...", "action"),  # to use sgettext()
++    """ % _("_Edit", "action"),  # to use sgettext()
+     ]
+ 
+     def get_handle_from_gramps_id(self, gid):
+diff --git a/gramps/plugins/view/relview.py b/gramps/plugins/view/relview.py
+index bcb317a398..4a8d9d98fa 100644
+--- a/gramps/plugins/view/relview.py
++++ b/gramps/plugins/view/relview.py
+@@ -411,21 +411,21 @@ class RelationshipView(NavigationView):
+       <placeholder id='otheredit'>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+-          <attribute name="label" translatable="yes">Edit...</attribute>
++          <attribute name="label" translatable="yes">Edit</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.AddParents</attribute>
+           <attribute name="label" translatable="yes">"""
+-        """Add New Parents...</attribute>
++        """Add New Parents</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.ShareFamily</attribute>
+           <attribute name="label" translatable="yes">"""
+-        """Add Existing Parents...</attribute>
++        """Add Existing Parents</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.AddSpouse</attribute>
+-          <attribute name="label" translatable="yes">Add Partner...</attribute>
++          <attribute name="label" translatable="yes">Add Partner</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.ChangeOrder</attribute>
+@@ -501,7 +501,7 @@ class RelationshipView(NavigationView):
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text" translatable="yes">"""
+         """Edit the active person</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+       </object>
+       <packing>
+         <property name="homogeneous">False</property>
+diff --git a/gramps/plugins/view/repoview.py b/gramps/plugins/view/repoview.py
+index 7ceb2d1a95..2ff3f59c5b 100644
+--- a/gramps/plugins/view/repoview.py
++++ b/gramps/plugins/view/repoview.py
+@@ -214,7 +214,7 @@ class RepositoryView(ListView):
+       <section id='CommonEdit' groups='RW'>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -226,10 +226,10 @@ class RepositoryView(ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -276,7 +276,7 @@ class RepositoryView(ListView):
+         <property name="icon-name">list-add</property>
+         <property name="action-name">win.Add</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">_Add...</property>
++        <property name="label" translatable="yes">_Add</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -288,7 +288,7 @@ class RepositoryView(ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -312,7 +312,7 @@ class RepositoryView(ListView):
+         <property name="icon-name">gramps-merge</property>
+         <property name="action-name">win.Merge</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">_Merge...</property>
++        <property name="label" translatable="yes">_Merge</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -338,7 +338,7 @@ class RepositoryView(ListView):
+       <section>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -350,7 +350,7 @@ class RepositoryView(ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+       <section>
+@@ -360,7 +360,7 @@ class RepositoryView(ListView):
+         </placeholder>
+       </section>
+     </menu>
+-    """ % _("_Edit...", "action"),  # to use sgettext()
++    """ % _("_Edit", "action"),  # to use sgettext()
+     ]
+ 
+     def add(self, *obj):
+diff --git a/gramps/plugins/view/sourceview.py b/gramps/plugins/view/sourceview.py
+index 8e0eeeead5..853636b2f1 100644
+--- a/gramps/plugins/view/sourceview.py
++++ b/gramps/plugins/view/sourceview.py
+@@ -186,7 +186,7 @@ class SourceView(LibSourceView, ListView):
+       <section id='CommonEdit' groups='RW'>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -198,10 +198,10 @@ class SourceView(LibSourceView, ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -248,7 +248,7 @@ class SourceView(LibSourceView, ListView):
+         <property name="icon-name">list-add</property>
+         <property name="action-name">win.Add</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">_Add...</property>
++        <property name="label" translatable="yes">_Add</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -260,7 +260,7 @@ class SourceView(LibSourceView, ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -284,7 +284,7 @@ class SourceView(LibSourceView, ListView):
+         <property name="icon-name">gramps-merge</property>
+         <property name="action-name">win.Merge</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">_Merge...</property>
++        <property name="label" translatable="yes">_Merge</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -310,7 +310,7 @@ class SourceView(LibSourceView, ListView):
+       <section>
+         <item>
+           <attribute name="action">win.Add</attribute>
+-          <attribute name="label" translatable="yes">_Add...</attribute>
++          <attribute name="label" translatable="yes">_Add</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+@@ -322,7 +322,7 @@ class SourceView(LibSourceView, ListView):
+         </item>
+         <item>
+           <attribute name="action">win.Merge</attribute>
+-          <attribute name="label" translatable="yes">_Merge...</attribute>
++          <attribute name="label" translatable="yes">_Merge</attribute>
+         </item>
+       </section>
+       <section>
+@@ -332,7 +332,7 @@ class SourceView(LibSourceView, ListView):
+         </placeholder>
+       </section>
+     </menu>
+-    """ % _("_Edit...", "action"),  # to use sgettext()
++    """ % _("_Edit", "action"),  # to use sgettext()
+     ]
+ 
+     def add(self, *obj):
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index 6164615dea..436965a861 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -677,6 +677,7 @@ gramps/plugins/test/exports_test.py
+ gramps/plugins/test/imports_test.py
+ gramps/plugins/test/reports_test.py
+ gramps/plugins/test/schema_validation_test.py
++gramps/plugins/test/toolbar_label_ellipsis_test.py
+ gramps/plugins/test/tools_test.py
+ #
+ # Thumbnailers

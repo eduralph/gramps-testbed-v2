@@ -1,0 +1,475 @@
+diff --git a/gramps/plugins/lib/libpersonview.py b/gramps/plugins/lib/libpersonview.py
+index f647f8d998..02bde530d7 100644
+--- a/gramps/plugins/lib/libpersonview.py
++++ b/gramps/plugins/lib/libpersonview.py
+@@ -268,7 +268,7 @@ class BasePersonView(ListView):
+           <attribute name="label" translatable="yes">_Merge...</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -345,7 +345,7 @@ class BasePersonView(ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -427,7 +427,7 @@ class BasePersonView(ListView):
+       </section>
+     </menu>
+     """
+-        % _("_Edit...", "action"),  # to use sgettext()
++        % _("_Edit", "action"),  # to use sgettext()
+     ]
+ 
+     def get_handle_from_gramps_id(self, gid):
+diff --git a/gramps/plugins/lib/libplaceview.py b/gramps/plugins/lib/libplaceview.py
+index 75d8d296f1..4c81270106 100644
+--- a/gramps/plugins/lib/libplaceview.py
++++ b/gramps/plugins/lib/libplaceview.py
+@@ -347,7 +347,7 @@ class PlaceBaseView(ListView):
+           <attribute name="label" translatable="yes">_Merge...</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -406,7 +406,7 @@ class PlaceBaseView(ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -485,7 +485,7 @@ class PlaceBaseView(ListView):
+       </section>
+     </menu>
+ """
+-        % _("_Edit...", "action"),
++        % _("_Edit", "action"),
+     ]  # to use sgettext()
+ 
+     map_ui_menu = """
+diff --git a/gramps/plugins/test/toolbar_label_ellipsis_test.py b/gramps/plugins/test/toolbar_label_ellipsis_test.py
+new file mode 100644
+index 0000000000..9aa086f58e
+--- /dev/null
++++ b/gramps/plugins/test/toolbar_label_ellipsis_test.py
+@@ -0,0 +1,125 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  Gramps developers
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Regression test for bug 6583.
++
++The list-view / category-view toolbar (and its matching menu / right-click
++popup items) labelled the *Edit* action with a trailing ellipsis ("Edit...",
++"_Edit...") while the Remove/Delete action carried none -- an inconsistency the
++reporter flagged.
++
++Per the GNOME Human Interface Guidelines the trailing ellipsis means "this
++command needs further input from the user before it can act".  The *Edit*
++action does not: it opens the selected record straight into its editor (a
++state / properties window), so its label must NOT carry an ellipsis.  The
++*Add* and *Merge* actions, by contrast, open a dialog that asks the user to
++supply new information (which record to create, which fields to keep) before
++they act -- those keep their ellipsis.  The fix therefore drops the trailing
++ellipsis from the Edit label only, leaving Add.../Merge... intact.
++
++This test parses the ``additional_ui`` UI-XML strings straight from each view's
++source file (no GTK / gramps.gui / gi import, so it is headless-safe and cannot
++crash the headless C4 runner) and asserts that no *Edit* action label keeps a
++trailing ellipsis.  It is RED before the fix ("Edit..." present) and GREEN
++after ("Edit").  It deliberately does not touch the Add/Merge labels, which
++correctly retain their ellipsis.
++"""
++
++import os
++import re
++import unittest
++
++# This file lives at gramps/plugins/test/<name>_test.py, so the gramps package
++# root is two directories up.  Resolve the view source files relative to it
++# instead of importing them -- importing pulls in gramps.gui / gi, which is not
++# available (and would crash) under the headless test runner.  Reading the
++# source is reading the production artifact itself: these labels are static
++# UI-XML string literals, there is no runtime logic to route through.
++_GRAMPS_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
++
++# The category / list / relationship views whose toolbars carried the Edit
++# button reported in bug 6583.
++VIEW_FILES = [
++    "plugins/lib/libpersonview.py",
++    "plugins/lib/libplaceview.py",
++    "plugins/view/citationlistview.py",
++    "plugins/view/citationtreeview.py",
++    "plugins/view/eventview.py",
++    "plugins/view/familyview.py",
++    "plugins/view/mediaview.py",
++    "plugins/view/noteview.py",
++    "plugins/view/repoview.py",
++    "plugins/view/sourceview.py",
++    "plugins/view/relview.py",
++]
++
++# An Edit label expressed as a GtkToolButton <property name="label">...</property>
++# or a menu / popup <attribute name="label">...</attribute>, e.g. "Edit...".
++_EDIT_XML_LABEL_RE = re.compile(
++    r'name="label"(?:\s+translatable="[^"]*")?\s*>\s*(_?Edit[^<]*)<'
++)
++# An Edit label supplied through sgettext, e.g.  _("_Edit...", "action").
++_EDIT_SGETTEXT_RE = re.compile(r'_\(\s*"(_?Edit[^"]*)"\s*,\s*"action"\s*\)')
++
++
++def _iter_edit_labels(text):
++    """Yield every Edit-action label string defined in *text*."""
++    for value in _EDIT_XML_LABEL_RE.findall(text):
++        yield value
++    for value in _EDIT_SGETTEXT_RE.findall(text):
++        yield value
++
++
++class ToolbarLabelEllipsisTest(unittest.TestCase):
++    """Bug 6583: the Edit toolbar/menu label must not end with '...'."""
++
++    def test_edit_label_has_no_trailing_ellipsis(self):
++        offenders = []
++        for rel in VIEW_FILES:
++            path = os.path.join(_GRAMPS_ROOT, rel)
++            with open(path, encoding="utf-8") as handle:
++                text = handle.read()
++            for label in _iter_edit_labels(text):
++                if label.rstrip().endswith("..."):
++                    offenders.append("%s: %r" % (rel, label))
++        self.assertEqual(
++            offenders,
++            [],
++            "Edit toolbar/menu labels still carry a trailing ellipsis "
++            "(bug 6583); the Edit action opens a record and needs no "
++            "ellipsis:\n  " + "\n  ".join(offenders),
++        )
++
++    def test_finds_the_edit_labels_at_all(self):
++        # Guard against the parser silently matching nothing (which would make
++        # the assertion above pass vacuously).  Every listed view defines at
++        # least one Edit label.
++        for rel in VIEW_FILES:
++            path = os.path.join(_GRAMPS_ROOT, rel)
++            with open(path, encoding="utf-8") as handle:
++                text = handle.read()
++            labels = list(_iter_edit_labels(text))
++            self.assertTrue(
++                labels, "no Edit label parsed from %s (parser drift?)" % rel
++            )
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/gramps/plugins/view/citationlistview.py b/gramps/plugins/view/citationlistview.py
+index 8d328f17ec..7c58a6d2d8 100644
+--- a/gramps/plugins/view/citationlistview.py
++++ b/gramps/plugins/view/citationlistview.py
+@@ -234,7 +234,7 @@ class CitationListView(ListView):
+           <attribute name="label" translatable="yes">_Merge...</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -293,7 +293,7 @@ class CitationListView(ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -365,7 +365,7 @@ class CitationListView(ListView):
+         </placeholder>
+       </section>
+     </menu>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+     ]
+ 
+     def add(self, *obj):
+diff --git a/gramps/plugins/view/citationtreeview.py b/gramps/plugins/view/citationtreeview.py
+index 7202fb8f3f..767c2d1021 100644
+--- a/gramps/plugins/view/citationtreeview.py
++++ b/gramps/plugins/view/citationtreeview.py
+@@ -385,7 +385,7 @@ class CitationTreeView(LibSourceView, ListView):
+           <attribute name="label" translatable="yes">_Merge...</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -466,7 +466,7 @@ class CitationTreeView(LibSourceView, ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -554,7 +554,7 @@ class CitationTreeView(LibSourceView, ListView):
+       </section>
+     </menu>
+ """
+-        % _("_Edit...", "action"),  # to use sgettext()
++        % _("_Edit", "action"),  # to use sgettext()
+     ]
+ 
+     def add_source(self, *obj):
+diff --git a/gramps/plugins/view/eventview.py b/gramps/plugins/view/eventview.py
+index 2cf54fc3df..73f3eb77de 100644
+--- a/gramps/plugins/view/eventview.py
++++ b/gramps/plugins/view/eventview.py
+@@ -247,7 +247,7 @@ class EventView(ListView):
+           <attribute name="label" translatable="yes">_Merge...</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -306,7 +306,7 @@ class EventView(ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -378,7 +378,7 @@ class EventView(ListView):
+         </placeholder>
+       </section>
+     </menu>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+     ]
+ 
+     def get_handle_from_gramps_id(self, gid):
+diff --git a/gramps/plugins/view/familyview.py b/gramps/plugins/view/familyview.py
+index e2d04b6a5e..7fcc1e61f5 100644
+--- a/gramps/plugins/view/familyview.py
++++ b/gramps/plugins/view/familyview.py
+@@ -204,7 +204,7 @@ class FamilyView(ListView):
+           <attribute name="label" translatable="yes">_Merge...</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -263,7 +263,7 @@ class FamilyView(ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -348,7 +348,7 @@ class FamilyView(ListView):
+       </section>
+     </menu>
+ """
+-        % _("_Edit...", "action"),  # to use sgettext()
++        % _("_Edit", "action"),  # to use sgettext()
+     ]
+ 
+     def define_actions(self):
+diff --git a/gramps/plugins/view/mediaview.py b/gramps/plugins/view/mediaview.py
+index 259c3aed5b..916c539fd3 100644
+--- a/gramps/plugins/view/mediaview.py
++++ b/gramps/plugins/view/mediaview.py
+@@ -311,7 +311,7 @@ class MediaView(ListView):
+           <attribute name="label" translatable="yes">_Merge...</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -370,7 +370,7 @@ class MediaView(ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -472,7 +472,7 @@ class MediaView(ListView):
+       </section>
+     </menu>
+ """
+-        % _("_Edit...", "action"),  # to use sgettext()
++        % _("_Edit", "action"),  # to use sgettext()
+     ]
+ 
+     def add(self, *obj):
+diff --git a/gramps/plugins/view/noteview.py b/gramps/plugins/view/noteview.py
+index 9efc24e9c9..2755c3b349 100644
+--- a/gramps/plugins/view/noteview.py
++++ b/gramps/plugins/view/noteview.py
+@@ -193,7 +193,7 @@ class NoteView(ListView):
+           <attribute name="label" translatable="yes">_Merge...</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -252,7 +252,7 @@ class NoteView(ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -324,7 +324,7 @@ class NoteView(ListView):
+         </placeholder>
+       </section>
+     </menu>
+-    """ % _("_Edit...", "action"),  # to use sgettext()
++    """ % _("_Edit", "action"),  # to use sgettext()
+     ]
+ 
+     def get_handle_from_gramps_id(self, gid):
+diff --git a/gramps/plugins/view/relview.py b/gramps/plugins/view/relview.py
+index bcb317a398..6b70b5bd80 100644
+--- a/gramps/plugins/view/relview.py
++++ b/gramps/plugins/view/relview.py
+@@ -411,7 +411,7 @@ class RelationshipView(NavigationView):
+       <placeholder id='otheredit'>
+         <item>
+           <attribute name="action">win.Edit</attribute>
+-          <attribute name="label" translatable="yes">Edit...</attribute>
++          <attribute name="label" translatable="yes">Edit</attribute>
+         </item>
+         <item>
+           <attribute name="action">win.AddParents</attribute>
+@@ -501,7 +501,7 @@ class RelationshipView(NavigationView):
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text" translatable="yes">"""
+         """Edit the active person</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+       </object>
+       <packing>
+         <property name="homogeneous">False</property>
+diff --git a/gramps/plugins/view/repoview.py b/gramps/plugins/view/repoview.py
+index 7ceb2d1a95..cc3ed41d9f 100644
+--- a/gramps/plugins/view/repoview.py
++++ b/gramps/plugins/view/repoview.py
+@@ -229,7 +229,7 @@ class RepositoryView(ListView):
+           <attribute name="label" translatable="yes">_Merge...</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -288,7 +288,7 @@ class RepositoryView(ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -360,7 +360,7 @@ class RepositoryView(ListView):
+         </placeholder>
+       </section>
+     </menu>
+-    """ % _("_Edit...", "action"),  # to use sgettext()
++    """ % _("_Edit", "action"),  # to use sgettext()
+     ]
+ 
+     def add(self, *obj):
+diff --git a/gramps/plugins/view/sourceview.py b/gramps/plugins/view/sourceview.py
+index 8e0eeeead5..5dcef5df35 100644
+--- a/gramps/plugins/view/sourceview.py
++++ b/gramps/plugins/view/sourceview.py
+@@ -201,7 +201,7 @@ class SourceView(LibSourceView, ListView):
+           <attribute name="label" translatable="yes">_Merge...</attribute>
+         </item>
+       </section>
+-""" % _("_Edit...", "action"),  # to use sgettext()
++""" % _("_Edit", "action"),  # to use sgettext()
+         """
+         <placeholder id='otheredit'>
+         <item>
+@@ -260,7 +260,7 @@ class SourceView(LibSourceView, ListView):
+         <property name="icon-name">gtk-edit</property>
+         <property name="action-name">win.Edit</property>
+         <property name="tooltip_text">%s</property>
+-        <property name="label" translatable="yes">Edit...</property>
++        <property name="label" translatable="yes">Edit</property>
+         <property name="use-underline">True</property>
+       </object>
+       <packing>
+@@ -332,7 +332,7 @@ class SourceView(LibSourceView, ListView):
+         </placeholder>
+       </section>
+     </menu>
+-    """ % _("_Edit...", "action"),  # to use sgettext()
++    """ % _("_Edit", "action"),  # to use sgettext()
+     ]
+ 
+     def add(self, *obj):
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index 6164615dea..436965a861 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -677,6 +677,7 @@ gramps/plugins/test/exports_test.py
+ gramps/plugins/test/imports_test.py
+ gramps/plugins/test/reports_test.py
+ gramps/plugins/test/schema_validation_test.py
++gramps/plugins/test/toolbar_label_ellipsis_test.py
+ gramps/plugins/test/tools_test.py
+ #
+ # Thumbnailers

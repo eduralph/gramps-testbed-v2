@@ -1,0 +1,20 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "matt\n\n 2021-01-16 08:27\n\ndeveloper    ~0061752": "The Gramplet \"Statistics\" uses two different methodes to get the unique surenames which differ and create the confusion:\n1) database.surname_list which is using methodes \"add_to_surname_list\" and \"remove_from_surname_list\":\nhttps://github.com/gramps-project/gramps/blob/master/gramps/gen/db/generic.py#L2303\n2) the quickview filterbyname \"unique surnames\":\nhttps://github.com/gramps-project/gramps/blob/master/gramps/plugins/quickview/filterbyname.py#L347\n\nGramplet statistics unique surnames part: https://github.com/gramps-project/gramps/blob/master/gramps/plugins/gramplet/statsgramplet.py#L174"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "The Gramplet \"Statistics\" uses two different methodes to get the unique surenames which differ and create the confusion:\n1) database.surname_list which is using methodes \"add_to_surname_list\" and \"remove_from_surname_list\":\nhttps://github.com/gramps-project/gramps/blob/master/gramps/gen/db/generic.py#L2303\n2) the quickview filterbyname \"unique surnames\":\nhttps://github.com/gramps-project/gramps/blob/master/gramps/plugins/quickview/filterbyname.py#L347\n\nGramplet statistics unique surnames part: https://github.com/gramps-project/gramps/blob/master/gramps/plugins/gramplet/statsgramplet.py#L174"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "12164",
+  "url": "https://gramps-project.org/bugs/view.php?id=12164"
+}

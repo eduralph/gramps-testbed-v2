@@ -1,0 +1,23 @@
+Fix paragraph-split attribute re-indexing in Cairo docgen
+
+When GtkDocParagraph.divide splits a styled paragraph across a page break,
+it rebuilds the second part's Pango attribute list by re-indexing the
+parsed runs onto the second part's plaintext byte offsets. The 2012
+workaround (bug 6208 / gnome 646788) worked around get_iterator
+introspection by re-serialising and re-parsing the markup instead, but
+it miscounted escaped entities (&amp;, &lt;, &gt;) as multiple plaintext
+bytes and desynced the attribute offsets, causing style runs to land on
+the wrong characters or be dropped (verified: a paragraph with "A &amp;
+B <b>BOLD</b> tail" split at the bold start reconstructed as "'; B
+<b>BOLD</b> tail").
+
+Replace this with direct re-indexing of the already-parsed attribute
+list, using the now-available get_iterator API. Extract the re-indexing
+into a new import-light module (libcairodocattr.py) so both production
+and tests exercise the same code and the test stays headless (Pango has
+no display dependency). The boundary run selection (start_index at the
+split point) is now correct — it is preserved with start clamped to 0,
+as the invariant requires, instead of being dropped by the old
+filterattr method.
+
+Fixes #6250

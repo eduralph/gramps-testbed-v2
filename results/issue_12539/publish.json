@@ -1,0 +1,10 @@
+{
+  "mode": "new-pr",
+  "branch": "fix/bug-12539-families-children-tab-refresh",
+  "pr_url": "https://github.com/gramps-project/gramps/pull/2430",
+  "base": "maintenance/gramps61",
+  "repo": "gramps-project/gramps",
+  "by": "Eduard Ralph",
+  "date": "2026-06-28",
+  "id_pending": false
+}

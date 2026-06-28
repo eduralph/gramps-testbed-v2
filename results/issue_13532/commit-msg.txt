@@ -1,0 +1,17 @@
+Fan Chart respects active name format preference
+
+The fan-chart widget rendered person labels through hard-pinned name
+formats (surname / given+suffix) regardless of the user's selected "Name
+format" preference. When a user changed Edit→Preferences→Display→"Name
+format", list views updated to match the new format, but the fan chart
+labels remained frozen in the default layout.
+
+The fix routes the two-line name rendering through the name displayer's
+new `get_two_line_format()` and `display_two_lines()` methods, which
+split the *active* format at the surname/given comma instead of using a
+hard-coded pair. It also connects the `nameformat-changed` signal in all
+three fan-chart views so they re-render when the preference changes. The
+fix applies to the primary Fan Chart, Descendant Fan Chart, and 2-way
+Fan Chart views.
+
+Fixes #13532

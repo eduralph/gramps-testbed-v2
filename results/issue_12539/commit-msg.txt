@@ -1,0 +1,13 @@
+Families view: rebuild detail tabs when filter-driven selection moves
+
+After a filter/Find operation narrows the family list, the previously
+active family can drop out of the filtered model. ListView.build_tree
+leaves it active (it is no longer selectable), so the bottombar
+"Children" tab kept showing the now-hidden family until the user
+re-clicked a row. Override FamilyView.build_tree to detect when the
+active family was filtered out, then call change_active with the first
+visible family handle. This fires active-changed and causes the
+Children gramplet to rebuild for the now-current selection, restoring
+the invariant that detail tabs track the view's current selection.
+
+Fixes #12539

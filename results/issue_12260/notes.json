@@ -1,0 +1,74 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "prculley\n\n 2021-03-25 15:55\n\nmanager    ~0062246": "Ugly.\nThe sequence to replicate:\nIn ToDo Gramplet, Edit a note.\nIn Note Editor, make a new link\nIn Link Editor, select Note, and use New button\nIn Note Editor (2nd one!) make up a note, and hit save.\n\nIt appears that back in 2007 https://github.com/gramps-project/gramps/commit/6aad932574bcc7c2be2c419cb2d9068f0fb0815d\nthe Note editor was changed to pass the handle of a Note to the callback, rather than the Note object. Unfortunately, the EditLink call back function expects the object, not the handle. All other primary objects pass the object in their callbacks, so EditNote is the only one that is messed up.\n\nI cannot tell why the 2007 commit changed this, but the NoteTab code does currently expect the EditNote callback to be a handle as well.\n\nI think to fix this will best be done by reverting part of the 2007 commit, to go back to passing object. I looked around a bit, but was not able to quickly find any other code utilizing EditNote that depended on the callback... Don't have time to deal with this now, especially as it will take some analysis to make SURE that something else doesn't get messed up.",
+    "romjerome\n\n 2021-03-25 16:26\n\ndeveloper    ~0062247\n\n last edited: 2025-06-18 13:49\n\nview 7 revisions": "Thank you, Paul.\n\nI do not remember well, but it seems to me that Note was not a 'real' primary object.\nOn the other hand, ToDo gramplet was generated some years ago, maybe it could be\npossible to introduce a simple exception (try/except) or a workaround ?\n\nSomething like :\n\ngtk_widget_set_sensitive(False)\nif self.url_link.get_text() == 'gramps://Note/handle/*'\n    continue",
+    "romjerome\n\n 2021-03-27 07:50\n\ndeveloper    ~0062250\n\n last edited: 2025-06-18 13:49\n\nview 6 revisions": "A quick 'dirty' workaround on gui/editors/editlink.py\", line 162 via the private _on_new(self, widget) method.\n\n+       if self.uri_list.get_active() == 4:\n+          return\n        from ..editors import EditObject\n        object_class = OBJECT_MAP[self.uri_list.get_active()]\n        EditObject(self.dbstate,\n                   self.uistate,\n                   self.track,\n                   object_class,\n                   callback=self._on_new_callback)</pre>\n\nok, if so I should remove the Note from the object map... Just a draft idea for a fix!\nNeed to polish and maybe play with signals or sensitive status, but\nit will block this issue before it occurs, could print a warning dialog or so.",
+    "snoiraud\n\n 2021-03-27 08:10\n\ndeveloper    ~0062251": "\"== 4\" should be replaced by \"== NOTE\"",
+    "romjerome\n\n 2021-03-27 18:46\n\ndeveloper    ~0062254\n\n last edited: 2025-06-18 13:48\n\nview 6 revisions": "Serge, you are right.\nOtherwise, we can generate alternate workaround! e.g.,\n\ndef _on_new_callback(self, obj):\n        object_class = obj.__class__.__name__\n+       if object_class == 'str':\n+           return\n        self.selected.set_text(self.display_link(\n                object_class, &quot;handle&quot;, obj.handle))\n        self.url_link.set_text(&quot;gramps://%s/%s/%s&quot; %\n                               (object_class, &quot;handle&quot;, obj.handle))</pre> ok, the above one is very ugly... Many ways for avoiding/hiding the    AttributeError!\n\n    def _on_new_callback(self, obj):\n        object_class = obj.__class__.__name__\n+       try: \n+         test = obj.handle\n+       except AttributeError:\n+           return\n        self.selected.set_text(self.display_link(\n                object_class, &quot;handle&quot;, obj.handle))\n        self.url_link.set_text(&quot;gramps://%s/%s/%s&quot; %\n                               (object_class, &quot;handle&quot;, obj.handle))",
+    "romjerome\n\n 2021-03-28 19:08\n\ndeveloper    ~0062260\n\n last edited: 2025-06-18 13:47\n\nview 7 revisions": "A little bit more documented and proper...\n+import logging\n+_LOG = logging.getLogger(\"editlink\")\n\ndef _on_new_callback(self, obj):\n        object_class = obj.__class__.__name__\n+       # workaround for bug12260\n+       try:\n+           test = obj.handle\n+       except AttributeError:\n+           _LOG.warn(str(object_class))\n+           return\n        self.selected.set_text(self.display_link(\n                object_class, &quot;handle&quot;, obj.handle))\n        self.url_link.set_text(&quot;gramps://%s/%s/%s&quot; %\n                               (object_class, &quot;handle&quot;, obj.handle))",
+    "romjerome\n\n 2021-04-04 07:18\n\ndeveloper    ~0062301": "Just generated a pull request (gramps51) for the last above workaround\nhttps://github.com/gramps-project/gramps/pull/1196",
+    "daleathan\n\n 2025-04-13 22:00\n\ndeveloper    ~0068627": "PR 1196 was closed and not merged\nhttps://github.com/gramps-project/gramps/pull/1196",
+    "romjerome\n\n 2025-06-18 13:39\n\ndeveloper    ~0069207": "Yes, closed by myself some years ago because it was a simple workaround (test) for a specific case on a specific feature. Bug report 0013884 added a possible fix. So, it is fine as it was the expected solution.\n\nI closed the PR because I know that it was incomplete as the issue was around the UI design and DB model. Advanced review or code rewrite was maybe for the next major branches (against 5.1.x), so I just let the reported bug report.",
+    "romjerome\n\n 2025-06-18 13:45\n\ndeveloper    ~0069208": "Oh, I just see that the workaround was maybe also able to \"hide\" the recent issue between 6.0.2 and 6.0.1!\ndef _on_new_callback(self, obj):\nobject_class = obj.class.name\n\nworkaround for bug12260\n    try:\n        test = obj.handle\n    except AttributeError:\n        _LOG.warn(str(object_class))\n        return\n\nFeel free to close this bug report. Maybe just copy the steps for reproducing it and pointed out by Paul on 0012260:0062246"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Ugly.\nThe sequence to replicate:\nIn ToDo Gramplet, Edit a note.\nIn Note Editor, make a new link\nIn Link Editor, select Note, and use New button\nIn Note Editor (2nd one!) make up a note, and hit save.\n\nIt appears that back in 2007 https://github.com/gramps-project/gramps/commit/6aad932574bcc7c2be2c419cb2d9068f0fb0815d\nthe Note editor was changed to pass the handle of a Note to the callback, rather than the Note object. Unfortunately, the EditLink call back function expects the object, not the handle. All other primary objects pass the object in their callbacks, so EditNote is the only one that is messed up.\n\nI cannot tell why the 2007 commit changed this, but the NoteTab code does currently expect the EditNote callback to be a handle as well.\n\nI think to fix this will best be done by reverting part of the 2007 commit, to go back to passing object. I looked around a bit, but was not able to quickly find any other code utilizing EditNote that depended on the callback... Don't have time to deal with this now, especially as it will take some analysis to make SURE that something else doesn't get messed up."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Thank you, Paul.\n\nI do not remember well, but it seems to me that Note was not a 'real' primary object.\nOn the other hand, ToDo gramplet was generated some years ago, maybe it could be\npossible to introduce a simple exception (try/except) or a workaround ?\n\nSomething like :\n\ngtk_widget_set_sensitive(False)\nif self.url_link.get_text() == 'gramps://Note/handle/*'\n    continue"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "A quick 'dirty' workaround on gui/editors/editlink.py\", line 162 via the private _on_new(self, widget) method.\n\n+       if self.uri_list.get_active() == 4:\n+          return\n        from ..editors import EditObject\n        object_class = OBJECT_MAP[self.uri_list.get_active()]\n        EditObject(self.dbstate,\n                   self.uistate,\n                   self.track,\n                   object_class,\n                   callback=self._on_new_callback)</pre>\n\nok, if so I should remove the Note from the object map... Just a draft idea for a fix!\nNeed to polish and maybe play with signals or sensitive status, but\nit will block this issue before it occurs, could print a warning dialog or so."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "\"== 4\" should be replaced by \"== NOTE\""
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Serge, you are right.\nOtherwise, we can generate alternate workaround! e.g.,\n\ndef _on_new_callback(self, obj):\n        object_class = obj.__class__.__name__\n+       if object_class == 'str':\n+           return\n        self.selected.set_text(self.display_link(\n                object_class, &quot;handle&quot;, obj.handle))\n        self.url_link.set_text(&quot;gramps://%s/%s/%s&quot; %\n                               (object_class, &quot;handle&quot;, obj.handle))</pre> ok, the above one is very ugly... Many ways for avoiding/hiding the    AttributeError!\n\n    def _on_new_callback(self, obj):\n        object_class = obj.__class__.__name__\n+       try: \n+         test = obj.handle\n+       except AttributeError:\n+           return\n        self.selected.set_text(self.display_link(\n                object_class, &quot;handle&quot;, obj.handle))\n        self.url_link.set_text(&quot;gramps://%s/%s/%s&quot; %\n                               (object_class, &quot;handle&quot;, obj.handle))"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "A little bit more documented and proper...\n+import logging\n+_LOG = logging.getLogger(\"editlink\")\n\ndef _on_new_callback(self, obj):\n        object_class = obj.__class__.__name__\n+       # workaround for bug12260\n+       try:\n+           test = obj.handle\n+       except AttributeError:\n+           _LOG.warn(str(object_class))\n+           return\n        self.selected.set_text(self.display_link(\n                object_class, &quot;handle&quot;, obj.handle))\n        self.url_link.set_text(&quot;gramps://%s/%s/%s&quot; %\n                               (object_class, &quot;handle&quot;, obj.handle))"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Just generated a pull request (gramps51) for the last above workaround\nhttps://github.com/gramps-project/gramps/pull/1196"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "PR 1196 was closed and not merged\nhttps://github.com/gramps-project/gramps/pull/1196"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Yes, closed by myself some years ago because it was a simple workaround (test) for a specific case on a specific feature. Bug report 0013884 added a possible fix. So, it is fine as it was the expected solution.\n\nI closed the PR because I know that it was incomplete as the issue was around the UI design and DB model. Advanced review or code rewrite was maybe for the next major branches (against 5.1.x), so I just let the reported bug report."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Oh, I just see that the workaround was maybe also able to \"hide\" the recent issue between 6.0.2 and 6.0.1!\ndef _on_new_callback(self, obj):\nobject_class = obj.class.name\n\nworkaround for bug12260\n    try:\n        test = obj.handle\n    except AttributeError:\n        _LOG.warn(str(object_class))\n        return\n\nFeel free to close this bug report. Maybe just copy the steps for reproducing it and pointed out by Paul on 0012260:0062246"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "12260",
+  "url": "https://gramps-project.org/bugs/view.php?id=12260"
+}

@@ -1,0 +1,18 @@
+Fix citation deletion in Citation Tree view
+
+When deleting a selected citation row in the Citation Tree view, the delete
+operation failed silently because LibSourceView.remove_object_from_handle()
+unconditionally called remove_source() regardless of the selected object's
+type. For a citation node (which has a citation handle), this was a no-op
+since there was no source with that handle. The fix dispatches on the
+resolved object type (Source or Citation) to call the appropriate remove_*()
+method, restoring the fundamental delete invariant: a selected row's delete
+action acts on exactly the object that row represents. This mirrors the
+correct pattern already used in the base ListView class and maintains the
+source branch's existing child-citation cleanup logic.
+
+Verified against gramps/plugins/lib/libsourceview.py:42-53 (type resolution
+in LibSourceView.remove()), :101-102 (the delete site), and
+gramps/gui/views/listview.py:712 (the base-class dispatch pattern).
+
+Fixes #13876

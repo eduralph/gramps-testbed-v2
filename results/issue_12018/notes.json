@@ -1,0 +1,50 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "bamaustin\n\n 2020-10-15 18:42\n\ndeveloper    ~0061207": "see Gramps-Users maillist thread\n\nhttps://sourceforge.net/p/gramps/mailman/gramps-users/thread/1271671012.862824.1602784872793%40mail.yahoo.com/#msg37129842",
+    "davesch\n\n 2020-10-15 21:57\n\ndeveloper    ~0061209": "click the tag button\nan alpha sorted list of tags appears (this is odd since Tags are priority sorted in the other dialogs and that isn't even an option)\n\nI think the list being alphabetical is appropriate. Selecting a tag it is easier to scan an alphabetical list than a mixed list.\n\nThe Priority list list determines which order Tags are displayed and probably more importantly, the Color to display if more than one set tag has a color setting.\n\nTag icon labels\n\nI propose a change to the List View Tag icon label from\n\"Tag selected rows\"\nto\n\"New, Organize, or Tag selected rows\"\n\nAnd a change to the Edit window's Tag icon label from\n\"Edit the tag list\"\nto\n\"Tag record from list\"",
+    "bamaustin\n\n 2020-10-16 03:52\n\ndeveloper    ~0061212": "I strongly disagree that this is a 'Feature Request' instead of a Bug Report.\n\nThe tags list is short enough that the Ctrl/Cmd-F (search as you type) interface should be DISABLED for this GUI section. Adding the functionality adds code (& documentation) clutter without enough added value.\n\nI noted the broken functionality but gave no resolution recommendation.\n\nHowever, my personal opinion is that this search feature's broken interface should be removed from Tags, not repaired.",
+    "bamaustin\n\n 2020-10-16 04:05\n\ndeveloper    ~0061213": "BAMaustin> click the tag button...\nBAMaustin> an alpha sorted list of tags appears (this is odd since Tags are priority sorted in the other dialogs and that isn't even an option)\n\nDaveSch> I think the list being alphabetical is appropriate. Selecting a tag it is easier to scan an alphabetical list than a mixed list.\n\nDaveSch> The Priority list list determines which order Tags are displayed and probably more importantly, the Color to display if more than one set tag has a color setting.\n\nIt is more a matter of consistency. Given that it is SUCH a short list, sorting is superfluous in terms of improving performance & eccentric behavior ... which steepens the learning curve. The reason I mentioned the Color Swatches is that visually oriented users are likely to select by color than name. HOWEVER... that IS an enhancement and is mentioned only for completeness.",
+    "sam888\n\n 2020-10-16 04:05\n\nadministrator    ~0061214": "I noted the broken functionality but gave no resolution recommendation.\n\nI read this as wanting to add that feature, I'll reverse based on your new statement.",
+    "bamaustin\n\n 2020-10-16 04:10\n\ndeveloper    ~0061215": "I just rechecked. My complaint about the alpha sort is specious. The menus also alpha sort. The only place that doesn't is the Organize. Which is also the only place with color swatches."
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "see Gramps-Users maillist thread\n\nhttps://sourceforge.net/p/gramps/mailman/gramps-users/thread/1271671012.862824.1602784872793%40mail.yahoo.com/#msg37129842"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "click the tag button\nan alpha sorted list of tags appears (this is odd since Tags are priority sorted in the other dialogs and that isn't even an option)\n\nI think the list being alphabetical is appropriate. Selecting a tag it is easier to scan an alphabetical list than a mixed list.\n\nThe Priority list list determines which order Tags are displayed and probably more importantly, the Color to display if more than one set tag has a color setting.\n\nTag icon labels\n\nI propose a change to the List View Tag icon label from\n\"Tag selected rows\"\nto\n\"New, Organize, or Tag selected rows\"\n\nAnd a change to the Edit window's Tag icon label from\n\"Edit the tag list\"\nto\n\"Tag record from list\""
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I strongly disagree that this is a 'Feature Request' instead of a Bug Report.\n\nThe tags list is short enough that the Ctrl/Cmd-F (search as you type) interface should be DISABLED for this GUI section. Adding the functionality adds code (& documentation) clutter without enough added value.\n\nI noted the broken functionality but gave no resolution recommendation.\n\nHowever, my personal opinion is that this search feature's broken interface should be removed from Tags, not repaired."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "BAMaustin> click the tag button...\nBAMaustin> an alpha sorted list of tags appears (this is odd since Tags are priority sorted in the other dialogs and that isn't even an option)\n\nDaveSch> I think the list being alphabetical is appropriate. Selecting a tag it is easier to scan an alphabetical list than a mixed list.\n\nDaveSch> The Priority list list determines which order Tags are displayed and probably more importantly, the Color to display if more than one set tag has a color setting.\n\nIt is more a matter of consistency. Given that it is SUCH a short list, sorting is superfluous in terms of improving performance & eccentric behavior ... which steepens the learning curve. The reason I mentioned the Color Swatches is that visually oriented users are likely to select by color than name. HOWEVER... that IS an enhancement and is mentioned only for completeness."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I noted the broken functionality but gave no resolution recommendation.\n\nI read this as wanting to add that feature, I'll reverse based on your new statement."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I just rechecked. My complaint about the alpha sort is specious. The menus also alpha sort. The only place that doesn't is the Organize. Which is also the only place with color swatches."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "12018",
+  "url": "https://gramps-project.org/bugs/view.php?id=12018"
+}
