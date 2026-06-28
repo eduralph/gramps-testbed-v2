@@ -1,0 +1,22 @@
+# Check Review
+
+Target caveat: `$PDCA_TARGET` is readable, but it is checked out on `fix/bug-8850-gedcom-import-cal-date-case-sensitive`, not the requested `maintenance/gramps61`; the fan-chart fix commit is present in that target, so source citations below are grounded there. `patch.diff` is absent from this review directory; for this verify-only brief that is not by itself a C4 patch-defect blocker.
+
+| Item | Verdict | Basis |
+|---|---|---|
+| C1 — C1 Spec | PASS | The brief defines a concrete startup crash, target branch, success criterion, scope, repro, and expected citations for a verify-only close (`brief.md:8`, `brief.md:13`, `brief.md:22`, `brief.md:25`, `brief.md:29`, `brief.md:36`). |
+| C2 — C2 Reproduction (red pre-fix) | N/A | This is explicitly a verification of an already-fixed upstream defect with no production patch expected, so a fresh pre-fix red run is outside this bundle's scope (`brief.md:13`, `brief.md:15`, `brief.md:25`). |
+| C3 — C3 Change | N/A | No production patch is expected for the confirmed-fixed disposition, and the review directory contains no `patch.diff`; the gate failure records absence of `patch.diff`, not a faulty code change (`brief.md:15`, `brief.md:16`, `check-gates.json:37`). |
+| C4 — C4 Verification (red→green) | NEEDS-HUMAN | DECISION OWED: decide whether source/regression evidence is sufficient for tracker closure, or require the requested green AT-SPI/manual startup sign-off, because the specific GUI repro artifact is absent and the gate only failed on missing `patch.diff` (`brief.md:32`, `brief.md:34`, `check-gates.json:37`, `check-gates.json:46`). |
+| C5 — C5 Causal adequacy | PASS | The crash path appends to `userdata` for time-period gradients, while the 2-way startup short-circuit now leaves each ascendance slot with its own list before `prepare_background_box` iterates it (`gramps/gui/widgets/fanchart.py:340`, `gramps/gui/widgets/fanchart.py:352`, `gramps/gui/widgets/fanchart2way.py:137`, `gramps/gui/widgets/fanchart2way.py:141`, `gramps/gui/widgets/fanchart2way.py:227`, `gramps/gui/widgets/fanchart2way.py:232`, `gramps/gui/widgets/fanchart2way.py:247`, `gramps/gui/widgets/fanchart2way.py:249`, `gramps/gui/widgets/fanchart2way.py:393`, `gramps/gui/widgets/fanchart2way.py:395`). |
+| T1 — T1 Structure | N/A | Addon layout rules do not apply to this core verify-only bundle with no new or removed files (`brief.md:23`, `brief.md:40`, `check-gates.json:60`, `check-gates.json:65`). |
+| T2 — T2 Shape | N/A | There is no patch and no checkable touched Python path in the submitted artifacts, so code-shape/POTFILES checks are not applicable (`check-gates.json:69`, `check-gates.json:83`). |
+| T3 — T3 Runtime | PASS | The available runtime gates passed: unit baseline matched known reds and GUI interface smoke was green, with recorded target drift caveats (`check-gates.json:87`, `check-gates.json:91`, `check-gates.json:96`, `check-gates.json:100`). |
+| T4 — T4 Contribution | N/A | No commit message or PR wrapper is present or expected in this no-patch verification artifact set (`brief.md:16`, `brief.md:17`, `check-gates.json:105`, `check-gates.json:110`). |
+| T5 — T5 Judgment | PASS | The artifact shape stays within the stated verify-only scope and avoids the out-of-scope fanchart reimplementation/name-format/preference machinery (`brief.md:25`, `brief.md:28`, `brief.md:40`). |
+| V — Validation — fitness-to-purpose | NEEDS-HUMAN | DECISION OWED: a human must decide whether this evidence is fit to resolve Mantis 12932, especially because the requested 2-way time-period startup verification is not captured as a green artifact here (`brief.md:13`, `brief.md:17`, `brief.md:32`, `brief.md:35`, `brief.md:47`). |
+
+## §6 Human Decisions Owed
+
+1. C4 — Verification: decide whether the current source invariant plus existing regression coverage are enough, or require a recorded green run/manual sign-off of `engine/interface/test_bug_12932_fanchart2way-startup.py` for the 2-way time-period-gradient startup scenario. This matters because the automated C4 failure is only "no patch.diff", which is expected for a verify-only close, but it does not prove the issue-specific startup path was exercised.
+2. V — Fitness-to-purpose: decide whether this bundle can move issue 12932 to resolved. The impact is tracker correctness: accepting closes a possibly-fixed report based on source-level causal coverage; rejecting requires an explicit GUI/startup verification artifact before closure.

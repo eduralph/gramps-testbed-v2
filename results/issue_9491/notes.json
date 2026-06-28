@@ -1,0 +1,44 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "sam888\n\n 2016-05-31 21:41\n\nadministrator    ~0048299": "Confirmed Gramps master.\n\nI believe this was deliberate as line 32[1] issues a message if Python 3.1 or lower is being used\n\n<pre>if sys.version_info < (3, 2):\nraise SystemExit(\"Gramps requires Python 3.2 or later.\")</pre>\n\n[1] https://github.com/gramps-project/gramps/blob/0801ef1b309362221591fbc6e7f16a88b4c01b1f/setup.py#L32",
+    "paulfranklin\n\n 2016-05-31 21:50\n\ndeveloper    ~0048300": "I think the problem is that people who make\nchanges like that tend to assume the whole\nworld is like their particular piece of the\nworld. Some linux systems (Arch I believe)\nonly have one Python, which is Python3, but\nis called just \"python\" in their system.\n(The gramps Windows AIO is like that IIRC.)\nOther systems have both and differentiate by\ncalling one \"python2\" and \"python3\".\n\nIf I were offering an opinion, I'd say that\nfiles like our setup.py shouldn't have a\nshebang at the top at all. But that's not\nthe way somebody set it up. Whatever it is.\nsomebody will find it won't work for them.\n\nI would imagine however that anybody trying\nto run setup.py, like you, knows what to do\nif they get a funny error, how to cope.",
+    "snoiraud\n\n 2016-06-01 09:44\n\ndeveloper    ~0048309": "We can do something like that :\n\n#!/usr/bin/env python\n\nimport sys\nimport os\n\nif sys.version_info < (3, 2): # replace 2 by 8 to check for 3.8\nf = os.popen('which python3')\npython3 = f.read()\npython = python3[:-1] + \" --version\"\nnew_command = python3[:-1]\nfor arg in sys.argv:\nnew_command += \" \" + arg\nf = os.popen(python)\nversion = f.read().replace('Python ','').replace('.','')\nif version > '320':\nos.system(new_command)\nos._exit(0)\nelse:\nraise SystemExit(\"Gramps requires Python 3.2 or later.\")\nos._exit(255)\nelse:\n\ncontinue. we have the good python version.\nprint(&quot;OK&quot;)\nos._exit(0)",
+    "prculley\n\n 2016-06-01 14:12\n\nmanager    ~0048310": "I didn't mean to start a firestorm; I do regard this a 'trivial' issue. However some other gramps scripts have the shebang set for python3. For example various test scripts and the make.py in addons-source has\n#! /usr/bin/env python3\n\nMy understanding is that for those shells that understand shebang, the appropriate version gets called. For others, well user has to deal.",
+    "romjerome\n\n 2016-06-02 07:46\n\ndeveloper    ~0048312\n\n last edited: 2016-06-02 07:49\n\nview 3 revisions": "Yes, for the launcher (under linux), we just use:\n<pre>#! /usr/bin/env python</pre>\nsee '/scripts/gramps' file under .git repository.\nSame for 'Gramps.py', for only running via sources."
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Confirmed Gramps master.\n\nI believe this was deliberate as line 32[1] issues a message if Python 3.1 or lower is being used\n\n<pre>if sys.version_info < (3, 2):\nraise SystemExit(\"Gramps requires Python 3.2 or later.\")</pre>\n\n[1] https://github.com/gramps-project/gramps/blob/0801ef1b309362221591fbc6e7f16a88b4c01b1f/setup.py#L32"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I think the problem is that people who make\nchanges like that tend to assume the whole\nworld is like their particular piece of the\nworld. Some linux systems (Arch I believe)\nonly have one Python, which is Python3, but\nis called just \"python\" in their system.\n(The gramps Windows AIO is like that IIRC.)\nOther systems have both and differentiate by\ncalling one \"python2\" and \"python3\".\n\nIf I were offering an opinion, I'd say that\nfiles like our setup.py shouldn't have a\nshebang at the top at all. But that's not\nthe way somebody set it up. Whatever it is.\nsomebody will find it won't work for them.\n\nI would imagine however that anybody trying\nto run setup.py, like you, knows what to do\nif they get a funny error, how to cope."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "We can do something like that :\n\n#!/usr/bin/env python\n\nimport sys\nimport os\n\nif sys.version_info < (3, 2): # replace 2 by 8 to check for 3.8\nf = os.popen('which python3')\npython3 = f.read()\npython = python3[:-1] + \" --version\"\nnew_command = python3[:-1]\nfor arg in sys.argv:\nnew_command += \" \" + arg\nf = os.popen(python)\nversion = f.read().replace('Python ','').replace('.','')\nif version > '320':\nos.system(new_command)\nos._exit(0)\nelse:\nraise SystemExit(\"Gramps requires Python 3.2 or later.\")\nos._exit(255)\nelse:\n\ncontinue. we have the good python version.\nprint(&quot;OK&quot;)\nos._exit(0)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I didn't mean to start a firestorm; I do regard this a 'trivial' issue. However some other gramps scripts have the shebang set for python3. For example various test scripts and the make.py in addons-source has\n#! /usr/bin/env python3\n\nMy understanding is that for those shells that understand shebang, the appropriate version gets called. For others, well user has to deal."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Yes, for the launcher (under linux), we just use:\n<pre>#! /usr/bin/env python</pre>\nsee '/scripts/gramps' file under .git repository.\nSame for 'Gramps.py', for only running via sources."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "9491",
+  "url": "https://gramps-project.org/bugs/view.php?id=9491"
+}

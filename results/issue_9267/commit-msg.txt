@@ -1,0 +1,32 @@
+Rebuild sort order when display-name format changes
+
+A flat list view caches the (sortkey, handle) map across rebuilds for
+efficiency — search/filter changes only hide rows, never reorder them.
+When the display-name format is reconfigured, the sort key itself changes
+(e.g. surname→given), but the view's rebuild path didn't invalidate the
+cache, leaving the rows in the previous sort order until the database is
+reopened.
+
+Define rebuild_sort() as a no-op default on BaseModel (the shared base of
+flat and hierarchical models) so a display-format change can uniformly
+invalidate the sort cache. Override it on FlatBaseModel to set a _sort_dirty
+flag; the two cache-reuse guards in _rebuild_search and _rebuild_filter
+check this flag before reusing the cached map, and clear it after
+recomputing sort_keys(). Wire a new _format_changed handler in
+BasePersonView to call rebuild_sort() before build_tree() on both
+nameformat-changed and placeformat-changed signals.
+
+This addresses iteration 1's sign-off rejection: BasePersonView is shared
+by both the flat People view and the Person Tree view; PersonTreeModel
+inherits TreeBaseModel, not FlatBaseModel, so iteration 1's direct addition
+to FlatBaseModel alone would raise AttributeError at runtime on a tree
+format change. The base-class no-op makes the shared callback safe on any
+person model. The flat model's override keeps the cache optimization for
+search/filter (only recomputing when the sort key itself changes).
+
+Verified against:
+- gramps/gui/views/treemodels/basemodel.py:31-56 — cache infrastructure
+- gramps/gui/views/treemodels/flatbasemodel.py:491-624 — cache reuse guards
+- gramps/plugins/lib/libpersonview.py:181-198 — signal routing
+
+Fixes #9267

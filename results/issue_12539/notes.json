@@ -1,0 +1,38 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "daniele\n\n 2022-01-24 14:29\n\nreporter": "simpson_test.gramps (1,543 bytes)",
+    "bamaustin\n\n 2023-09-01 01:23\n\ndeveloper    ~0065526": "https://gramps.discourse.group/t/window-not-updating-after-an-edit/4103/3\n\nprculley\n\nI followed the description, and was able to reproduce the issue. The at least some of the Gramplets in the bottom of the main screen (and probably in sidebar etc.) are not registered to update on changes to the basic data they are displaying. The data updates when going to another selection at top of view and back to original. In this case the gramps/plugins/gramplet/children.py would need to register for changes in person (to deal with name changes, and new birth/death events), and changes in events (to deal with date changes in the events). Might be worth a bug report…",
+    "daleathan\n\n 2023-09-01 02:33\n\ndeveloper    ~0065527": "Confirmed by prculley on discourse",
+    "snoiraud\n\n 2023-09-01 17:51\n\ndeveloper    ~0065528": "This issue occurs for all views and exists since the beginning of gramplets.\nIf you click on the \"Reset\" button, the line with \"Clancy’s family\" is always selected and visible.\nThat is why children are always visible.\n\nIf we want to fix this problem, we need to deselect the active row when we click \"Search\"\nI am not sure we can do it easily."
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "simpson_test.gramps (1,543 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "https://gramps.discourse.group/t/window-not-updating-after-an-edit/4103/3\n\nprculley\n\nI followed the description, and was able to reproduce the issue. The at least some of the Gramplets in the bottom of the main screen (and probably in sidebar etc.) are not registered to update on changes to the basic data they are displaying. The data updates when going to another selection at top of view and back to original. In this case the gramps/plugins/gramplet/children.py would need to register for changes in person (to deal with name changes, and new birth/death events), and changes in events (to deal with date changes in the events). Might be worth a bug report…"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Confirmed by prculley on discourse"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "This issue occurs for all views and exists since the beginning of gramplets.\nIf you click on the \"Reset\" button, the line with \"Clancy’s family\" is always selected and visible.\nThat is why children are always visible.\n\nIf we want to fix this problem, we need to deselect the active row when we click \"Search\"\nI am not sure we can do it easily."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "12539",
+  "url": "https://gramps-project.org/bugs/view.php?id=12539"
+}

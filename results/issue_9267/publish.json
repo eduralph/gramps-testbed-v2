@@ -1,0 +1,10 @@
+{
+  "mode": "new-pr",
+  "branch": "fix/bug-9267-name-format-change-rebuilds-sort",
+  "pr_url": "https://github.com/gramps-project/gramps/pull/2436",
+  "base": "maintenance/gramps61",
+  "repo": "gramps-project/gramps",
+  "by": "Eduard Ralph",
+  "date": "2026-06-28",
+  "id_pending": false
+}

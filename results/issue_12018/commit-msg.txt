@@ -1,0 +1,17 @@
+Bind Organize Tags dialog's type-ahead search to Name column
+
+The Organize Tags dialog's tag list TreeView shipped GtkTreeView's
+interactive type-ahead search enabled by default, but the code never
+called set_search_column(), leaving the search at GTK's default value
+of -1. With no target column, pressing Ctrl-F (or typing) popped up
+the search box but never moved the selection — a control that appears
+to work but does nothing.
+
+This change adds module-level helpers (_TAG_NAME_COL, _tag_list_columns,
+_setup_tag_search) to bind the TreeView's search to the visible Name
+column (model index 2). The helpers also provide a headless-testable
+seam for the regression test. The dialog's behavior is now consistent:
+users can now actually search the tag list by name instead of seeing a
+nonfunctional search box.
+
+Fixes #12018

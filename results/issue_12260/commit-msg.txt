@@ -1,0 +1,22 @@
+Fix crash in EditLink when new-object callback emits handle string
+
+The EditLink._on_new_callback method assumed it always receives an object
+with a .handle attribute, but some editors (specifically EditCitation at
+editcitation.py:401) emit only the handle string via self.obj.get_handle().
+This caused AttributeError: 'str' object has no attribute 'handle' when
+creating a new linked object of such types through the Link Editor.
+
+Distinguish the reference type at the single boundary (_on_new_callback)
+by checking isinstance(obj, str): if it is a string, derive the object
+class from the user's selection in the Link Editor (OBJECT_MAP); otherwise
+treat it as an object and extract the class and handle as before. This
+restores the invariant that the callback reads the value as the reference
+type it actually is, without requiring changes to any editor's save
+signature.
+
+Verify against maintenance/gramps61:156-160 and editcitation.py:400-401
+for the handle-emit contract. Add regression test in
+gramps/gui/editors/test/editlink_test.py that reproduces the crash with
+a handle string (red pre-fix) and verifies both paths post-fix.
+
+Fixes #12260

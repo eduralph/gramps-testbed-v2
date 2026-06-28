@@ -1,0 +1,303 @@
+diff --git a/gramps/gen/utils/callname.py b/gramps/gen/utils/callname.py
+new file mode 100644
+index 0000000000..539f6e0e87
+--- /dev/null
++++ b/gramps/gen/utils/callname.py
+@@ -0,0 +1,69 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  Gramps developers
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Call-name validity helpers used by the Name editor.
++
++The Name editor marks the *Call name* field red when the call name is not one
++of the given names that are normally used.  That decision depends on **both**
++the call name and the current given name (bug 12110): a change to *either*
++field can flip the result.  The two helpers here -- the validity predicate and
++the re-validation trigger -- are the single, GUI-free implementation the editor
++(``gramps/gui/editors/editname.py``) routes through, so its tests can exercise
++the same code without importing ``gi`` / ``gramps.gui``.
++"""
++
++
++def call_name_is_valid(call_name, given_name):
++    """
++    Return True if ``call_name`` is part of ``given_name``.
++
++    The given name is split on whitespace and on hyphens, so each individual
++    given (including the components of a hyphenated given) is an acceptable
++    call name.  An empty call name is never valid.
++
++    :param call_name: the call name to check
++    :type call_name: str
++    :param given_name: the current given name(s)
++    :type given_name: str
++    :rtype: bool
++    """
++    valid = given_name.split()
++    for item in list(valid):
++        valid += item.split("-")
++    return call_name in valid
++
++
++def revalidate_call(call_field):
++    """
++    Re-run the call field's validation (bug 12110).
++
++    The call-name validity indicator depends on the current given name, so a
++    change to the given name must re-fire the call field's validation to keep
++    the red/black indicator in sync -- otherwise it goes stale.  This is the
++    body of the Name editor's given-name ``changed`` callback, factored out so
++    production and the regression test drive one implementation.
++
++    ``force=True`` makes the validatable entry re-run its ``validate`` handler
++    even though the call text itself did not change.
++
++    :param call_field: the editor's monitored call-name entry (has an ``obj``
++        attribute that is a validatable entry widget)
++    """
++    call_field.obj.validate(force=True)
+diff --git a/gramps/gui/editors/editname.py b/gramps/gui/editors/editname.py
+index 9f8962cc87..713c7145a7 100644
+--- a/gramps/gui/editors/editname.py
++++ b/gramps/gui/editors/editname.py
+@@ -27,7 +27,6 @@
+ #
+ # -------------------------------------------------------------------------
+ from gi.repository import GObject
+-from copy import copy
+ 
+ # -------------------------------------------------------------------------
+ #
+@@ -47,6 +46,7 @@ _ = glocale.translation.sgettext
+ from gramps.gen.const import URL_MANUAL_SECT3
+ from gramps.gen.config import config
+ from gramps.gen.display.name import displayer as name_displayer
++from gramps.gen.utils.callname import call_name_is_valid, revalidate_call
+ from .editsecondary import EditSecondary
+ from gramps.gen.lib import NoteType
+ from .displaytabs import GrampsTab, CitationEmbedList, NoteTab, SurnameTab
+@@ -173,16 +173,24 @@ class EditName(EditSecondary):
+     def _validate_call(self, widget, text):
+         """a callname must be a part of the given name, see if this is the
+         case"""
+-        validcall = self.given_field.obj.get_text().split()
+-        dummy = copy(validcall)
+-        for item in dummy:
+-            validcall += item.split("-")
+-        if text in validcall:
++        if call_name_is_valid(text, self.given_field.obj.get_text()):
+             return
+         return ValidationError(
+             _("Call name must be the given name that " "is normally used.")
+         )
+ 
++    def _revalidate_call(self, obj):
++        """Re-run the call-name validation when the given name changes.
++
++        Bug 12110: the call-name validity depends on the given name, so a
++        change to the given name must re-fire the call field's validation,
++        otherwise the red/black indicator goes stale.  Guarded because the
++        given field is set up (and fires its initial ``changed``) before the
++        call field exists.
++        """
++        if hasattr(self, "call_field"):
++            revalidate_call(self.call_field)
++
+     def _setup_fields(self):
+         self.group_as = MonitoredEntry(
+             self.top.get_object("group_as"),
+@@ -225,6 +233,7 @@ class EditName(EditSecondary):
+             self.obj.set_first_name,
+             self.obj.get_first_name,
+             self.db.readonly,
++            changed=self._revalidate_call,
+         )
+ 
+         self.call_field = MonitoredEntry(
+diff --git a/gramps/gui/editors/test/editname_test.py b/gramps/gui/editors/test/editname_test.py
+new file mode 100644
+index 0000000000..f422a12872
+--- /dev/null
++++ b/gramps/gui/editors/test/editname_test.py
+@@ -0,0 +1,144 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  Gramps developers
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Regression test for bug 12110 -- the Name editor's Call-name indicator must
++track the *current* given name.
++
++The Name editor (``gramps/gui/editors/editname.py``) marks the Call field red
++when the call name is not part of the given name.  The defect: that check fired
++only when the *Call* field changed, never when the *Given* field changed, so
++the red/black indicator went stale.
++
++These tests drive the **production** code the editor routes through -- no
++parallel copy (principles 3.4):
++
++  * ``EditName._validate_call`` delegates the validity decision to
++    ``gramps.gen.utils.callname.call_name_is_valid`` (editname.py: the
++    ``if call_name_is_valid(...)`` branch);
++  * ``EditName._revalidate_call`` -- the given-name ``changed`` callback added
++    by the fix (``changed=self._revalidate_call`` on ``given_field``) --
++    delegates to ``gramps.gen.utils.callname.revalidate_call``, which forces
++    the call field's validation to re-run.
++
++Both helpers are GUI-free, so this runs headless (no ``gi`` / ``gramps.gui``
++import).  The ``test_given_change_*`` cases wire the production
++``revalidate_call`` trigger to the production ``call_name_is_valid`` predicate
++through a faithful stand-in for the GTK validatable entry, and assert the
++indicator flips on a *given-name* change -- the end result the bug asks for.
++"""
++
++import unittest
++from types import SimpleNamespace
++
++from gramps.gen.utils.callname import call_name_is_valid, revalidate_call
++
++
++class _FakeValidatableEntry:
++    """Minimal stand-in for the editor's Gtk validatable call-name entry.
++
++    Mirrors the only behaviour the fix relies on: ``validate(force=True)``
++    re-runs the call-name validity check against the *current* given name and
++    records whether the entry is invalid (would show red).  In production the
++    real widget emits a ``validate`` signal that reaches
++    ``EditName._validate_call``; here the handler calls the same predicate that
++    method calls, so the test exercises the production decision, not a copy.
++    """
++
++    def __init__(self, call_text, get_given):
++        self.text = call_text
++        self._get_given = get_given
++        self.invalid = None  # None until validated; True == red, False == black
++
++    def validate(self, force=False):
++        self.invalid = not call_name_is_valid(self.text, self._get_given())
++
++
++class CallNamePredicateTest(unittest.TestCase):
++    """The validity predicate ``_validate_call`` uses, against changing input."""
++
++    def test_call_in_given_is_valid(self):
++        self.assertTrue(call_name_is_valid("Marc", "Marc"))
++        self.assertTrue(call_name_is_valid("Lee", "Marc Lee"))
++
++    def test_call_not_in_given_is_invalid(self):
++        self.assertFalse(call_name_is_valid("Jon", ""))
++        self.assertFalse(call_name_is_valid("Paul", "Marc"))
++
++    def test_empty_call_name_is_invalid(self):
++        self.assertFalse(call_name_is_valid("", ""))
++        self.assertFalse(call_name_is_valid("", "Marc"))
++
++    def test_hyphenated_given_components_are_valid(self):
++        self.assertTrue(call_name_is_valid("Anne", "Jean-Anne"))
++        self.assertTrue(call_name_is_valid("Jean-Anne", "Jean-Anne"))
++
++
++class RevalidateCallTest(unittest.TestCase):
++    """The given-name ``changed`` callback re-fires the call field validation.
++
++    ``revalidate_call`` is the body of ``EditName._revalidate_call`` -- the hook
++    the fix wires to the given field.  Driving it here proves the
++    ``validate(force=True)`` trigger the original code lacked.
++    """
++
++    def test_revalidate_forces_call_field_validation(self):
++        """revalidate_call must call validate(force=True) on the call widget."""
++        calls = []
++        widget = SimpleNamespace(validate=lambda force=False: calls.append(force))
++        revalidate_call(SimpleNamespace(obj=widget))
++        self.assertEqual(calls, [True])
++
++    def test_given_change_red_to_black(self):
++        """Bug 12110 case 1: Call='Jon', given empty (red) -> given='Jon'.
++
++        Re-validating on the given-name change (via the production
++        ``revalidate_call`` trigger) must flip the indicator red -> black
++        without the user re-touching the Call field.
++        """
++        given = {"text": ""}
++        widget = _FakeValidatableEntry("Jon", lambda: given["text"])
++        call_field = SimpleNamespace(obj=widget)
++
++        widget.validate(force=True)  # initial check: empty given
++        self.assertTrue(widget.invalid)  # red
++
++        given["text"] = "Jon"  # user edits the Given field
++        revalidate_call(call_field)  # production given-changed hook
++        self.assertFalse(widget.invalid)  # now black
++
++    def test_given_change_black_to_red(self):
++        """Bug 12110 case 2: given='Marc', Call='Marc' (black) -> given='Paul'.
++
++        Re-validating on the given-name change must flip black -> red.
++        """
++        given = {"text": "Marc"}
++        widget = _FakeValidatableEntry("Marc", lambda: given["text"])
++        call_field = SimpleNamespace(obj=widget)
++
++        widget.validate(force=True)  # initial check: given matches
++        self.assertFalse(widget.invalid)  # black
++
++        given["text"] = "Paul"  # user edits the Given field
++        revalidate_call(call_field)  # production given-changed hook
++        self.assertTrue(widget.invalid)  # now red
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index 6164615dea..69125aca16 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -305,6 +305,7 @@ gramps/gen/test/constfunc_test.py
+ gramps/gen/utils/__init__.py
+ gramps/gen/utils/callback.py
+ gramps/gen/utils/callman.py
++gramps/gen/utils/callname.py
+ gramps/gen/utils/config.py
+ gramps/gen/utils/debug.py
+ gramps/gen/utils/file.py
+@@ -395,6 +396,7 @@ gramps/gui/editors/displaytabs/test/gallerytab_test.py
+ #
+ # gui.editors.test package
+ #
++gramps/gui/editors/test/editname_test.py
+ gramps/gui/editors/test/editreference_test.py
+ #
+ # gui.filters package

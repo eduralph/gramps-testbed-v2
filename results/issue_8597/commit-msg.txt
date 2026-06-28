@@ -1,0 +1,18 @@
+Add regression test for Note preview length config (issue 8597)
+
+The hardcoded 79-character truncation limit for Note preview has been
+resolved upstream — Note.get_preview() now honours the configurable
+interface.note-preview-length setting (config.py:280). This patch adds
+a unit test to document the resolved behaviour and prevent regression,
+verifying the production code reads the config value instead of a magic
+constant. The test runs headless (imports only gen.config and gen.lib.note)
+and covers both the truncation branch (test_not_hardcoded_79: confirms
+lengths > old limit are respected) and the no-truncation branch. The new
+test file is registered in po/POTFILES.skip per the T2 potfiles gate.
+
+The residual hardcoded 40-character limit in the navigation status-bar path
+(utils/db.py:353-360) is out of scope and reported for follow-up: it is a
+separate surface and a design decision whether to share the note-preview
+setting, create its own, or keep a constant.
+
+Fixes #8597

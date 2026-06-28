@@ -1,0 +1,38 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "adrian.davey\n\n 2019-11-11 23:46\n\nreporter  \n\ndelete": "a_gramps_example_Joe_St-Pierre_text.jpg (11,326 bytes)  \n a_gramps_example_Joe_St-Pierre_text.jpg (11,326 bytes)  \n b_gramps_example_Joe_St-Pierre_tree+mouseover.jpg (4,375 bytes)  \n b_gramps_example_Joe_St-Pierre_tree+mouseover.jpg (4,375 bytes)",
+    "sam888\n\n 2019-11-12 00:18\n\nadministrator    ~0058176\n\nedit\ndelete\nmake private": "Product Version 5.0.1\n\nDo you get the same result if you use Gramps 5.1.1 and the third party report?",
+    "adrian.davey\n\n 2019-11-12 01:46\n\nreporter    ~0058179\n\nedit\ndelete\nmake private": "The result is identical in 5.1.1 & the latest version of the DWR, i.e. the hyphen is replaced with a space in the tree display",
+    "adrian.davey\n\n 2020-03-02 06:27\n\nreporter    ~0058957\n\nedit\ndelete\nmake private": "In adding a note to feature request 001050, dev lordemannd has (perhaps inadvertently) offered a workaround here to the problem of hyphens being stripped from names in the trees of the DWR.\n\nIf the user inputs a non-break hyphen (instead of the \"normal\" hyphen and minus character), even in Gramps on Win it can be input (in the name or other editors, though NOT in find dialogs) as <CTRL><SHIFT>2011<RETURN> (i.e. the unicode hex value), though it is even easier to copy & paste the non-break hyphen (and it works when you paste it in even in find dialogs).\n\nI have now confirmed, by editing the relatively few names of people in my database who had hyphenated given or family names, that substituting the non-break hyphen in place of the simple hyphen, a DWR generated tree does respect the non-break hyphen as a character, and it is not stripped when the names are output for generation of trees."
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "a_gramps_example_Joe_St-Pierre_text.jpg (11,326 bytes)  \n a_gramps_example_Joe_St-Pierre_text.jpg (11,326 bytes)  \n b_gramps_example_Joe_St-Pierre_tree+mouseover.jpg (4,375 bytes)  \n b_gramps_example_Joe_St-Pierre_tree+mouseover.jpg (4,375 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Product Version 5.0.1\n\nDo you get the same result if you use Gramps 5.1.1 and the third party report?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "The result is identical in 5.1.1 & the latest version of the DWR, i.e. the hyphen is replaced with a space in the tree display"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "In adding a note to feature request 001050, dev lordemannd has (perhaps inadvertently) offered a workaround here to the problem of hyphens being stripped from names in the trees of the DWR.\n\nIf the user inputs a non-break hyphen (instead of the \"normal\" hyphen and minus character), even in Gramps on Win it can be input (in the name or other editors, though NOT in find dialogs) as <CTRL><SHIFT>2011<RETURN> (i.e. the unicode hex value), though it is even easier to copy & paste the non-break hyphen (and it works when you paste it in even in find dialogs).\n\nI have now confirmed, by editing the relatively few names of people in my database who had hyphenated given or family names, that substituting the non-break hyphen in place of the simple hyphen, a DWR generated tree does respect the non-break hyphen as a character, and it is not stripped when the names are output for generation of trees."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "11437",
+  "url": "https://gramps-project.org/bugs/view.php?id=11437"
+}

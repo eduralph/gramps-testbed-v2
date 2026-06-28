@@ -1,0 +1,98 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "romjerome\n\n 2013-03-30 11:46\n\ndeveloper    ~0028206\n\nedit\ndelete\nmake private": "Not tested, but looking at code:\n<pre>def define_actions(self):\n\"\"\"\nRequired define_actions function for PageView. Builds the action\ngroup information required. We extend beyond the normal here,\nsince we want to have more than one action group for the PersonView.\nMost PageViews really won't care about this.\n\"\"\"\n\n    NavigationView.define_actions(self)\n\n    self.edit_action = Gtk.ActionGroup(self.title + '/ChangeOrder')\n    self.edit_action.add_actions([\n            ('Add', Gtk.STOCK_ADD, _(&quot;_Add...&quot;), &quot;&lt;PRIMARY>Insert&quot;, \n                self.ADD_MSG, self.add), \n            ('Remove', Gtk.STOCK_REMOVE, _(&quot;_Remove&quot;), &quot;&lt;PRIMARY>Delete&quot;, \n                self.DEL_MSG, self.remove), \n            ('Merge', 'gramps-merge', _('_Merge...'), None,\n                self.MERGE_MSG, self.merge),\n            ('ExportTab', None, _('Export View...'), None, None,\n                self.export), \n            ])</pre> it is labels for menu? No buttons, there!",
+    "romjerome\n\n 2013-03-30 11:49\n\ndeveloper    ~0028207\n\nedit\ndelete\nmake private": "Reminder sent to: Nick_H\n\n\n\nNick,\n\nIs there any consistency issue on tool bar via PageView?\nIt looks like that labels are not consistent?\n\nJérôme",
+    "sigmo\n\n 2013-03-30 12:03\n\nreporter  \n\ndelete": "2 relaties.png (62,960 bytes)  \n 2 relaties.png (62,960 bytes)",
+    "sigmo\n\n 2013-03-30 12:04\n\nreporter  \n\ndelete": "3 families.png (90,112 bytes)  \n 3 families.png (90,112 bytes)",
+    "sigmo\n\n 2013-03-30 12:05\n\nreporter    ~0028208\n\nedit\ndelete\nmake private": "I've added 3 screenshots to show what I exactly mean. The screenshots are in Dutch, but the original English texts have the same inconsistency. As you can see, the inconsistency is not limited to the \"persons\" window, but to all windows.",
+    "nick_h\n\n 2013-03-30 14:00\n\nadministrator    ~0028211\n\nedit\ndelete\nmake private": "The text is defined in the actions, which are used by both the menu and toolbar.\n\nThe ellipsis (dots) indicates that the action will require further input from the users before being carried out. The user will expect a dialog where they can choose what they want to do.\n\nThe confirmation dialog for actions such as \"Remove\" doesn't qualify the action to be carried out, so these actions don't have an ellipsis.",
+    "sigmo\n\n 2013-03-30 14:36\n\nreporter    ~0028212\n\nedit\ndelete\nmake private": "Ok, I understand the reasoning, but for me as a user this doesn't make sense.\nOfcourse I expect something where I can type in something when I want to add a person. Why should we mention it on the button? I think it's obvious by the name \"Add\" itself. A user doesn't care if it's a dialog or a view as long as he or she can type in something.",
+    "nick_h\n\n 2013-03-30 15:48\n\nadministrator    ~0028214\n\nedit\ndelete\nmake private": "I have just looked at the Gnome Human Interface Guidelines:\n\nhttps://developer.gnome.org/hig-book/3.8/hig-book.html#menus-design\n\nThere relevant paragraph reads:\n\n\"Label the menu item with a trailing ellipsis (\"...\") only if the command requires further input from the user before it can be performed. Do not add an ellipsis to items that only present a confirmation dialog (such as Delete), or that do not require further input (such as Properties, Preferences or About).\"",
+    "sigmo\n\n 2013-03-30 16:00\n\nreporter    ~0028215\n\n last edited: 2013-03-30 16:01\n\nview 2 revisions\n\nedit\ndelete\nmake private": "I don't think that part is relevant. Chapter 4 of the Human Interface Guidelines is about menu's, not about Toolbars, which is chapter 5.\n\nQuoting from chapter 5: \"For buttons that correspond directly to menu items, make the text label the same as the menu item, but without any trailing ellipsis. For example, Open, Save.\"\n\nhttps://developer.gnome.org/hig-book/3.8/hig-book.html.en#toolbars-labels-tooltips\n\nIf I'm correct, this sentence tells us that there must be no ellipsis.\n\nA second point to note, and I quote again from the guidelines: \"Do not provide access keys for toolbar buttons.\"",
+    "nick_h\n\n 2013-03-30 16:53\n\nadministrator    ~0028219\n\nedit\ndelete\nmake private": "Yes, it looks like we should remove the ellipsis from the toolbar buttons.\n\nThe labels are defined in actions which are used in both the menu and toolbar, so fixing this is not as easy as just changing the text.",
+    "sam888\n\n 2015-09-16 07:23\n\nadministrator    ~0044563\n\n last edited: 2015-09-16 09:21\n\nview 5 revisions\n\nedit\ndelete\nmake private": "[worked it out]How did you display labels under the Toolbar icons? I could only find the option to display labels beside the navigator icons.\n\nIn https://github.com/gramps-project/gramps/blob/master/gramps/gui/viewmanager.py#L382 find:\nself.toolbar = self.uimanager.get_widget('/ToolBar')\n\nand insert the following line underneath:\n\nself.toolbar.set_style(Gtk.ToolbarStyle.BOTH)\n\nSomething to do with gtk and the windows manager\nhttp://gramps.1791082.n4.nabble.com/Configuring-toolbar-buttons-td4663390.html\n\nhttp://gramps.1791082.n4.nabble.com/Upgraded-to-Ubuntu-Trusty-Tahr-Gramps-issues-td4665652.html\n\ngtk_toolbar_set_style ()\nAlters the view of toolbar to display either icons only, text only, or both.\nhttps://developer.gnome.org/gtk3/stable/GtkToolbar.html#gtk-toolbar-set-style\n\nGtk.ToolbarStyle.BOTH\nhttp://stackoverflow.com/questions/25014942/create-gtk-toolbar-with-buttons-and-text-in-pygobject",
+    "sam888\n\n 2015-09-16 09:14\n\nadministrator  \n\ndelete": "6583show-text-and-icons-on-toolbar.diff (939 bytes)  \ndiff --git a/gramps/gui/viewmanager.py b/gramps/gui/viewmanager.py\nindex 074f856..3d76755 100644\n--- a/gramps/gui/viewmanager.py\n+++ b/gramps/gui/viewmanager.py\n@@ -292,6 +292,7 @@ class ViewManager(CLIManager):\n \n         self.show_navigator = config.get('interface.view')\n         self.show_toolbar = config.get('interface.toolbar-on')\n+#        self.icon_text_toolbar = config.get('interface.toolbar-icon-text')\n         self.fullscreen = config.get('interface.fullscreen')\n \n         self.__build_main_window() # sets self.uistate\n@@ -380,6 +381,7 @@ class ViewManager(CLIManager):\n         hpane.add2(self.notebook)\n         self.menubar = self.uimanager.get_widget('/MenuBar')\n         self.toolbar = self.uimanager.get_widget('/ToolBar')\n+        self.toolbar.set_style(Gtk.ToolbarStyle.BOTH)\n         self.__attach_menubar(vbox)\n         vbox.pack_start(self.toolbar, False, True, 0)\n         vbox.pack_start(hpane, True, True, 0)\n\n 6583show-text-and-icons-on-toolbar.diff (939 bytes)",
+    "sam888\n\n 2018-02-26 03:47\n\nadministrator    ~0053990\n\n last edited: 2018-02-26 03:49\n\nview 3 revisions\n\nedit\ndelete\nmake private": "@sam-m888 Where do I find the option to show text under the toolbar icons like in your image(above)? It's one of the reasons I'm still on 3.49 and gramps 4 made it more difficult to navigate like you mention!\n\n@PQYPLZXHGF I did this aIso to my toolbar for much the same reason.\n\nLook in the following file:\n<b>gramps/gui/viewmanager.py</b>\n\nand find\n\n<b>if self.show_toolbar:</b>\n\nthen add following line beneath it:\n\n<b>self.toolbar.set_style(Gtk.ToolbarStyle.BOTH)</b>\n\nwhen you restart gramps and you should have text under the icons. ��\n\nIf you upgrade you'll need to reapply.\n\nFrom:\nhttps://github.com/gramps-project/addons-source/pull/115#issuecomment-368290001",
+    "codefarmer\n\n 2026-03-05 13:18\n\ndeveloper    ~0070341\n\nedit\ndelete\nmake private": "@CallMeDave I see that a relationship was added, but I don't understand how this is related to 0014132"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Not tested, but looking at code:\n<pre>def define_actions(self):\n\"\"\"\nRequired define_actions function for PageView. Builds the action\ngroup information required. We extend beyond the normal here,\nsince we want to have more than one action group for the PersonView.\nMost PageViews really won't care about this.\n\"\"\"\n\n    NavigationView.define_actions(self)\n\n    self.edit_action = Gtk.ActionGroup(self.title + '/ChangeOrder')\n    self.edit_action.add_actions([\n            ('Add', Gtk.STOCK_ADD, _(&quot;_Add...&quot;), &quot;&lt;PRIMARY>Insert&quot;, \n                self.ADD_MSG, self.add), \n            ('Remove', Gtk.STOCK_REMOVE, _(&quot;_Remove&quot;), &quot;&lt;PRIMARY>Delete&quot;, \n                self.DEL_MSG, self.remove), \n            ('Merge', 'gramps-merge', _('_Merge...'), None,\n                self.MERGE_MSG, self.merge),\n            ('ExportTab', None, _('Export View...'), None, None,\n                self.export), \n            ])</pre> it is labels for menu? No buttons, there!"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Reminder sent to: Nick_H\n\n\n\nNick,\n\nIs there any consistency issue on tool bar via PageView?\nIt looks like that labels are not consistent?\n\nJérôme"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "1 personen.png (64,842 bytes)  \n 1 personen.png (64,842 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "3 families.png (90,112 bytes)  \n 3 families.png (90,112 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I've added 3 screenshots to show what I exactly mean. The screenshots are in Dutch, but the original English texts have the same inconsistency. As you can see, the inconsistency is not limited to the \"persons\" window, but to all windows."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "The text is defined in the actions, which are used by both the menu and toolbar.\n\nThe ellipsis (dots) indicates that the action will require further input from the users before being carried out. The user will expect a dialog where they can choose what they want to do.\n\nThe confirmation dialog for actions such as \"Remove\" doesn't qualify the action to be carried out, so these actions don't have an ellipsis."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Ok, I understand the reasoning, but for me as a user this doesn't make sense.\nOfcourse I expect something where I can type in something when I want to add a person. Why should we mention it on the button? I think it's obvious by the name \"Add\" itself. A user doesn't care if it's a dialog or a view as long as he or she can type in something."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I have just looked at the Gnome Human Interface Guidelines:\n\nhttps://developer.gnome.org/hig-book/3.8/hig-book.html#menus-design\n\nThere relevant paragraph reads:\n\n\"Label the menu item with a trailing ellipsis (\"...\") only if the command requires further input from the user before it can be performed. Do not add an ellipsis to items that only present a confirmation dialog (such as Delete), or that do not require further input (such as Properties, Preferences or About).\""
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I don't think that part is relevant. Chapter 4 of the Human Interface Guidelines is about menu's, not about Toolbars, which is chapter 5.\n\nQuoting from chapter 5: \"For buttons that correspond directly to menu items, make the text label the same as the menu item, but without any trailing ellipsis. For example, Open, Save.\"\n\nhttps://developer.gnome.org/hig-book/3.8/hig-book.html.en#toolbars-labels-tooltips\n\nIf I'm correct, this sentence tells us that there must be no ellipsis.\n\nA second point to note, and I quote again from the guidelines: \"Do not provide access keys for toolbar buttons.\""
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Yes, it looks like we should remove the ellipsis from the toolbar buttons.\n\nThe labels are defined in actions which are used in both the menu and toolbar, so fixing this is not as easy as just changing the text."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "[worked it out]How did you display labels under the Toolbar icons? I could only find the option to display labels beside the navigator icons.\n\nIn https://github.com/gramps-project/gramps/blob/master/gramps/gui/viewmanager.py#L382 find:\nself.toolbar = self.uimanager.get_widget('/ToolBar')\n\nand insert the following line underneath:\n\nself.toolbar.set_style(Gtk.ToolbarStyle.BOTH)\n\nSomething to do with gtk and the windows manager\nhttp://gramps.1791082.n4.nabble.com/Configuring-toolbar-buttons-td4663390.html\n\nhttp://gramps.1791082.n4.nabble.com/Upgraded-to-Ubuntu-Trusty-Tahr-Gramps-issues-td4665652.html\n\ngtk_toolbar_set_style ()\nAlters the view of toolbar to display either icons only, text only, or both.\nhttps://developer.gnome.org/gtk3/stable/GtkToolbar.html#gtk-toolbar-set-style\n\nGtk.ToolbarStyle.BOTH\nhttp://stackoverflow.com/questions/25014942/create-gtk-toolbar-with-buttons-and-text-in-pygobject"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "6583show-text-and-icons-on-toolbar.diff (939 bytes)  \ndiff --git a/gramps/gui/viewmanager.py b/gramps/gui/viewmanager.py\nindex 074f856..3d76755 100644\n--- a/gramps/gui/viewmanager.py\n+++ b/gramps/gui/viewmanager.py\n@@ -292,6 +292,7 @@ class ViewManager(CLIManager):\n \n         self.show_navigator = config.get('interface.view')\n         self.show_toolbar = config.get('interface.toolbar-on')\n+#        self.icon_text_toolbar = config.get('interface.toolbar-icon-text')\n         self.fullscreen = config.get('interface.fullscreen')\n \n         self.__build_main_window() # sets self.uistate\n@@ -380,6 +381,7 @@ class ViewManager(CLIManager):\n         hpane.add2(self.notebook)\n         self.menubar = self.uimanager.get_widget('/MenuBar')\n         self.toolbar = self.uimanager.get_widget('/ToolBar')\n+        self.toolbar.set_style(Gtk.ToolbarStyle.BOTH)\n         self.__attach_menubar(vbox)\n         vbox.pack_start(self.toolbar, False, True, 0)\n         vbox.pack_start(hpane, True, True, 0)\n\n 6583show-text-and-icons-on-toolbar.diff (939 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "@sam-m888 Where do I find the option to show text under the toolbar icons like in your image(above)? It's one of the reasons I'm still on 3.49 and gramps 4 made it more difficult to navigate like you mention!\n\n@PQYPLZXHGF I did this aIso to my toolbar for much the same reason.\n\nLook in the following file:\n<b>gramps/gui/viewmanager.py</b>\n\nand find\n\n<b>if self.show_toolbar:</b>\n\nthen add following line beneath it:\n\n<b>self.toolbar.set_style(Gtk.ToolbarStyle.BOTH)</b>\n\nwhen you restart gramps and you should have text under the icons. ��\n\nIf you upgrade you'll need to reapply.\n\nFrom:\nhttps://github.com/gramps-project/addons-source/pull/115#issuecomment-368290001"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "@CallMeDave I see that a relationship was added, but I don't understand how this is related to 0014132"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "6583",
+  "url": "https://gramps-project.org/bugs/view.php?id=6583"
+}

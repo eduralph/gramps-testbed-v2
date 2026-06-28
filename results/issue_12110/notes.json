@@ -1,0 +1,20 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "matt\n\n 2021-01-07 12:22\n\ndeveloper    ~0061666": "@larsen: it seems to only check when you enter something in the call name field, but also after saving and editing the person again.\n\nExample:\nname: John William, call: John (call is black)\nremove John => call is still black\nsave person\nedit person again => call is red"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "@larsen: it seems to only check when you enter something in the call name field, but also after saving and editing the person again.\n\nExample:\nname: John William, call: John (call is black)\nremove John => call is still black\nsave person\nedit person again => call is red"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "12110",
+  "url": "https://gramps-project.org/bugs/view.php?id=12110"
+}

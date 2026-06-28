@@ -1,0 +1,44 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "codefarmer\n\n 2024-04-29 17:08\n\ndeveloper    ~0066721": "@antoonh The conditions you outlined are helpful, but apparently not enough to reproduce the error with Gramps 5.2.2 or 5.1.6. Once the remember-last-view setting is enabled, what at the steps to reproduce the unhandled exception?",
+    "antoonh\n\n 2024-05-03 09:48\n\nreporter    ~0066737": "Being a bit more verbose.\n\n1) I open up gramps.\n2) I go to preferences->General\n3) I enable \"Remember last view displayed\"\n4) I close the preferences window.\n4) I highlight a person from the \"People\" view.\n5) I select the \"Charts\" view\n6) I select the \"2-way fan chart\"\n7) I see the fan chart\nso far all is good.\n\n8) I quit gramps\n9) I start gramps\n\nGramps then opens with a window: \"Gramps has experienced an unexpected error\"\n\nThe trace here is reported in the \"Error detail\"\n\n917: ERROR: grampsapp.py: line 173: Unhandled exception\nTraceback (most recent call last):\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/gui/viewmanager.py\", line 880, in view_changed\nself.change_page(page_num)\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/gui/viewmanager.py\", line 896, in change_page\nself.active_page.set_active()\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/gui/views/navigationview.py\", line 153, in set_active\nPageView.set_active(self)\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/gui/views/pageview.py\", line 338, in set_active\nself.build_tree()\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/plugins/view/fanchart2wayview.py\", line 171, in build_tree\nself.update()\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/plugins/view/fanchart2wayview.py\", line 207, in update\nself.main()\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/gui/widgets/fanchart2way.py\", line 712, in main\nself.fan.reset()\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/gui/widgets/fanchart2way.py\", line 119, in reset\nself.prepare_background_box(self.generations_asc +\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/gui/widgets/fanchart.py\", line 382, in prepare_background_box\nself.set_userdata_timeperiod(person, userdata)\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/gui/widgets/fanchart.py\", line 322, in set_userdata_timeperiod\nuserdata.append(period)\n^^^^^^^^^^^^^^^\nAttributeError: 'NoneType' object has no attribute 'append'\n\nGramps starts up normally after I cancel the window.\n\nAfter that, if I go to preferences, and disable \"remember last view\", gramps starts up normally.",
+    "codefarmer\n\n 2024-05-03 10:26\n\ndeveloper    ~0066738": "@antoonh Thanks for describing the steps in detail, which happened to be the exact steps I tested previously without reproducing the issue, and just re-tested with both 5.2.2 and also 5.1.6 without success. At step 9 when I restart Gramps I am presented with the Family Tree manager window where I can choose a family tree and Gramps displays a 2-Way Fan Chart without any problems.\nThere are, however, several related bug reports so there must be something that's triggering the bug which hasn't been nailed down yet. I've tried with both my family tree and with the Gramps sample tree. Do you face this issue with any family tree? Are you able to reproduce with the Gramps sample family tree? If it's related to a specific family tree, could you upload an anonymized data set? Thanks.",
+    "codefarmer\n\n 2025-01-12 22:48\n\ndeveloper    ~0067827": "The setting that triggers this bug (based on call stack posted) is in Configure Fan Charts > Background > Time periods based gradient.\n\nEssentially this is a variant of 0013395 with a different configuration setting, and potentially one solution.",
+    "eduralph\n\n 2026-06-28 10:51\n\ndeveloper    ~0070871": "Verified fixed with 13395, PR 2315"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "@antoonh The conditions you outlined are helpful, but apparently not enough to reproduce the error with Gramps 5.2.2 or 5.1.6. Once the remember-last-view setting is enabled, what at the steps to reproduce the unhandled exception?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Being a bit more verbose.\n\n1) I open up gramps.\n2) I go to preferences->General\n3) I enable \"Remember last view displayed\"\n4) I close the preferences window.\n4) I highlight a person from the \"People\" view.\n5) I select the \"Charts\" view\n6) I select the \"2-way fan chart\"\n7) I see the fan chart\nso far all is good.\n\n8) I quit gramps\n9) I start gramps\n\nGramps then opens with a window: \"Gramps has experienced an unexpected error\"\n\nThe trace here is reported in the \"Error detail\"\n\n917: ERROR: grampsapp.py: line 173: Unhandled exception\nTraceback (most recent call last):\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/gui/viewmanager.py\", line 880, in view_changed\nself.change_page(page_num)\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/gui/viewmanager.py\", line 896, in change_page\nself.active_page.set_active()\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/gui/views/navigationview.py\", line 153, in set_active\nPageView.set_active(self)\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/gui/views/pageview.py\", line 338, in set_active\nself.build_tree()\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/plugins/view/fanchart2wayview.py\", line 171, in build_tree\nself.update()\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/plugins/view/fanchart2wayview.py\", line 207, in update\nself.main()\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/gui/widgets/fanchart2way.py\", line 712, in main\nself.fan.reset()\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/gui/widgets/fanchart2way.py\", line 119, in reset\nself.prepare_background_box(self.generations_asc +\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/gui/widgets/fanchart.py\", line 382, in prepare_background_box\nself.set_userdata_timeperiod(person, userdata)\nFile \"/Applications/Gramps.app/Contents/Resources/lib/python3.11/site-packages/gramps/gui/widgets/fanchart.py\", line 322, in set_userdata_timeperiod\nuserdata.append(period)\n^^^^^^^^^^^^^^^\nAttributeError: 'NoneType' object has no attribute 'append'\n\nGramps starts up normally after I cancel the window.\n\nAfter that, if I go to preferences, and disable \"remember last view\", gramps starts up normally."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "@antoonh Thanks for describing the steps in detail, which happened to be the exact steps I tested previously without reproducing the issue, and just re-tested with both 5.2.2 and also 5.1.6 without success. At step 9 when I restart Gramps I am presented with the Family Tree manager window where I can choose a family tree and Gramps displays a 2-Way Fan Chart without any problems.\nThere are, however, several related bug reports so there must be something that's triggering the bug which hasn't been nailed down yet. I've tried with both my family tree and with the Gramps sample tree. Do you face this issue with any family tree? Are you able to reproduce with the Gramps sample family tree? If it's related to a specific family tree, could you upload an anonymized data set? Thanks."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "The setting that triggers this bug (based on call stack posted) is in Configure Fan Charts > Background > Time periods based gradient.\n\nEssentially this is a variant of 0013395 with a different configuration setting, and potentially one solution."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Verified fixed with 13395, PR 2315"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Upload Files\nMaximum size: 8,000 KB\t\n\nAttach files by dragging & dropping, selecting or pasting them."
+    }
+  ],
+  "id": "12932",
+  "url": "https://gramps-project.org/bugs/view.php?id=12932"
+}
