@@ -208,6 +208,12 @@ def _declared_deps(bp: Path) -> list[str]:
 def _prereq_published(cfg: Config, dep_id: str) -> bool:
     """True iff prereq ``dep_id`` is COMPLETE and has a published branch (issue #123) — the
     foundation a ``Stacks on`` dependent builds + publishes on top of."""
+    # cfg.bundle (NOT find_bundle): a ``Stacks on`` parent must be an ACTIVE bundle whose
+    # LIVE published branch the dependent bases its worktree + PR on — `_stack_base_branch`
+    # / `worktree._target` resolve that branch via `cfg.bundle` too. Admitting an archived
+    # (completed/) parent here would let a dependent run that those consumers then can't
+    # base on. Archived resolution is only for `Depends on` / `Depends on (merged)`, which
+    # need the prereq COMPLETE / merged, not a live branch (#264 review).
     d = cfg.bundle(dep_id)
     if state.state(d) != state.COMPLETE:
         return False
@@ -256,7 +262,7 @@ def _deps_met(cfg: Config, d: Path, merged_ids: set[str], stacked_ids: set[str])
     bp = d / "brief.md"
     if not bp.exists():
         return True
-    return (all(state.state(cfg.bundle(dep)) == state.COMPLETE
+    return (all(state.state(cfg.find_bundle(dep)) == state.COMPLETE
                 for dep in brief.depends_on(bp))
             and all(dep in merged_ids for dep in brief.depends_on_merged(bp))
             and all(dep in stacked_ids for dep in brief.stacks_on(bp)))
@@ -301,7 +307,7 @@ def _check_dep_graph(cfg: Config, bundles: list[Path]) -> None:
             dn = cfg.bundle(dep).name
             if dn in names:
                 edges.append(dn)
-            elif state.state(cfg.bundle(dep)) != state.COMPLETE:
+            elif state.state(cfg.find_bundle(dep)) != state.COMPLETE:
                 raise ValueError(
                     f"{b.name}: declared dependency '{dep}' is neither in this batch "
                     f"nor an existing COMPLETE bundle")

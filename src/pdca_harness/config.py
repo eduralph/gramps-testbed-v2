@@ -164,6 +164,28 @@ class Config:
         """
         return self.bundle_root / f"issue_{issue_id.removeprefix('issue_')}"
 
+    def find_bundle(self, issue_id: str) -> Path:
+        """Resolve an EXISTING bundle dir for **reads** (dependency / state lookups).
+
+        Returns the active ``results/issue_<id>`` if it exists, else the archived
+        ``results/completed/issue_<id>`` if it exists, else the active path. So a
+        prerequisite that has been finished and moved to ``completed/`` still satisfies
+        a dependent's ``Depends on`` (the dep resolver would otherwise miss it and abort
+        the batch), while a genuinely-missing id still resolves to its canonical active
+        path and reads as ``UNPLANNED`` — preserving the misconfigured-brief guard.
+
+        Use ``bundle()`` to create / locate the *active* bundle for an id; use this only
+        to resolve a *dependency* by id. Note: ``Stacks on`` prerequisites intentionally
+        use ``bundle()`` (not this), since a stack parent must be an active bundle whose
+        live published branch the dependent bases onto — only ``Depends on`` /
+        ``Depends on (merged)`` are archived-tolerant.
+        """
+        active = self.bundle(issue_id)
+        if active.exists():
+            return active
+        archived = self.bundle_root / "completed" / f"issue_{issue_id.removeprefix('issue_')}"
+        return archived if archived.exists() else active
+
     def close_class(self, disposition: str) -> str:
         """The close class matching ``disposition``, or "" if it is not a close hint.
 
