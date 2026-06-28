@@ -58,8 +58,11 @@ not push, branch, or open a PR yourself.**
 
 - Read `brief.md` (the spec + the **Repo + branch target**), `build-notes.md` (the
   builder's rationale — root cause, what the diff does), and `patch.diff` (the actual
-  change). Cite the target source with `git -C <checkout> …` / Read — never
-  `cd <checkout> && …` (`git -C` is the safe idiom).
+  change). Also read **`SUMMARY.md` §10** ("Act candidates"): if any item says "PR
+  description must include X" or "tracker-comment must include X", incorporate those
+  items into the respective artifact before drafting. Cite the target source with
+  `git -C <checkout> …` / Read — never `cd <checkout> && …` (`git -C` is the safe
+  idiom).
 - Resolve the branch target per INTEGRATION §2. One logical fix per PR; do not invent
   scope the brief didn't accept.
 - The contribution branches from the brief's **target branch** (per INTEGRATION §2),
