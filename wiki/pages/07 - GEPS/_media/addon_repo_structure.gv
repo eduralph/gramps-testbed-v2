@@ -1,0 +1,41 @@
+// Source for addon_repo_structure.png — GEPS 049, Part 3 (Proposed structure).
+// Render: dot -Tpng -Gdpi=140 addon_repo_structure.gv -o addon_repo_structure.png
+digraph addon_repo_structure {
+  rankdir=TB;
+  compound=true;
+  bgcolor="white";
+  graph [fontname="Helvetica", fontsize=13, labelloc="t",
+         label="The two-repository model: addons-source  →  addons\n",
+         fontcolor="#222222"];
+  node  [fontname="Helvetica", fontsize=10, shape=box,
+         style="rounded,filled", margin="0.16,0.10"];
+  edge  [fontname="Helvetica", fontsize=10];
+
+  subgraph cluster_source {
+    label="addons-source/      source of truth — a single branch (master/)";
+    labeljust="l"; fontsize=11; fontcolor="#22466e";
+    style="rounded,filled"; fillcolor="#eaf2fb"; color="#5b8cc4";
+    node [fillcolor="white", color="#5b8cc4"];
+
+    addon [label=<<b>AddonName/</b>  &#215; ~140, one current version each<br align="left"/>&#8226; AddonName.gpr.py — declares <i>addon_api</i> range; version=<br align="left"/>&#8226; AddonName.py &#183; test/ &#183; README.md<br align="left"/>&#8226; po/ — per-addon: template.pot, &lt;lang&gt;-local.po → .mo<br align="left"/>>];
+    toppo [label=<<b>po/</b>  top-level: the Weblate translation surface<br align="left"/>&#8226; addons.pot — aggregated + deduplicated across addons<br align="left"/>&#8226; fr.po / de.po — per-locale; what translators edit<br align="left"/>>];
+    addon -> toppo [style=invis];
+  }
+
+  subgraph cluster_store {
+    label="addons/      build artifacts + index — append-only, served over HTTP (master/)";
+    labeljust="l"; fontsize=11; fontcolor="#235e34";
+    style="rounded,filled"; fillcolor="#eaf7ec"; color="#4f9d62";
+    node [fillcolor="white", color="#4f9d62"];
+
+    download [label=<<b>download/</b>  versioned tarballs, retained indefinitely<br align="left"/>&#8226; AddonName-1.5.0.tgz &#183; -2.0.0.tgz &#183; -2.0.1.tgz<br align="left"/>>];
+    metadata [label=<<b>metadata/</b>  one JSON per addon — ALL published versions<br align="left"/>&#8226; AddonName.json &#183; OtherAddon.json<br align="left"/>>];
+    index    [label=<<b>index.json</b>  addon IDs + last-modified timestamps<br align="left"/>&#8226; lightweight — cheap change checks<br align="left"/>>];
+    download -> metadata [style=invis];
+    metadata -> index [style=invis];
+  }
+
+  addon -> download [
+    ltail=cluster_source, lhead=cluster_store, penwidth=1.8, color="#555555",
+    label=<  <b>make.py build</b>   → download/<br align="left"/>  <b>make.py listing</b> → metadata/ + index.json<br align="left"/>>];
+}
