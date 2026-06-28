@@ -93,6 +93,20 @@ class DepsInCompleted(unittest.TestCase):
                             returncode=0, stdout='{"state": "MERGED"}', stderr="")):
             self.assertTrue(merged.is_merged(self.cfg, "PREQ"))
 
+    def test_stacks_on_archived_parent_is_not_admitted(self) -> None:
+        # `Stacks on` needs the parent's LIVE published branch (resolved via cfg.bundle by
+        # _stack_base_branch / worktree._target), so an archived parent must NOT be admitted
+        # — otherwise the dependent runs but the stack consumers can't find its branch (#264
+        # review). PREQ is COMPLETE-but-archived, so the stack readiness check stays False.
+        (self.cfg.bundle_root / "completed" / "issue_PREQ" / "publish.json").write_text(
+            '{"branch": "fix/preq", "pr_url": "https://x/pull/1"}', encoding="utf-8")
+        self.assertFalse(flow._prereq_published(self.cfg, "PREQ"))
+        stk = self.cfg.bundle("STK")
+        stk.mkdir(parents=True)
+        (stk / "brief.md").write_text(
+            "- **Slug:** s\n- **Stacks on:** PREQ\n", encoding="utf-8")
+        self.assertFalse(flow._deps_met(self.cfg, stk, set(), set()))
+
 
 if __name__ == "__main__":
     unittest.main()

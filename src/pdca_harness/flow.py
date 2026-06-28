@@ -208,7 +208,13 @@ def _declared_deps(bp: Path) -> list[str]:
 def _prereq_published(cfg: Config, dep_id: str) -> bool:
     """True iff prereq ``dep_id`` is COMPLETE and has a published branch (issue #123) — the
     foundation a ``Stacks on`` dependent builds + publishes on top of."""
-    d = cfg.find_bundle(dep_id)  # resolve archived (completed/) prereqs too
+    # cfg.bundle (NOT find_bundle): a ``Stacks on`` parent must be an ACTIVE bundle whose
+    # LIVE published branch the dependent bases its worktree + PR on — `_stack_base_branch`
+    # / `worktree._target` resolve that branch via `cfg.bundle` too. Admitting an archived
+    # (completed/) parent here would let a dependent run that those consumers then can't
+    # base on. Archived resolution is only for `Depends on` / `Depends on (merged)`, which
+    # need the prereq COMPLETE / merged, not a live branch (#264 review).
+    d = cfg.bundle(dep_id)
     if state.state(d) != state.COMPLETE:
         return False
     rec = publish._publish_record(d)

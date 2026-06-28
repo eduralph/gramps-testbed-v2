@@ -175,7 +175,10 @@ class Config:
         path and reads as ``UNPLANNED`` — preserving the misconfigured-brief guard.
 
         Use ``bundle()`` to create / locate the *active* bundle for an id; use this only
-        to resolve a *dependency* by id.
+        to resolve a *dependency* by id. Note: ``Stacks on`` prerequisites intentionally
+        use ``bundle()`` (not this), since a stack parent must be an active bundle whose
+        live published branch the dependent bases onto — only ``Depends on`` /
+        ``Depends on (merged)`` are archived-tolerant.
         """
         active = self.bundle(issue_id)
         if active.exists():
