@@ -80,7 +80,10 @@ issue_trailer = "Fixes #{id}"
 # the bundle dir; the command MUST write notes.json there itself. Skipped when notes.json
 # already exists; a failure is non-fatal (Plan falls back to the CSV / asking the human).
 # The gramps Mantis scraper (Playwright/Chrome) writes results/issue_<id>/notes.json.
-notes_cmd = "./engine/scripts/scrape-mantis.sh {id}"
+# `--attach` is the Cloudflare-loop-robust mode: the first per-id call starts Chrome and
+# pauses once to clear Cloudflare / log in, and every later id reattaches to that same
+# still-running browser — so a multi-id Plan scrapes without re-tripping the CF challenge.
+notes_cmd = "./engine/scripts/scrape-mantis.sh --attach {id}"
 
 # Composable Plan-seeding sources (issue #102) — a brief often draws on MORE than the
 # ticket (a linked proposal / ADR / spec, a CSV row). Declare one or more providers as
