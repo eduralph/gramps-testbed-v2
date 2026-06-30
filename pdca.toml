@@ -44,6 +44,31 @@ lanes = 6
 # worktrees`). So the per-cycle #94 worktree is moot and would only contend with the engine's
 # management of ../gramps + ../addons-source. Revisit if a leaf ever edits the target directly.
 worktree = false
+# Wave-based batch sequencing (#wave-model). When `pdca flow` is given several ids it runs
+# them as an ordered sequence of dependency waves (computed from each brief's `Depends on`
+# / `Conflicts with`): a wave's bundles build in parallel, then its accepted work reaches
+# the NEXT wave's base one of two ways.
+#   wave_mode = "stack"  (default) — fold each wave's accepted patches onto a run-scoped
+#       integration branch the next wave builds on, and open each PR as a stacked PR. This
+#       is PUSH-ONLY (a fork has push), keeps the STOP discipline (the harness never merges;
+#       you merge the PR stack bottom-up with a merge commit, not squash), and completes a
+#       dependent batch in one run. The fork-safe default.
+#   wave_mode = "merge"  (own-repo / continuous-delivery ONLY) — `gh pr merge` each
+#       non-final wave's PRs so the next wave builds on the genuinely-merged base. Needs
+#       MERGE RIGHTS on the base remote (a fork contributor lacks them upstream — keep
+#       "stack" there) and relaxes the STOP discipline for the batch. Fail-closed: a
+#       non-mergeable PR stops the run.
+# STACK here: gramps fixes are contributed as PRs to gramps-project upstream (a fork has
+# push but not merge rights), so the fork-safe stacked-PR mode is the only correct choice.
+wave_mode = "stack"
+# The `gh pr merge` strategy when wave_mode = "merge": "merge" (a merge commit — auditable,
+# bisectable; the default), "squash", or "rebase".
+merge_method = "merge"
+# Optional integration re-gate (#wave-model). After each wave folds (stack mode), run the
+# repo-scoped gates over the folded integration tip before the next wave builds on it, so a
+# combination that is red though each fix was green ALONE stops the run. Off by default
+# (needs your repo-scoped gates); in merge mode the PR's own CI is the merge-boundary check.
+regate_between_waves = false
 # Act cadence (issue #109). Act is a cross-cycle beat that yields a real delta only once
 # enough cycles have frozen to show a pattern, so `pdca flow` auto-runs it only when this
 # many cycles have frozen SINCE the last Act review — counted across flow invocations
@@ -264,6 +289,20 @@ argv = ["claude", "--model", "claude-sonnet-4-6", "--effort", "medium", "--agent
 # argv = ["claude", "-p", "--agent", "code-review", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Bash,Grep,Glob"]
 # when = { field = "review depth", substring = "deep" }
 
+# LIVE: an ADVERSARIAL reviewer (issue #151) — a refutation pass that tries to REFUTE the
+# red→green evidence AND the reviewer's verdict (defaults to "refuted" when uncertain),
+# gated to the highest blast-radius bundles via the Difficulty signal so its cost lands where
+# it matters. Decorrelation: the reviewer is `codex` and the builder is `claude` (opus), so
+# `claude` here is the available third lens (a distinct agent/role). Advisory — never gates;
+# writes check-advisory-adversary.md, its `- NEEDS-HUMAN —` findings route into SUMMARY §6.
+[[leaves.advisory]]
+id = "adversary"
+role = "refute the red→green evidence and the reviewer's verdict; find the input that breaks the fix"
+mode = "command"
+family = "claude"
+argv = ["claude", "-p", "--agent", "adversary", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Bash,Grep,Glob"]
+when = { field = "difficulty", substring = "high" }
+
 # Deterministic Check gates (docs 04). Each check runs a shell command; it PASSES
 # iff the command exits 0. `scope = "repo"` runs against the working tree (and is
 # what CI re-runs via `pdca gates --working-tree`); `scope = "bundle"` needs the
@@ -429,6 +468,7 @@ label = "structure: addon layout vs doc 16 §Structure (folder==id, target_versi
 cmd = "python3 ./engine/conformance/gate.py T1"
 gating = false
 scope = "bundle"
+promote_after = 10   # `pdca gates --promotions` flags it once clean 10 frozen cycles (#156)
 
 [[gates.checks]]
 id = "T2-shape"
@@ -437,6 +477,7 @@ label = "shape: code shape vs doc 16 §Coding style (GPL header on touched files
 cmd = "python3 ./engine/conformance/gate.py T2"
 gating = false
 scope = "bundle"
+promote_after = 10   # `pdca gates --promotions` flags it once clean 10 frozen cycles (#156)
 
 # T2-potfiles — the §Adding and removing Python files MUST, GATING (the exception to the
 # advisory posture above). For a CORE bundle whose patch.diff ADDS or REMOVES a .py, that
@@ -458,6 +499,19 @@ id = "T4-contribution"
 tier = "T4"
 label = "contribution: commit/PR wrapper vs doc 16 §Commit messages + §Contributor workflow"
 cmd = "python3 ./engine/conformance/gate.py T4"
+gating = false
+scope = "bundle"
+promote_after = 10   # advisory; `pdca gates --promotions` flags it once clean 10 frozen cycles (#156)
+
+# C5 — the patch's shipped test exercises PRODUCTION, not a hand-ported copy (issue #154).
+# Asserts each added test file in the patch.diff imports the production package (gramps core).
+# A core-only heuristic: an addon bundle (its test imports the addon's package, not `gramps`)
+# self-declares UNVERIFIABLE → SUMMARY §6, never a false fail. Advisory.
+[[gates.checks]]
+id = "C5-prod-path"
+tier = "C5"
+label = "test exercises the production path (not a copy)"
+cmd = "PDCA_PROD_PACKAGE=gramps python3 scripts/checks/test_exercises_production.py"
 gating = false
 scope = "bundle"
 

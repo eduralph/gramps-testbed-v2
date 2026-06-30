@@ -30,10 +30,31 @@ driver) and in CI (`pdca gates --working-tree`) — single-sourced, no drift.
   fix, green with it**. The driver exports `$PDCA_BUNDLE` (the bundle dir) to the
   command. `scripts/run-verify.sh` is a skeleton for this — fill it in. This is the
   gate that makes a cycle mean something: it validates *this* change.
-- **Whole-suite runtime gate (T3)** — `scope = "repo"`. Ship it `gating = false`
-  (advisory) until your suite is green-baseline: a whole-suite run on the
-  unmodified tree can't gate a single fix (a pre-existing failure makes it red
-  regardless, and it never sees the patch).
+  - **Classify the patch's files first (issue #165).** The red leg reverts the
+    *production* change and expects the test to go red. A patch may also touch
+    **non-behavioral** files a project MUST update but that can't move the test —
+    translation manifests, file-registration lists, generated assets (e.g.
+    `po/POTFILES.{in,skip}`). Treat those as **non-production**: a patch whose only
+    non-test change is such a file has nothing to revert that would go red, so
+    `run-verify` must take the **`UNVERIFIABLE` (exit 77)** branch (→ §6 NEEDS-HUMAN,
+    non-gating), not a red→green it is guaranteed to fail. Otherwise a verify-first
+    bundle (bug already fixed upstream; the patch ships only the regression test + its
+    required manifest entry) gets a **false C4 fail**. Keep the non-production set as a
+    config list of path globs in your run-verify classification.
+- **Everything else is advisory by default** — `gating = false`. Runtime
+  (whole-suite T3), conformance (T1/T2/T4), and interface/E2E tiers all audit code
+  the *current* fix did not introduce, so gating them on pre-existing/legacy
+  non-conformance is wrong: a whole-suite run on the unmodified tree is red the
+  moment anything is broken, regardless of the patch. Ship these advisory and
+  **promote a tier to `gating = true` once its targeted artifacts are clean**.
+  - **Interface / E2E**: gate a **smoke test** ("does the app start"), not the
+    full suite — the full suite mixes green tests with reproductions of known
+    (often unmerged-upstream) bugs, so it's a characterization, not a pass/fail
+    signal. Run the full suite manually.
+
+Cite each tier's rules back to your project's **normative ruleset** (name it in
+`docs/INTEGRATION.md` §4) — a gate you can trace to a written source is auditable;
+one you can't is folklore.
 
 Replace the skeleton(s) here with your real runners, add their tests under
 `engine/tests/`, then wire them in `pdca.toml` `[[gates.checks]]`.
