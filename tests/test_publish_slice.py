@@ -19,7 +19,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from pdca_harness import gates, publish, signoff, state
+from pdca_harness import gates, leaves, publish, signoff, state
 from pdca_harness.config import Config, LeafConfig
 
 TEMPLATES = Path(__file__).resolve().parents[1] / "templates"
@@ -86,6 +86,25 @@ class PublishSlice(unittest.TestCase):
 
     def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_publish_prompt_directs_the_leaf_to_read_summary_section10(self) -> None:
+        # #177: the per-invocation publish prompt must point the leaf at SUMMARY.md §10 so it
+        # folds reviewer "PR description must include …" Act-candidate notes into the PR body.
+        d = _bundle(self.cfg, "P10", brief_body=_FIX_BRIEF, accepted=True)
+        prompt = leaves._publish_prompt(d, self.cfg)
+        self.assertIn("SUMMARY.md", prompt)
+        self.assertIn("§10", prompt)
+
+    def test_publish_prompt_hyperlinks_tracker_when_pattern_set(self) -> None:
+        # #266: with [tracker].issue_url_pattern set, the publish prompt instructs the leaf
+        # to hyperlink the resolved ticket URL (not just the bare id); absent ⇒ no link clause.
+        d = _bundle(self.cfg, "P266", brief_body=_FIX_BRIEF, accepted=True)
+        self.cfg.issue_url_pattern = "https://tracker/view.php?id={id}"
+        prompt = leaves._publish_prompt(d, self.cfg)
+        self.assertIn("https://tracker/view.php?id=P266", prompt)
+        self.assertIn("Hyperlink the tracker ticket", prompt)
+        self.cfg.issue_url_pattern = ""
+        self.assertNotIn("Hyperlink the tracker ticket", leaves._publish_prompt(d, self.cfg))
 
     def test_dry_run_plans_commands_and_writes_artifacts(self) -> None:
         d = _bundle(self.cfg, "PUB", brief_body=_FIX_BRIEF, accepted=True)

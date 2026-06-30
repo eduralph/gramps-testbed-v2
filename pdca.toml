@@ -99,6 +99,11 @@ export_csv = "engine/20260529 - Mantis Export.csv"
 # No tracker id yet? Use `pdca publish --no-issue`: it omits the trailer, relaxes
 # T4 to a flag, and records the bundle `id_pending` (no magic "#0000" placeholder).
 issue_trailer = "Fixes #{id}"
+# Optional issue-URL template ({id} = the bug id) so the publisher HYPERLINKS the ticket
+# in the PR body (a Markdown link on the id), not just a bare number — e.g. Mantis
+# "https://gramps-project.org/bugs/view.php?id={id}". "" ⇒ no link (the bare trailer, as
+# today). Left unset for now — enabling it is a deliberate change to upstream PR bodies.
+issue_url_pattern = ""
 # Notes-fetch (issue #65): a `.format(id=)` tracker-scrape command run before a Plan beat
 # to seed a bundle's issue_<id>/notes.json (the planner reads it for the full comment
 # thread) — so a seeded id list briefs end-to-end without scraping by hand. $PDCA_BUNDLE is
