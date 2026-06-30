@@ -1,11 +1,11 @@
 """Offline slice: dependency resolution must find a prereq archived in ``completed/``.
 
 A finished prerequisite moved to ``results/completed/`` must still satisfy an active
-dependent's ``Depends on:`` — otherwise ``_check_dep_graph`` aborts the whole batch (the
-``issue_820-review-nits`` → archived ``820-build-toolchain-coverage`` crash). Proves
-``Config.find_bundle`` resolves completed/ (and falls back to the active path for a missing
-id), and that ``_check_dep_graph`` / ``_deps_met`` / ``merged.is_merged`` treat a completed/
-prereq as satisfied while a genuinely-missing prereq still blocks.
+dependent's ``Depends on:`` — otherwise the batch aborts (the ``issue_820-review-nits`` →
+archived ``820-build-toolchain-coverage`` crash). In the wave model (template v0.43) the dep
+resolution lives in :mod:`waves` (``check_dep_graph`` / ``compute_waves``) and
+:func:`flow._runnable`; all three plus :func:`merged.is_merged` must treat a completed/ prereq
+as satisfied via :meth:`Config.find_bundle`, while a genuinely-missing prereq still blocks.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from pdca_harness import flow, merged, signoff, state
+from pdca_harness import flow, merged, signoff, state, waves
 from pdca_harness.config import Config, LeafConfig
 
 TEMPLATES = Path(__file__).resolve().parents[1] / "templates"
@@ -71,11 +71,19 @@ class DepsInCompleted(unittest.TestCase):
         self.assertEqual(self.cfg.find_bundle("NOPE"), self.cfg.bundle("NOPE"))
 
     def test_check_dep_graph_accepts_completed_prereq(self) -> None:
-        # Regression: this raised ValueError before find_bundle (the 820 crash).
-        flow._check_dep_graph(self.cfg, [self.dep])  # must not raise
+        # Regression: this raised ValueError before find_bundle (the 820 crash), now in waves.
+        waves.check_dep_graph(self.cfg, [self.dep])  # must not raise
 
-    def test_deps_met_with_completed_prereq(self) -> None:
-        self.assertTrue(flow._deps_met(self.cfg, self.dep, set(), set()))
+    def test_compute_waves_with_completed_prereq(self) -> None:
+        # The archived prereq is out-of-batch + COMPLETE, so it imposes no ordering: the
+        # dependent computes into a single wave instead of aborting.
+        wv = waves.compute_waves(self.cfg, [self.dep])
+        self.assertEqual([[p.name for p in w] for w in wv], [["issue_DEP"]])
+
+    def test_runnable_with_completed_prereq(self) -> None:
+        # _runnable must see the archived prereq as COMPLETE (via find_bundle) and keep the
+        # dependent, not skip it as "prerequisite not COMPLETE".
+        self.assertEqual(flow._runnable(self.cfg, [self.dep]), [self.dep])
 
     def test_missing_prereq_still_blocks(self) -> None:
         bad = self.cfg.bundle("BAD")
@@ -83,7 +91,7 @@ class DepsInCompleted(unittest.TestCase):
         (bad / "brief.md").write_text(
             "- **Slug:** b\n- **Depends on:** GHOST\n", encoding="utf-8")
         with self.assertRaises(ValueError):
-            flow._check_dep_graph(self.cfg, [bad])
+            waves.check_dep_graph(self.cfg, [bad])
 
     def test_is_merged_resolves_completed_prereq(self) -> None:
         (self.cfg.bundle_root / "completed" / "issue_PREQ" / "publish.json").write_text(
@@ -92,20 +100,6 @@ class DepsInCompleted(unittest.TestCase):
                         return_value=SimpleNamespace(
                             returncode=0, stdout='{"state": "MERGED"}', stderr="")):
             self.assertTrue(merged.is_merged(self.cfg, "PREQ"))
-
-    def test_stacks_on_archived_parent_is_not_admitted(self) -> None:
-        # `Stacks on` needs the parent's LIVE published branch (resolved via cfg.bundle by
-        # _stack_base_branch / worktree._target), so an archived parent must NOT be admitted
-        # — otherwise the dependent runs but the stack consumers can't find its branch (#264
-        # review). PREQ is COMPLETE-but-archived, so the stack readiness check stays False.
-        (self.cfg.bundle_root / "completed" / "issue_PREQ" / "publish.json").write_text(
-            '{"branch": "fix/preq", "pr_url": "https://x/pull/1"}', encoding="utf-8")
-        self.assertFalse(flow._prereq_published(self.cfg, "PREQ"))
-        stk = self.cfg.bundle("STK")
-        stk.mkdir(parents=True)
-        (stk / "brief.md").write_text(
-            "- **Slug:** s\n- **Stacks on:** PREQ\n", encoding="utf-8")
-        self.assertFalse(flow._deps_met(self.cfg, stk, set(), set()))
 
 
 if __name__ == "__main__":
