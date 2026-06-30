@@ -46,23 +46,42 @@ not push, branch, or open a PR yourself.**
      than invent a placeholder like `#0000` — `pdca publish --no-issue` relaxes T4 to a
      flag and records the contribution `id_pending` for the human to fill the id in.
 
-2. **`pr-description.md`** — the PR body (see `templates/pr-description.md.tpl`): the
-   sections **Root cause / Fix / Verified against / Test**, citing `path:lines` on the
-   **target branch**. Keep the template's trailing **tracker-reference line** (the same
-   `[tracker].issue_trailer` form as the commit, e.g. `Fixes #<id>`): the contribution
-   gate lints commit-msg.txt and the PR body **independently**, so a ticketed fix needs
-   the id in BOTH — the commit trailer alone does not satisfy it. For a declared-ticketless
-   fix (`--no-issue` / non-core), OMIT the line and state the origin in-body instead.
+2. **`pr-description.md`** — the PR body (see `templates/pr-description.md.tpl`).
+   Write for the PR's **actual audience** — a maintainer triaging, a reviewer of the
+   touched area, a non-implementor deciding whether to engage — not implementor-to-
+   implementor:
+   - **Lead in plain language.** Open with **Summary**: the user-facing symptom/impact,
+     then the one-line change — so a reader who does not live in this file grasps *what*
+     and *why* before any internals. **Root cause / Fix** follow for the deep reviewer.
+   - **Orient the reviewer.** A short **What to look at**: the key file(s)/function(s)
+     and how to exercise/reproduce, so a first pass is cheap.
+   - **Verification as a review trail.** Make **Verification** a skimmable claim→evidence
+     mapping (the claim, where it was checked with `path:lines` on the **target branch**,
+     and the regression test failing pre-fix / passing post-fix), so the review the
+     change already passed is *visible*, not implied.
+   - **No internal jargon.** Do **not** leak PDCA/process vocabulary (beat names, §6/§9,
+     leaf/bundle terms) into an upstream PR body — the rigor should be evident from the
+     content, never narrated as process.
+   Keep the template's trailing **tracker-reference line** (the same `[tracker].issue_trailer`
+   form as the commit, e.g. `Fixes #<id>`): the contribution gate lints commit-msg.txt and
+   the PR body **independently**, so a ticketed fix needs the id in BOTH — the commit
+   trailer alone does not satisfy it. When `[tracker].issue_url_pattern` is configured, also
+   **hyperlink the ticket** in the body (a Markdown link on the id) so a reader can click
+   through to the report, not just read a bare number. For a declared-ticketless fix
+   (`--no-issue` / non-core), OMIT the line and state the origin in-body instead.
 
 ## How you work
 
 - Read `brief.md` (the spec + the **Repo + branch target**), `build-notes.md` (the
   builder's rationale — root cause, what the diff does), and `patch.diff` (the actual
-  change). Also read **`SUMMARY.md` §10** ("Act candidates"): if any item says "PR
-  description must include X" or "tracker-comment must include X", incorporate those
-  items into the respective artifact before drafting. Cite the target source with
-  `git -C <checkout> …` / Read — never `cd <checkout> && …` (`git -C` is the safe
-  idiom).
+  change). Cite the target source with `git -C <checkout> …` / Read — never
+  `cd <checkout> && …` (`git -C` is the safe idiom).
+- Also read **`SUMMARY.md` §10 ("Act candidates")**. If any item says **"PR description
+  must include X"** (or a commit-scoped note), fold it into the artifact you own — the PR
+  description, or the commit body — **before** you draft, so the reviewer's note doesn't
+  freeze in the cycle record unincorporated. A **"tracker-comment must include …"** item is
+  **not yours**: you write only `commit-msg.txt` + `pr-description.md` (see Boundaries) —
+  leave it for the tracker-comment step rather than stuffing it into the PR body.
 - Resolve the branch target per INTEGRATION §2. One logical fix per PR; do not invent
   scope the brief didn't accept.
 - The contribution branches from the brief's **target branch** (per INTEGRATION §2),
