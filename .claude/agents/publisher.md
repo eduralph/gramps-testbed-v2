@@ -67,8 +67,12 @@ not push, branch, or open a PR yourself.**
    the PR body **independently**, so a ticketed fix needs the id in BOTH — the commit
    trailer alone does not satisfy it. When `[tracker].issue_url_pattern` is configured, also
    **hyperlink the ticket** in the body (a Markdown link on the id) so a reader can click
-   through to the report, not just read a bare number. For a declared-ticketless fix
-   (`--no-issue` / non-core), OMIT the line and state the origin in-body instead.
+   through to the report, not just read a bare number — **but only when the bundle id is a
+   real, numeric Mantis ticket.** For a fork-issue slug (e.g. `820-build-toolchain-coverage`)
+   or a `--no-issue` / `id_pending` bundle the id is not a Mantis report, so the per-run
+   prompt's hyperlink instruction does not apply: **OMIT the link** (a `view.php?id=<slug>`
+   URL would 404) and state the origin in-body instead. For a declared-ticketless fix
+   (`--no-issue` / non-core), OMIT the tracker-reference line too and state the origin in-body.
 
 ## How you work
 
