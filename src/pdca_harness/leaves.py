@@ -308,9 +308,50 @@ def do_plan_batch(cfg: Config, csv: str | None = None, ids: list[str] | None = N
     for iid in ids or []:
         sources.seed(cfg, cfg.bundle(iid))  # seed notes.json + sources/ per bundle (#65/#102)
     if cfg.planner.mode == "command":
+        # On the CSV/default path the planner CHOOSES the ids mid-session, so the per-bundle
+        # seed above never ran for them. Snapshot which bundles ALREADY HAD a brief so we can
+        # flag any briefed THIS session that the seed never reached — including a brief.md
+        # added to a pre-existing UNPLANNED dir, which a dir-name snapshot would miss (#190).
+        before = set() if ids else {d.name for d in cfg.bundle_root.glob("issue_*")
+                                    if (d / "brief.md").exists()}
         _invoke(cfg.planner, cfg.root, _plan_batch_prompt(cfg, csv, ids))
+        if ids is None:
+            _warn_unseeded_briefs(cfg, before)
         return
     _stub_plan_batch(cfg, ids)
+
+
+def _warn_unseeded_briefs(cfg: Config, before: set[str]) -> None:
+    """After a CSV/default batch Plan, flag issues briefed THIS session whose Plan sources were
+    never seeded (#190).
+
+    On the id-seeded path each bundle's notes/sources are fetched first; on the CSV/default
+    path the planner picks the ids *mid-session*, so that per-bundle seed never runs — those
+    briefs rest on the CSV row alone, missing the reporter thread / attached repro. ``before``
+    is the set of bundles that already carried a ``brief.md`` before this session (NOT just the
+    existing dir names — an ``issue_<id>`` dir can pre-exist UNPLANNED and gain its brief now),
+    so a bundle is freshly briefed iff it has a brief that ``before`` lacked. We never auto-run
+    the seeders unattended (a tracker scraper is human-in-the-loop — a browser, a login), so
+    surface it as a VISIBLE sub-step: name the ids and tell the human to seed + refine before
+    the work is driven. No-op when no Plan source is configured (the CSV/docs are then the only
+    source) or every fresh brief already carries notes.json / a sources/ dir."""
+    if not (cfg.notes_cmd or cfg.plan_sources):
+        return
+    unseeded = sorted(
+        d.name.removeprefix("issue_")
+        for d in cfg.bundle_root.glob("issue_*")
+        if d.name not in before and (d / "brief.md").exists()
+        and not (d / "notes.json").exists() and not (d / "sources").is_dir())
+    if not unseeded:
+        return
+    print(
+        f"\nplan: {len(unseeded)} issue(s) briefed this session WITHOUT seeded tracker notes "
+        f"({', '.join(unseeded)}) — the planner chose them mid-session, so they rest on the CSV "
+        f"row alone (no reporter discussion, attached repro, or 'fixed in' hints). Seed their "
+        f"notes/sources (your configured Plan source is human-in-the-loop — a browser / login) "
+        f"and refine the briefs before driving them; don't let the thin briefs flow on "
+        f"unreviewed (#190).",
+        file=sys.stderr)
 
 
 def _plan_batch_prompt(cfg: Config, csv: str | None, ids: list[str] | None = None) -> str:
@@ -1075,7 +1116,15 @@ def _publish_prompt(d: Path, cfg: Config) -> str:
         "the contribution as id_pending for the human to fill the id in later. "
         if trailer else ""
     )
-    issue_url = cfg.issue_url_pattern.format(id=issue_id) if cfg.issue_url_pattern else ""
+    # Only build the tracker link for a REAL ticket id — the bare ticket NUMBER (Mantis/GitHub
+    # are numeric). A slug bundle (a fork issue, e.g. `820-build-toolchain-coverage`), a
+    # `--no-issue` / id_pending placeholder (e.g. `PEND`), or any non-numeric id has no real
+    # ticket, so `issue_url_pattern.format(id=…)` would yield a broken link — omit it then,
+    # mirroring the trailer's id_pending handling (#192/#196). A non-numeric tracker simply
+    # won't auto-link: the safe failure (no broken URL; the bare id still shows).
+    real_ticket = issue_id.isdigit()
+    issue_url = (cfg.issue_url_pattern.format(id=issue_id)
+                 if cfg.issue_url_pattern and real_ticket else "")
     link_clause = (
         f" Hyperlink the tracker ticket as a Markdown link to {issue_url} (link the id — "
         "not just the bare number) so a reader can click through to the report."
