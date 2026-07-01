@@ -7,7 +7,7 @@
 - Scope (one logical fix) / out of scope: the affected Graph View / handle-handling path's assumption about handle
 
 ## 2. Disposition claimed               ← sign-off confirms or overrides
-- Outcome: not-reproducible — already fixed upstream on the target branch; the
+- Outcome: fixed-upstream (superseded) — resolved by merged addons-source@8204d023 (Fixes #13832); the
 - Confidence: medium
 - Recommendation: (set by Do)
 
@@ -51,7 +51,7 @@ The reviewer leaf was skipped: this bundle's Plan concluded a close / no-fix dis
 ## 9. Check sign-off                     ← human completes Check here
 - Disposition confirmed / overridden:
 - Outcome: discontinued
-- Iteration delta (if iterating): Already taken care of upstream on maintenance/gramps61 — Graph View no longer blanks on hyphenated Gramps-Web UUID handles. No fix needed; discontinuing.
+- Iteration delta (if iterating): Fixed upstream (superseded), not merely non-reproducing. Resolved by merged commit gramps-project/addons-source@8204d023 "Quote handles in GraphView Graphviz output" (branch maintenance/gramps61, 2026-05-29, Fixes #13832), with test hardening in @4d40d02d. The fix lives in the GraphView addon (addons-source), not core gramps as the brief's target implied. No fix needed here; discontinuing.
 - By / date: Eduard Ralph / 2026-07-01
 
 ## 10. Act candidates (hints for the next Act review)
