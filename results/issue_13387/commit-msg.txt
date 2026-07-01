@@ -8,7 +8,7 @@ defines its own range; the approximation window applies only when the bounds
 are not explicit. This fix conditions the estimated-quality padding on
 is_compound(), so only non-compound estimated dates receive the padding. Single
 estimated dates (MOD_NONE) still get padded as before. The fix is verified by
-regression tests in date_test.py that confirm compound ranges keep their explicit
-bounds while single-estimated dates remain padded.
+regression tests in date_test.py that confirm compound ranges keep their
+explicit bounds while single-estimated dates remain padded.
 
 Fixes #13387
