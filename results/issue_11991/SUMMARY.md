@@ -73,9 +73,9 @@ Reviewer ran without build-notes.md. Summary:
 
 ## 9. Check sign-off                     ← human completes Check here
 - Disposition confirmed / overridden:
-- Outcome: merged-wider
-- Iteration delta (if iterating):
-- By / date: Eduard Ralph / 2026-06-28
+- Outcome: discontinued
+- Iteration delta (if iterating): Re-dispositioned from merged-wider (signed off 2026-06-28) to discontinued per maintainer decision, 2026-07-01.
+- By / date: Eduard Ralph / 2026-07-01
 
 ## 10. Act candidates (hints for the next Act review)
 - (empty is the common case)

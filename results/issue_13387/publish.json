@@ -1,0 +1,10 @@
+{
+  "mode": "new-pr",
+  "branch": "fix/bug-13387-date-estimated-range-overpadded-by-about-limit",
+  "pr_url": "https://github.com/gramps-project/gramps/pull/2442",
+  "base": "maintenance/gramps61",
+  "repo": "gramps-project/gramps",
+  "by": "Eduard Ralph",
+  "date": "2026-07-01",
+  "id_pending": false
+}
