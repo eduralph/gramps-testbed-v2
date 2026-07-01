@@ -57,9 +57,9 @@ Failure class: **transient infra — safe to re-run.** The leaf exited non-zero 
 
 ## 9. Check sign-off                     ← human completes Check here
 - Disposition confirmed / overridden:
-- Outcome: merged-wider
-- Iteration delta (if iterating):
-- By / date: Eduard Ralph / 2026-06-25
+- Outcome: discontinued
+- Iteration delta (if iterating): Re-dispositioned from merged-wider/manual-verification (signed off 2026-06-25) to discontinued per maintainer decision, 2026-07-02. Verified already implemented upstream: the collapsed-group type-ahead fix is present on maintenance/gramps61 in gramps/gui/widgets/interactivesearchbox.py search_iter_slow (lines 465-466 descend into collapsed group children; line 459 expand_to_path on the match), landed in commit d426f6232e (2014-12-27). Nothing to ship.
+- By / date: Eduard Ralph / 2026-07-02
 
 ## 10. Act candidates (hints for the next Act review)
 - (empty is the common case)

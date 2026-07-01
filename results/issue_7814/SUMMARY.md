@@ -115,9 +115,9 @@ human-clearance items above should be resolved in the same pass.
 
 ## 9. Check sign-off                     ← human completes Check here
 - Disposition confirmed / overridden:
-- Outcome: merged-wider
-- Iteration delta (if iterating): No-fix close — not-reproducible. No publish: close comment posted to Mantis directly instead of a PR.
-- By / date: Eduard Ralph / 2026-06-27
+- Outcome: discontinued
+- Iteration delta (if iterating): Re-dispositioned from merged-wider/not-reproducible (signed off 2026-06-27; close comment was posted to Mantis) to discontinued per maintainer decision, 2026-07-01.
+- By / date: Eduard Ralph / 2026-07-01
 
 ## 10. Act candidates (hints for the next Act review)
 - (empty is the common case)
