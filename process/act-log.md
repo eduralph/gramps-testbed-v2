@@ -52,7 +52,8 @@
   maintainer hits it.
 - **Publish latency is itself drift exposure.** `issue_10554` and `issue_13387` sat
   COMPLETE-but-`[unpublished]` since the 2026-06-25 sign-offs (`flow` publishes on accept
-  by default; leaving them unpublished is the anomaly).
+  by default; leaving them unpublished is the anomaly). `issue_10554` has since been
+  published (draft `gramps-project/gramps#2441`); `issue_13387` remains unpublished.
 
 ## Process deltas
 
@@ -62,7 +63,9 @@
   drop the `issue_14014` POTFILES.skip contaminant; the `relationship.py` fix + shipped
   test are byte-identical to the C4-verified version, and it now applies cleanly to
   `upstream/master`. Recorded in `results/issue_10554/patch-correction.md`; original kept
-  as `patch.diff.contaminated.bak`. §9 sign-off untouched.
+  as `patch.diff.contaminated.bak`. §9 sign-off untouched. **Committed via testbed PR #289**
+  (the artifacts live there, not in this docs PR). The corrected fix is now published as a
+  draft PR `gramps-project/gramps#2441`.
 
 ## Follow-ups routed (not process deltas — work handed to an owner)
 
