@@ -29,6 +29,70 @@
 - The next Do phases should not recreate <specific issue>. Watch the next K cycles.
 -->
 
+# Act review — 2026-07-01 — cycles considered: publish-readiness + contamination/drift audit over the whole index (38 patch-carrying bundles apply-checked against their declared target branches; focus bundles issue_10554, issue_13387, issue_9267, issue_14014)
+
+## What the cycles' records exposed
+
+- **Cross-bundle patch contamination via a shared build checkout (new pattern).**
+  COMPLETE bundle `issue_10554` (→ `gramps @ master`) shipped a `po/POTFILES.skip` line
+  for `importxml_daterange_test.py` — a file it never adds. That line belongs to
+  `issue_14014` (→ `gramps @ maintenance/gramps61`). The two have **no declared
+  dependency** and target **different branches**, yet 14014's edit was present in the tree
+  when 10554's patch was generated, so it leaked in on the one file both touch. The stored
+  patch then **did not apply to its clean publish base** (`upstream/master`) and would
+  have broken `pdca publish`. Two gate blind-spots let it through: (a) C4-verify applies
+  against the *test* base (`PDCA_BASE`), never the *publish* base; (b) `T2-potfiles`
+  (`engine/conformance/t2_potfiles.py`) checks only the forward direction (added `.py` ⇒
+  registered), never the reverse (added registry line ⇒ file the patch touches).
+- **Silent upstream drift on an already-open PR (new pattern).** `issue_9267` (PR #2436)
+  no longer applies to current `upstream/maintenance/gramps61`: upstream reworked
+  `gramps/gui/views/treemodels/flatbasemodel.py` (`e210cafd39` "Live filter UI … O(n²)
+  fix") after the PR opened. No foreign hunks — pure drift. Nothing re-checks a published
+  bundle against a moving upstream, so the needs-rebase state is invisible until a
+  maintainer hits it.
+- **Publish latency is itself drift exposure.** `issue_10554` and `issue_13387` sat
+  COMPLETE-but-`[unpublished]` since the 2026-06-25 sign-offs (`flow` publishes on accept
+  by default; leaving them unpublished is the anomaly).
+
+## Process deltas
+
+- Gates / driver (routed to the harness, not applied here — engine work): filed as
+  pdca-harness enhancements, see Follow-ups. No instance ruleset/template edit this pass.
+- Bundle correction (not a process delta): `issue_10554`'s `patch.diff` was regenerated to
+  drop the `issue_14014` POTFILES.skip contaminant; the `relationship.py` fix + shipped
+  test are byte-identical to the C4-verified version, and it now applies cleanly to
+  `upstream/master`. Recorded in `results/issue_10554/patch-correction.md`; original kept
+  as `patch.diff.contaminated.bak`. §9 sign-off untouched.
+
+## Follow-ups routed (not process deltas — work handed to an owner)
+
+- **Testbed/driver issue → pdca-harness GH #205 (enhancement):** reverse
+  registry-consistency Check gate — reject patch-added `POTFILES`/manifest lines that
+  reference files the same patch does not touch. Concretized per-instance at
+  `engine/conformance/t2_potfiles.py`. https://github.com/eduralph/pdca-harness/issues/205
+- **Testbed/driver issue → pdca-harness GH #206 (enhancement):** drift sweep — re-check
+  COMPLETE-with-open-PR bundles' `patch.diff` against the *current* pristine publish base
+  and flag non-appliers as needs-rebase (report-only, never re-decides §9); plus shrink
+  build→publish latency. Belongs in `src/pdca_harness/{revalidate,merged}.py`.
+  https://github.com/eduralph/pdca-harness/issues/206
+- **`issue_9267` (PR #2436):** needs a rebase onto current `maintenance/gramps61` (drift,
+  not contamination). Owner: human. Next step: regenerate the patch on the current tip.
+- **Candidate deltas considered but NOT filed this pass** (larger design, revisit next
+  review): (1) isolate the Do/Check build checkout for bundles with no declared
+  `Depends on`/`Stacks on` (and never co-mingle different target branches) — preserves
+  intended dependency PR-stacking while removing the co-mingling root cause; (2) a gating
+  "applies to the *declared publish base*" Check (pristine upstream for independent
+  bundles, prereq branch for declared stacks) — the design-preserving catch-all that flags
+  both #205 and #206 classes generically.
+
+## How effectiveness will be judged
+
+- Once #205 lands, a re-run of the index apply-check should stay green and no new bundle
+  should reach COMPLETE with a registry line for an untouched file. Watch the next batch.
+- Once #206 lands, stale open PRs (like #2436) should surface as needs-rebase from the
+  sweep, not from maintainer review. Track whether `[unpublished]` COMPLETE bundles
+  linger past their sign-off date.
+
 # Act review — 2026-06-28 — cycles considered: 17 new bundles (issue_11314, issue_11437, issue_11991, issue_12018, issue_12110, issue_12164, issue_12260, issue_12539, issue_12932, issue_13354, issue_13532, issue_13876, issue_6250, issue_6583, issue_8597, issue_9267, issue_9491); 47 total in index
 
 ## What the cycles' records exposed
