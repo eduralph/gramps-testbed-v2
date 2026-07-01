@@ -1,0 +1,10 @@
+{
+  "mode": "new-pr",
+  "branch": "enhancement/10554-relationship-adopted-vs-step",
+  "pr_url": "https://github.com/gramps-project/gramps/pull/2441",
+  "base": "master",
+  "repo": "gramps-project/gramps",
+  "by": "Eduard Ralph",
+  "date": "2026-07-01",
+  "id_pending": false
+}

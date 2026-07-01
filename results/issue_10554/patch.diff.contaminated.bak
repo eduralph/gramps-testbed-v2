@@ -1,5 +1,5 @@
 diff --git a/gramps/gen/relationship.py b/gramps/gen/relationship.py
-index 03548284d..a141eddf5 100644
+index 03548284d0..a141eddf58 100644
 --- a/gramps/gen/relationship.py
 +++ b/gramps/gen/relationship.py
 @@ -908,9 +908,12 @@ class RelationshipCalculator:
@@ -233,7 +233,7 @@ index 03548284d..a141eddf5 100644
              inlaw = self.INLAW
 diff --git a/gramps/gen/test/relationship_test.py b/gramps/gen/test/relationship_test.py
 new file mode 100644
-index 000000000..ff141878a
+index 0000000000..ff141878a5
 --- /dev/null
 +++ b/gramps/gen/test/relationship_test.py
 @@ -0,0 +1,150 @@
@@ -388,14 +388,22 @@ index 000000000..ff141878a
 +if __name__ == "__main__":
 +    unittest.main()
 diff --git a/po/POTFILES.skip b/po/POTFILES.skip
-index 5a1ded20d..8ef4c6198 100644
+index d4a15ea5b4..9fdf59fdae 100644
 --- a/po/POTFILES.skip
 +++ b/po/POTFILES.skip
-@@ -283,6 +283,7 @@ gramps/gen/simple/_simpledoc.py
+@@ -299,6 +299,7 @@ gramps/gen/simple/_simpledoc.py
  #
  gramps/gen/test/config_test.py
  gramps/gen/test/constfunc_test.py
 +gramps/gen/test/relationship_test.py
  #
  # gen utils API
+ #
+@@ -598,6 +599,7 @@ gramps/plugins/importer/__init__.py
+ gramps/plugins/importer/test/importgedcom_ambiguous_date_test.py
+ gramps/plugins/importer/test/importgeneweb_test.py
+ gramps/plugins/importer/test/importvcard_test.py
++gramps/plugins/importer/test/importxml_daterange_test.py
+ #
+ # plugins/lib directory
  #
