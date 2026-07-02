@@ -50,14 +50,21 @@ from __future__ import annotations
 import re
 import time
 import unittest
+import uuid
 
 from dogtail.rawinput import keyCombo
 
 from .base import GrampsInterfaceTestCase
 
 # A surname unlikely to occur in the example tree, so its presence in the Events
-# tab can only be the freshly-renamed father.
-SENTINEL = "Zqxrefresh8603"
+# tab can only be the freshly-renamed father. UNIQUE PER PROCESS: C4-verify-interface
+# seeds TestTree ONCE and runs the red (unpatched) then green (patched) legs against
+# the SAME database. The red leg's rename COMMITS (the bug only stalls the column
+# refresh), so a fixed sentinel would already be present on the green leg and the
+# pre-edit guard below would skipTest — reporting green WITHOUT exercising the patched
+# refresh (a false green). A fresh value per leg forces the green leg to genuinely
+# rename and re-read the column.
+SENTINEL = "Zqx8603" + uuid.uuid4().hex[:10]
 
 
 class Bug8603FamilyEventParticipantRefreshTest(GrampsInterfaceTestCase):
@@ -147,6 +154,21 @@ class Bug8603FamilyEventParticipantRefreshTest(GrampsInterfaceTestCase):
         time.sleep(0.6)
         return self._table_with_header(self.app, "Father") is not None
 
+    def _column_x_range(self, table, header_name: str):
+        """The horizontal extent (x_lo, x_hi) of the named column's header, or
+        None if it can't be resolved — used to keep cell selection to one column."""
+        for h in table.findChildren(
+            lambda n: n.roleName == "table column header"
+        ):
+            try:
+                if header_name in (h.name or "") and self._is_usable(h):
+                    x, w = h.position[0], h.size[0]
+                    if w > 0:
+                        return (x, x + w)
+            except Exception:
+                pass
+        return None
+
     def _father_cells(self):
         tbl = self._table_with_header(self.app, "Father")
         if tbl is None:
@@ -158,6 +180,26 @@ class Bug8603FamilyEventParticipantRefreshTest(GrampsInterfaceTestCase):
                     cells.append(cell)
             except Exception:
                 pass
+        # Restrict to the FATHER column so the matched token is genuinely the
+        # father's name (the person renamed below). A mother/date/ID cell whose
+        # token happens to appear in Main Participants would otherwise select a
+        # family whose FATHER isn't a listed participant, so renaming him could
+        # never surface the sentinel → a false red on a correctly-fixed build.
+        # Fall back to all cells when the column geometry can't be resolved, so
+        # this never regresses to selecting nothing.
+        col = self._column_x_range(tbl, "Father")
+        if col is not None:
+            lo, hi = col
+            in_col = []
+            for c in cells:
+                try:
+                    cx = c.position[0] + c.size[0] / 2
+                except Exception:
+                    continue
+                if lo <= cx <= hi:
+                    in_col.append(c)
+            if in_col:
+                return in_col
         return cells
 
     def _family_dialog(self, timeout: float = 12.0):
