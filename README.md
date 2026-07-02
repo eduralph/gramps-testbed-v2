@@ -11,16 +11,38 @@ for the model and [docs/INTEGRATION.md](docs/INTEGRATION.md) for the gramps spec
 
 ## Prerequisites
 
-- The **Claude CLI** (`claude`) installed and authenticated.
-- **Docker** (the gramps test gates run in a container).
-- The sibling fork checkouts next to this repo — `../gramps`, `../addons-source`
-  (bootstrap with `./engine/scripts/bootstrap-forks.sh` if missing).
-- Python 3.11+ (stdlib only; no install needed — the `Makefile` runs from source).
+On a clean machine, one command sets up everything that *can* be scripted:
+
+```bash
+git clone https://github.com/<you>/gramps-testbed-v2 && cd gramps-testbed-v2
+make bootstrap          # venv + permissions + sibling forks + worktrees + engine
+                        # image + an offline smoke test of the whole control flow
+```
+
+`make bootstrap` is idempotent — re-run it any time (`MINIMAL=1` skips everything
+needing network/docker; `APT=1` lets it sudo-install missing core tools; `SSH=1`
+clones the forks over SSH). `make doctor` reports every prerequisite
+(`OK / MISSING / UNAUTH / WARN` + the command that fixes it) without changing
+anything. What stays manual is exactly the credentials:
+
+| doctor line | manual fix |
+| --- | --- |
+| claude CLI | `curl -fsSL https://claude.ai/install.sh \| bash`, then run `claude` once (login + folder trust) |
+| gh CLI | [install](https://github.com/cli/cli/blob/trunk/docs/install_linux.md), then `gh auth login` (publish/merge need it) |
+| codex CLI (reviewer) | optional cross-vendor reviewer: install codex, `codex login` |
+| docker | [install](https://docs.docker.com/engine/install/ubuntu/); `sudo usermod -aG docker $USER` + re-login |
+| system Chrome | only for Mantis scraping — the Chrome `.deb`, not the snap |
+
+Under the hood that is: Python 3.11+ (the driver itself is stdlib-only), Docker
+(the gramps test gates run in a container), and the sibling fork checkouts next to
+this repo — `../gramps`, `../addons-source`, `../addons`
+(`./engine/scripts/bootstrap-forks.sh` creates them; `make worktrees` the
+per-version validation worktrees).
 
 ## Quick start
 
 ```bash
-make setup              # ONCE: grant Claude read of the workspace + sibling repos
+make bootstrap          # ONCE per machine (see Prerequisites)
 make flow ID=13636      # run the whole cycle for tracker issue 13636
 ```
 

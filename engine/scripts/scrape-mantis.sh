@@ -19,8 +19,17 @@
 #
 # All modes write results/issue_<id>/notes.json per id. Env override:
 # MANTIS_DEBUG_PORT (default 9222). HOST-SIDE tool — NOT run in the Docker image.
-# One-time setup:
-#   pip install --break-system-packages playwright   # + a system Google Chrome .deb
+#
+#   ./engine/scripts/scrape-mantis.sh --setup
+#       One-time dependency setup: creates a repo-local .venv-mantis and pip-installs
+#       the Playwright wheel (which bundles its own Node driver). After this, scrape
+#       with NO PATH prefix — the script auto-detects the venv. Needs python3-venv
+#       (`sudo apt install -y python3-venv`), plus a system Google Chrome/Chromium.
+#
+# Interpreter resolution (first with a working Playwright): $MANTIS_PYTHON →
+# .venv-mantis → ~/.venvs/mantis → system python3. Ubuntu's apt python3-playwright
+# is driverless (no node-playwright-core in the archive) and its ensurepip is
+# disabled, so the --setup venv+wheel is the reliable path.
 
 set -euo pipefail
 
@@ -48,6 +57,7 @@ cd "$REPO_ROOT"
 
 PORT="${MANTIS_DEBUG_PORT:-9222}"
 PROFILE="$REPO_ROOT/.cf-chrome-profile"          # persistent; gitignored (holds login)
+PW_VENV="$REPO_ROOT/.venv-mantis"                # `--setup` venv; gitignored (Playwright wheel)
 BASE_URL="https://gramps-project.org/bugs"
 NOTES_PY="$REPO_ROOT/engine/scripts/mantis_notes.py"
 
@@ -59,7 +69,75 @@ _chrome() {  # first system Chrome/Chromium on PATH (NOT the snap chromium)
   return 1
 }
 _debugger_up() { timeout 1 bash -c "exec 3<>/dev/tcp/127.0.0.1/$PORT" 2>/dev/null; }
-usage() { echo "usage: $0 [--attach [<cdp-url>]] <id> [<id> ...]" >&2; }
+usage() { echo "usage: $0 --setup | [--attach [<cdp-url>]] <id> [<id> ...]" >&2; }
+
+# The interpreter that runs mantis_notes.py needs a WORKING Playwright — the Python
+# binding AND a runnable Node driver. `--version` exercises both (the missing binding
+# fails on import; a missing/broken Node driver fails only when it runs).
+_py_works() {  # $1 = interpreter path/name; true if it has a runnable Playwright driver
+  [ -n "${1:-}" ] || return 1
+  { command -v "$1" >/dev/null 2>&1 || [ -x "$1" ]; } && "$1" -m playwright --version >/dev/null 2>&1
+}
+_resolve_python() {  # echo the first interpreter with a working Playwright, else nothing
+  local c
+  for c in ${MANTIS_PYTHON:+"$MANTIS_PYTHON"} \
+           "$PW_VENV/bin/python3" \
+           "$HOME/.venvs/mantis/bin/python3" \
+           python3; do
+    if _py_works "$c"; then printf '%s\n' "$c"; return 0; fi
+  done
+  return 1
+}
+
+# --setup: provision $PW_VENV with the Playwright wheel (bundled Node driver) — the
+# reliable path on Ubuntu, where the apt python3-playwright ships no driver and system
+# ensurepip is disabled. Idempotent; safe to re-run. Leaves the script prefix-free after.
+_setup_venv() {
+  if _py_works "$PW_VENV/bin/python3"; then
+    echo "→ $PW_VENV already has a working $("$PW_VENV/bin/python3" -m playwright --version)"
+    return 0
+  fi
+  if ! python3 -c 'import venv' 2>/dev/null; then
+    echo "scrape-mantis.sh --setup: python3 venv module missing — run: sudo apt install -y python3-venv" >&2
+    return 1
+  fi
+  echo "→ creating venv at $PW_VENV"
+  python3 -m venv "$PW_VENV" || {
+    echo "scrape-mantis.sh --setup: venv creation failed (pip seed?) — run: sudo apt install -y python3-venv" >&2
+    return 1; }
+  echo "→ installing playwright (pip wheel, with bundled Node driver)"
+  "$PW_VENV/bin/pip" install --quiet --upgrade pip \
+    && "$PW_VENV/bin/pip" install --quiet playwright || {
+      echo "scrape-mantis.sh --setup: pip install playwright failed" >&2; return 1; }
+  if _py_works "$PW_VENV/bin/python3"; then
+    echo "→ ok — $("$PW_VENV/bin/python3" -m playwright --version) in $PW_VENV"
+    echo "  Scrape now runs with NO prefix:  $0 --attach <id> [<id> ...]"
+    return 0
+  fi
+  echo "scrape-mantis.sh --setup: playwright installed but its driver still won't start" >&2
+  return 1
+}
+
+# Preflight — resolve a working interpreter into $MANTIS_PY, or fail with guidance.
+MANTIS_PY=""
+_preflight_deps() {
+  MANTIS_PY="$(_resolve_python || true)"
+  [ -n "$MANTIS_PY" ] && return 0
+  cat >&2 <<EOF
+scrape-mantis.sh: no python3 with a working Playwright found (tried: \${MANTIS_PYTHON:-unset},
+  $PW_VENV, ~/.venvs/mantis, system python3).
+  Provision one (recommended):  $0 --setup
+    → creates $PW_VENV and pip-installs the Playwright wheel (bundled Node driver).
+      Needs python3-venv:  sudo apt install -y python3-venv
+  Ubuntu's apt python3-playwright is driverless (no node-playwright-core in the archive)
+  and its ensurepip is disabled — the --setup venv is the fix. Override with
+  MANTIS_PYTHON=/path/to/python3 if you manage your own interpreter.
+EOF
+  return 1
+}
+
+# --setup provisions the venv and exits (no issue ids needed).
+if [ "${1:-}" = "--setup" ]; then _setup_venv; exit $?; fi
 
 # --- Mode dispatch -----------------------------------------------------------
 ATTACH=""          # non-empty → attach to this CDP url
@@ -94,6 +172,9 @@ for raw in "$@"; do
 done
 csv_ids="$(IFS=,; echo "${ids[*]}")"
 
+# Fail on missing prerequisites BEFORE launching Chrome / prompting for a login.
+_preflight_deps || exit 1
+
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
@@ -117,10 +198,10 @@ fi
 
 if [ -n "$ATTACH" ]; then
   echo "→ scraping (attach $ATTACH): $csv_ids"
-  python3 "$NOTES_PY" --attach "$ATTACH" --yes --ids "$csv_ids" --out "$tmp"
+  "$MANTIS_PY" "$NOTES_PY" --attach "$ATTACH" --yes --ids "$csv_ids" --out "$tmp"
 else
   echo "→ scraping (a Chrome window opens; log in once if asked): $csv_ids"
-  python3 "$NOTES_PY" --channel chrome --ids "$csv_ids" --out "$tmp"
+  "$MANTIS_PY" "$NOTES_PY" --channel chrome --ids "$csv_ids" --out "$tmp"
 fi
 
 for id in "${ids[@]}"; do

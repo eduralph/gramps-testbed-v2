@@ -124,8 +124,10 @@ for d in "${GITDIR_REPOS[@]}"; do
 done
 
 # Refuse to patch a dirty checkout (loud-failure backstop against tangling). Register the
-# patch-target repo for restore even on interrupt.
-git -C "$PATCH_REPO" diff --quiet || { echo "run-verify-interface.sh: $PATCH_REPO has uncommitted changes — refusing to patch it" >&2; exit 1; }
+# patch-target repo for restore even on interrupt. status --porcelain, not diff --quiet:
+# the restore trap runs `git clean -fd`, so the guard must also catch staged and
+# UNTRACKED files — anything the trap would destroy.
+[ -z "$(git -C "$PATCH_REPO" status --porcelain)" ] || { echo "run-verify-interface.sh: $PATCH_REPO has uncommitted or untracked changes — refusing to patch it" >&2; exit 1; }
 _TOUCHED=( "$PATCH_REPO" )
 CNAME="grampstest-$$-ifaceverify-$(basename "$GRAMPS_DIR")"
 _restore_all() {
@@ -138,7 +140,7 @@ _restore_all() {
 }
 trap _restore_all EXIT
 
-gv="$(sed -nE 's/^VERSION_TUPLE *= *\(([0-9]+), *([0-9]+), *([0-9]+)\).*$/\1.\2.\3/p' "$GRAMPS_DIR/gramps/version.py")"
+gv="$(python3 "$ENGINE/scripts/lib/gramps_version.py" "$GRAMPS_DIR")"
 : "${gv:?could not detect Gramps version from $GRAMPS_DIR}"
 IMAGE="${GRAMPS_TESTBED_IMAGE:-gramps-testbed:ubuntu-$gv}"
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then

@@ -97,7 +97,7 @@ for dir in "$GRAMPS_DIR" "$ADDONS_DIR"; do
   fi
 done
 
-GRAMPS_VERSION="$(sed -nE 's/^VERSION_TUPLE *= *\(([0-9]+), *([0-9]+), *([0-9]+)\).*$/\1.\2.\3/p' "$GRAMPS_DIR/gramps/version.py")"
+GRAMPS_VERSION="$(python3 "$ENGINE/scripts/lib/gramps_version.py" "$GRAMPS_DIR")"
 : "${GRAMPS_VERSION:?could not detect Gramps version from $GRAMPS_DIR/gramps/version.py}"
 IMAGE="${GRAMPS_TESTBED_IMAGE:-gramps-testbed:ubuntu-$GRAMPS_VERSION}"
 

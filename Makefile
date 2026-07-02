@@ -35,13 +35,19 @@
 #                   so the interactive leaves don't prompt per file/dir.
 #   make install    create .venv with a real `gramps-pdca` console script (optional —
 #                   the targets above already work without it).
+#   make bootstrap  one-command clean-machine setup: venv + permissions + sibling
+#                   forks + worktrees + engine image + offline smoke test.
+#                   MINIMAL=1 = core only (CI mode); APT=1 lets it sudo-install
+#                   missing core tools; SSH=1 clones forks over SSH.
+#   make doctor     report every prerequisite (OK/MISSING/UNAUTH/WARN + fix hint)
+#                   without changing anything. STRICT=1 fails on any non-OK line.
 
 PYTHON ?= python3
 export PYTHONPATH := src
 PDCA := $(PYTHON) -m pdca_harness.cli
 
 .DEFAULT_GOAL := test
-.PHONY: test check flow rehearse status revalidate cli install setup worktrees essential-worktrees fork-worktrees preflight batch publish gramps-requirements
+.PHONY: test check flow rehearse status revalidate cli install setup worktrees essential-worktrees fork-worktrees preflight batch publish gramps-requirements bootstrap doctor
 
 # --- the cycle -------------------------------------------------------------
 # Live, continuous, Claude-driven. Give ID for one issue, or just CSV for a batch
@@ -102,13 +108,20 @@ cli:
 
 # One-time permission setup so the interactive leaves don't prompt: grant Claude
 # read of the whole workspace and the sibling repos (gramps, addons-source) it
-# patches. Writes the machine-local .claude/settings.local.json (gitignored).
+# patches. MERGES into the machine-local .claude/settings.local.json (gitignored)
+# so re-running setup (e.g. via `make bootstrap`) never clobbers permissions the
+# user has accumulated since.
 setup:
-	@$(PYTHON) -c "import json, os; ws = os.path.dirname(os.getcwd()); \
-json.dump({'permissions': {'allow': ['Read(/' + ws + '/**)'], \
-'additionalDirectories': [ws + '/gramps', ws + '/addons-source', '/tmp']}}, \
-open('.claude/settings.local.json', 'w'), indent=2)"
-	@echo "wrote .claude/settings.local.json — workspace read + siblings (gramps, addons-source) + /tmp"
+	@$(PYTHON) -c "import json, os; p = '.claude/settings.local.json'; \
+ws = os.path.dirname(os.getcwd()); \
+cfg = json.load(open(p)) if os.path.exists(p) else {}; \
+perm = cfg.setdefault('permissions', {}); \
+allow = perm.setdefault('allow', []); rule = 'Read(/' + ws + '/**)'; \
+rule in allow or allow.append(rule); \
+extra = perm.setdefault('additionalDirectories', []); \
+[extra.append(d) for d in (ws + '/gramps', ws + '/addons-source', '/tmp') if d not in extra]; \
+json.dump(cfg, open(p, 'w'), indent=2)"
+	@echo "merged into .claude/settings.local.json — workspace read + siblings (gramps, addons-source) + /tmp"
 	@echo "NOTE: folder-TRUST is separate from permissions — it lives in the global"
 	@echo "      ~/.claude.json, not these settings, so setup can't pre-set it. The very"
 	@echo "      first interactive session asks once 'trust this folder?'; accept it and"
@@ -127,6 +140,12 @@ open('.claude/settings.local.json', 'w'), indent=2)"
 worktrees:
 	@ws=$$(cd .. && pwd); \
 	sfxs=""; if [ -n "$(LANES)" ]; then k=0; while [ "$$k" -lt "$(LANES)" ]; do sfxs="$$sfxs -lane$$k"; k=$$((k+1)); done; fi; \
+	for r in gramps addons-source; do \
+	  git -C "$$ws/$$r" remote get-url upstream >/dev/null 2>&1 || { \
+	    echo "error: $$r has no 'upstream' remote — worktrees are pinned to upstream/maintenance/gramps6{0,1}."; \
+	    echo "       fix: git -C $$ws/$$r remote add upstream https://github.com/gramps-project/$$r.git"; \
+	    exit 1; }; \
+	done; \
 	for r in gramps addons-source; do git -C "$$ws/$$r" fetch upstream --prune --quiet || echo "warn: fetch upstream failed for $$r"; done; \
 	for sfx in "" $$sfxs; do \
 	for spec in "gramps gramps-6.0 upstream/maintenance/gramps60" \
@@ -232,7 +251,7 @@ preflight: gramps-requirements
 	git fetch origin --quiet 2>/dev/null || echo "  warn: git fetch origin failed"; \
 	behind="$$(git rev-list --count main..origin/main 2>/dev/null || echo 0)"; \
 	[ "$$behind" = "0" ] || echo "  warn: main is $$behind commit(s) behind origin/main — pull before the session"
-	@gv="$$(sed -nE 's/^VERSION_TUPLE *= *\(([0-9]+), *([0-9]+), *([0-9]+)\).*$$/\1.\2.\3/p' ../gramps-6.1/gramps/version.py 2>/dev/null)"; \
+	@gv="$$(python3 engine/scripts/lib/gramps_version.py ../gramps-6.1 2>/dev/null)"; \
 	img="gramps-testbed:ubuntu-$$gv"; \
 	if [ -z "$$gv" ]; then echo "  warn: could not detect gramps version (is ../gramps-6.1 present?)"; \
 	elif docker image inspect "$$img" >/dev/null 2>&1; then echo "✔ image $$img present"; \
@@ -256,9 +275,25 @@ install: .venv/.installed
 	@printf '\nInstalled. The console script (see pyproject [project.scripts]) is on .venv/bin/; or keep using `make flow …`.\n'
 
 .venv/.installed: pyproject.toml
+	@$(PYTHON) -c 'import ensurepip' 2>/dev/null || { \
+	  echo 'error: $(PYTHON) cannot create a venv with pip (no ensurepip).'; \
+	  echo '       fix: sudo apt-get install -y python3-venv   — then re-run make install'; exit 1; }
 	$(PYTHON) -m venv .venv
-	.venv/bin/pip install -q -e .
+	.venv/bin/pip install -q -e '.[dev]'
 	@touch $@
+
+# --- clean-machine entry points ---------------------------------------------
+# `make bootstrap` = one-command setup (venv, permissions, forks, worktrees, image,
+# scraper, offline smoke test); idempotent. MINIMAL=1 skips everything needing
+# network/docker (CI mode). `make doctor` reports every prerequisite without
+# changing anything; STRICT=1 fails on any non-OK line. doctor is the single-sourced
+# `pdca doctor` (config + pdca.toml [[doctor.checks]]); scripts/doctor.sh is a shim
+# over the same for the pre-venv bootstrap path.
+bootstrap:
+	@bash scripts/bootstrap.sh $(if $(MINIMAL),--minimal) $(if $(APT),--apt) $(if $(SSH),--ssh)
+
+doctor:
+	@$(PDCA) doctor $(if $(STRICT),--strict)
 
 # --- self-test -------------------------------------------------------------
 # Depends on `check` so the cheap guards fail fast before the slow live cycle.
@@ -271,5 +306,8 @@ test: check
 	@printf '    results/issue_selftest/check-gates.md   (live gramps gate: real pass/fail)\n'
 	@printf '    results/issue_selftest/SUMMARY.md       (assembled Check summary)\n'
 
+# Prefer the venv's pytest when `make install` has run (a clean machine's system
+# python has no pytest); fall back to $(PYTHON) for developers with pytest global.
 check:
-	$(PYTHON) -m pytest tests engine/tests -q
+	@if [ -x .venv/bin/pytest ]; then PYTHONPATH=src .venv/bin/pytest tests engine/tests -q; \
+	else $(PYTHON) -m pytest tests engine/tests -q; fi

@@ -32,6 +32,8 @@ results/issue_selftest/
 pw-profile/
 .cf-chrome-profile/
 notes_json/
+# scrape-mantis.sh --setup venv (holds the Playwright wheel + its bundled Node driver).
+.venv-mantis/
 
 # wiki scrape cache (regenerable; the reference root-ignores it)
 wiki/.wikiscrape/

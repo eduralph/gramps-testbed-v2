@@ -1,0 +1,49 @@
+# Clean-machine bootstrap smoke test: prove `make bootstrap MINIMAL=1` works on a
+# genuinely bare box — a stock ubuntu:24.04 container with only git/make/python —
+# and that `make doctor` reports the missing optional tools (claude/docker/gh)
+# gracefully instead of crashing. This exercises the venv install (ensurepip
+# guard), permission setup, the offline test suite, and a full stub rehearsal.
+name: Bootstrap smoke
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "scripts/bootstrap.sh"
+      - "scripts/doctor.sh"
+      - "Makefile"
+      - "pyproject.toml"
+      - ".github/workflows/bootstrap-smoke.yml"
+  workflow_dispatch:
+
+jobs:
+  bootstrap-minimal:
+    runs-on: ubuntu-latest
+    container: ubuntu:24.04
+    steps:
+      - name: Install only the bare-machine baseline
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            git make python3 python3-venv ca-certificates
+      - uses: actions/checkout@v4
+      - name: git identity (doctor checks it; container has none)
+        run: |
+          git config --global user.name "CI Bootstrap Smoke"
+          git config --global user.email "ci@example.invalid"
+      - name: Bootstrap (minimal — no network forks, no docker)
+        run: make bootstrap MINIMAL=1
+      - name: Doctor reports the expected gaps without failing
+        run: |
+          make doctor | tee doctor.out
+          # Optional tools are absent in this container — doctor must SAY so…
+          grep -q 'MISSING sibling' doctor.out || true
+          grep -Eq 'MISSING +(claude CLI|docker|gh CLI)' doctor.out
+          # …and still exit 0 (core toolchain is complete).
+          make doctor
+      - name: Doctor --strict fails on the same gaps
+        run: |
+          if make doctor STRICT=1; then
+            echo "--strict should have failed with optional tools missing" >&2
+            exit 1
+          fi

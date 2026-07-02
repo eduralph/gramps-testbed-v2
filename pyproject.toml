@@ -11,6 +11,12 @@ requires-python = ">=3.11"
 authors = [{ name = "Eduard Ralph", email = "eduard@ralphovi.net" }]
 dependencies = []
 
+# What `make check` needs beyond the (dependency-free) driver: pytest runs the
+# suite; the engine tests exercise the production `python -m xmlrunner` runner and
+# the PIL requires_mod resolution in-process, so those must be importable too.
+[project.optional-dependencies]
+dev = ["pytest", "unittest-xml-reporting", "Pillow"]
+
 [project.scripts]
 gramps-pdca = "pdca_harness.cli:main"
 
