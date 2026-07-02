@@ -277,6 +277,24 @@ family = "claude"
 interactive = true
 argv = ["claude", "--model", "claude-sonnet-4-6", "--effort", "medium", "--agent", "act", "--permission-mode", "acceptEdits"]
 
+# FAMILY PROFILES (vendor neutrality, template v0.46.0). Vendor-CLI behavior is DATA
+# (pdca_harness.families): built-ins for claude / codex / gemini / generic; unknown
+# families fall back to generic (stdin prompt, no vendor flags), and a non-claude
+# BUILDER automatically gets the driver's `gh` PATH-shim STOP guard (same rules as
+# claude's PreToolUse hook). Override/extend per instance, e.g.:
+# [families.mycli]
+# grounding_flag = "--include-directories"   # "" => env-only ($PDCA_TARGET/$PDCA_WORKTREE)
+# role_injection = "inline"                  # "flag" | "inline" | "none"
+# Any leaf may also carry `agent` / `model` / `effort`, mapped through its family's
+# profile (explicit argv always wins) — see the template pdca.toml for details.
+
+# Doctor rows (`pdca doctor`) — optional; scripts/doctor.sh covers this instance's
+# engine checks today. Declare extra prerequisites as data, like [[gates.checks]]:
+# [[doctor.checks]]
+# id = "docker"
+# cmd = "docker info"
+# hint = "https://docs.docker.com/engine/install/ — the gates run in a container"
+
 # Optional advisory reviewer leaves (issue #64) — an OPEN list. The `reviewer` leaf above
 # judges fix ADEQUACY (causal adequacy, scope, validation); add role-distinct ADVISORY
 # reviewers here for other lenses (e.g. correctness bugs the patch introduces + reuse /

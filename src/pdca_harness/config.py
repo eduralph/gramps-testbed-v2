@@ -43,12 +43,22 @@ class LeafConfig:
     ``mode == "command"`` runs ``argv`` as a subprocess in the bundle directory.
     ``interactive`` hands the terminal to the human (a seeded REPL, no ``-p``); a
     headless leaf (``interactive == False``) runs autonomously and writes a doc.
+
+    ``agent`` (optional) names the role-prompt file (``.claude/agents/<agent>.md``);
+    how it reaches the model is the family profile's ``role_injection`` — the
+    claude family passes ``--agent <name>``, inline families get the file's body
+    prepended to the task prompt. ``model`` / ``effort`` (optional) are mapped
+    through the profile's ``model_flag`` / ``effort_argv``; flags already present
+    in ``argv`` remain the explicit escape hatch and always win.
     """
 
     mode: str = "stub"
     family: str = ""
     argv: list[str] = field(default_factory=list)
     interactive: bool = False
+    agent: str = ""
+    model: str = ""
+    effort: str = ""
 
 
 # ----------------------------------------------------------------------------
@@ -108,6 +118,14 @@ class Config:
     # a leaf on a brief field (e.g. a "Review depth" field), the way gate targets do — empty
     # ⇒ always run.
     advisory_leaves: list[dict] = field(default_factory=list)
+    # Advisory-selection policy (issue #200): [leaves.advisory_selection] in pdca.toml.
+    # Empty / ``mode`` unset ⇒ every applicable advisory leaf runs (the #64 default). Under
+    # ``mode = "vendor-complement"`` the advisory list is treated as a VENDOR POOL and the
+    # driver runs the single leaf whose ``family`` differs from the builder that actually ran
+    # (read from loop-telemetry.json), so a Codex-built bundle gets a Claude reviewer and
+    # vice-versa with no per-brief edits — the cross-vendor decorrelation Check relies on
+    # (INTEGRATION §4), made automatic. No different-vendor leaf ⇒ same-vendor fallback + §6.
+    advisory_selection: dict = field(default_factory=dict)
     # Builder escalation ladder (issue #135): an OPEN list of stronger Do backends keyed
     # on the attempt number ([[leaves.builder_escalation]] in pdca.toml). Each:
     # {min_iteration, family, mode, argv}. On iterate, do_build picks the entry with the
@@ -173,6 +191,19 @@ class Config:
     # built-in default covers the common tracker vocabulary.
     close_dispositions: list[str] = field(
         default_factory=lambda: list(DEFAULT_CLOSE_DISPOSITIONS))
+    # Family-profile overrides ([families.<name>] in pdca.toml): per-vendor CLI
+    # capabilities as data — see pdca_harness.families. Raw tables; resolved lazily
+    # via :meth:`profile` so built-ins apply and unknown names fall back to generic.
+    families: dict[str, dict] = field(default_factory=dict)
+    # Instance-declared doctor rows ([[doctor.checks]]): {id, cmd, hint, required}.
+    # `pdca doctor` runs each cmd (exit 0 = OK) after its config-derived checks, the
+    # same declare-in-config pattern as [[gates.checks]].
+    doctor_checks: list[dict] = field(default_factory=list)
+
+    def profile(self, leaf: LeafConfig):
+        """The resolved :class:`~pdca_harness.families.FamilyProfile` for ``leaf``."""
+        from . import families as _families  # local import: keep config import-light
+        return _families.resolve(leaf.family, self.families)
 
     def bundle(self, issue_id: str) -> Path:
         """The per-cycle bundle directory for an issue id.
@@ -252,6 +283,9 @@ class Config:
                 family=d.get("family", ""),
                 argv=list(d.get("argv", [])),
                 interactive=bool(d.get("interactive", False)),
+                agent=d.get("agent", ""),
+                model=d.get("model", ""),
+                effort=d.get("effort", ""),
             )
 
         # Advisory reviewer leaves (issue #64) — an open list under [[leaves.advisory]].
@@ -260,6 +294,8 @@ class Config:
             {**spec, "mode": mode_override or spec.get("mode", "stub")}
             for spec in leaves.get("advisory", [])
         ]
+        # Advisory-selection policy (issue #200) — how the driver picks from that list.
+        advisory_selection = dict(leaves.get("advisory_selection", {}))
 
         # Builder escalation ladder (issue #135) — stronger Do backends keyed on attempt
         # number. PDCA_LEAVES_MODE forces their mode too (CI / offline determinism); ""
@@ -333,6 +369,7 @@ class Config:
             author=data.get("project", {}).get("author", ""),
             gates_checks=gates_checks,
             advisory_leaves=advisory_leaves,
+            advisory_selection=advisory_selection,
             builder_escalation=builder_escalation,
             builder_variants=builder_variants,
             gates_runner=gates_runner,
@@ -343,6 +380,9 @@ class Config:
             regate_between_waves=regate_between_waves,
             act_cadence=act_cadence,
             close_dispositions=close_dispositions,
+            families={k.strip().lower(): dict(v)
+                      for k, v in data.get("families", {}).items()},
+            doctor_checks=list(data.get("doctor", {}).get("checks", [])),
         )
 
 

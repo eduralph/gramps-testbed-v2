@@ -324,6 +324,11 @@ line number**, so an edit to a vendored page doesn't invalidate the anchor; the
   execute-only tool scope (no write to the fix).
 - **Builder family:** claude — `.claude/agents/builder.md` [built], with the
   ready-mark block enforced by the `.claude/hooks/builder_guard.py` PreToolUse hook.
+- **Vendor profiles:** every family-specific behavior (streaming, extra-dir grounding,
+  role-prompt injection, STOP-guard mechanism) is data in `pdca_harness.families`,
+  overridable via `pdca.toml [families.<name>]` — swapping or adding a vendor is a
+  config edit, not a driver change. A non-claude builder gets the STOP discipline
+  from the driver's `gh` PATH shim (same `builder_guard.py` rules as the claude hook).
 - **Project-defined human-only items** (reviewer emits NEEDS-HUMAN by design):
   fitness-to-purpose ("is this the right thing at all", always human); ambiguous
   branch-target choice; cherry-pick correctness across maintenance branches; any

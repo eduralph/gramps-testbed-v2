@@ -15,8 +15,8 @@ import shutil
 import sys
 from pathlib import Path
 
-from . import (act, brief, driver, flow, gates, merge_report, merged, publish, queue,
-               revalidate, revert, signoff, state, waves)
+from . import (act, brief, doctor, driver, flow, gates, merge_report, merged,
+               publish, queue, revalidate, revert, signoff, state, waves)
 from .config import Config
 
 
@@ -145,6 +145,11 @@ def main(argv: list[str] | None = None) -> int:
     p_merged.add_argument("--all", action="store_true",
                           help="also list tickets already flagged done")
 
+    p_doctor = sub.add_parser("doctor",
+                              help="report every prerequisite (OK/MISSING/UNAUTH/WARN + fix hint); changes nothing")
+    p_doctor.add_argument("--strict", action="store_true",
+                          help="exit non-zero on ANY non-OK row (CI)")
+
     p_revert = sub.add_parser("revert",
                               help="undo a published contribution: a revert PR if merged, else withdraw the PR (#158)")
     p_revert.add_argument("issue_id")
@@ -195,13 +200,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "publish":
         return publish.publish(cfg, args.issue_id, dry_run=args.dry_run,
                                open_pr=not args.no_pr, by=args.by, pending_id=args.no_issue)
-    if args.cmd == "revert":
-        return revert.revert(cfg, args.issue_id, dry_run=args.dry_run, by=args.by)
     if args.cmd == "merged":
         if args.ack:
             return merge_report.ack(cfg, args.ack, by=args.by, version=args.version,
                                     date=args.date or datetime.date.today().isoformat())
         return merge_report.report(cfg, show_all=args.all)
+    if args.cmd == "doctor":
+        return doctor.run(cfg, strict=args.strict)
+    if args.cmd == "revert":
+        return revert.revert(cfg, args.issue_id, dry_run=args.dry_run, by=args.by)
     return 2
 
 
