@@ -262,10 +262,12 @@ _verify_leg() {
     done
   fi
   [ -d "$repo/.git" ] || [ -f "$repo/.git" ] || { echo "run-verify.sh: no checkout at $repo" >&2; return 1; }
-  git -C "$repo" diff --quiet || { echo "run-verify.sh: $repo has uncommitted changes — refusing to patch it" >&2; return 1; }
+  # status --porcelain, not diff --quiet: the restore path runs `git clean -fd`, so the
+  # guard must also catch staged and UNTRACKED files — anything the restore would destroy.
+  [ -z "$(git -C "$repo" status --porcelain)" ] || { echo "run-verify.sh: $repo has uncommitted or untracked changes — refusing to patch it" >&2; return 1; }
   _TOUCHED+=( "$repo" )
 
-  gv="$(sed -nE 's/^VERSION_TUPLE *= *\(([0-9]+), *([0-9]+), *([0-9]+)\).*$/\1.\2.\3/p' "$gramps_dir/gramps/version.py")"
+  gv="$(python3 "$ENGINE/scripts/lib/gramps_version.py" "$gramps_dir")"
   : "${gv:?could not detect Gramps version from $gramps_dir}"
   image="${GRAMPS_TESTBED_IMAGE:-gramps-testbed:ubuntu-$gv}"
   if ! docker image inspect "$image" >/dev/null 2>&1; then

@@ -36,7 +36,7 @@ REPO_ROOT="$(_find_repo_root)"
 ENGINE="$REPO_ROOT/engine"
 WORKSPACE="$(cd "$REPO_ROOT/.." && pwd)"
 
-GRAMPS_VERSION="$(sed -nE 's/^VERSION_TUPLE *= *\(([0-9]+), *([0-9]+), *([0-9]+)\).*$/\1.\2.\3/p' "$WORKSPACE/gramps/gramps/version.py")"
+GRAMPS_VERSION="$(python3 "$ENGINE/scripts/lib/gramps_version.py" "$WORKSPACE/gramps")"
 : "${GRAMPS_VERSION:?could not detect Gramps version from gramps/version.py}"
 IMAGE="${GRAMPS_TESTBED_IMAGE:-gramps-testbed:ubuntu-$GRAMPS_VERSION}"
 
