@@ -286,12 +286,14 @@ install: .venv/.installed
 # `make bootstrap` = one-command setup (venv, permissions, forks, worktrees, image,
 # scraper, offline smoke test); idempotent. MINIMAL=1 skips everything needing
 # network/docker (CI mode). `make doctor` reports every prerequisite without
-# changing anything; STRICT=1 fails on any non-OK line.
+# changing anything; STRICT=1 fails on any non-OK line. doctor is the single-sourced
+# `pdca doctor` (config + pdca.toml [[doctor.checks]]); scripts/doctor.sh is a shim
+# over the same for the pre-venv bootstrap path.
 bootstrap:
 	@bash scripts/bootstrap.sh $(if $(MINIMAL),--minimal) $(if $(APT),--apt) $(if $(SSH),--ssh)
 
 doctor:
-	@bash scripts/doctor.sh $(if $(STRICT),--strict)
+	@$(PDCA) doctor $(if $(STRICT),--strict)
 
 # --- self-test -------------------------------------------------------------
 # Depends on `check` so the cheap guards fail fast before the slow live cycle.

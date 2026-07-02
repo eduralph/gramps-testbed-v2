@@ -288,12 +288,73 @@ argv = ["claude", "--model", "claude-sonnet-4-6", "--effort", "medium", "--agent
 # Any leaf may also carry `agent` / `model` / `effort`, mapped through its family's
 # profile (explicit argv always wins) — see the template pdca.toml for details.
 
-# Doctor rows (`pdca doctor`) — optional; scripts/doctor.sh covers this instance's
-# engine checks today. Declare extra prerequisites as data, like [[gates.checks]]:
-# [[doctor.checks]]
-# id = "docker"
-# cmd = "docker info"
-# hint = "https://docs.docker.com/engine/install/ — the gates run in a container"
+# Doctor rows (`pdca doctor`): this instance's engine/workspace prerequisites, as
+# data. Config-derived checks (leaf CLIs + auth, gh, bundle root, notes_cmd, python/
+# ensurepip/make/git) come for free; these add the Gramps-specific needs. scripts/
+# doctor.sh is a thin shim over `pdca doctor`, so `make doctor` and `pdca doctor`
+# report the same thing. `cmd` runs from the repo root; per_lane rows expand over
+# [driver].lanes ({lane}/{lanes}); level="WARN" = optional (non-fatal).
+
+# -- engine (Docker) --
+[[doctor.checks]]
+group = "engine"
+id = "docker daemon"
+cmd = "docker info >/dev/null 2>&1"
+hint = "https://docs.docker.com/engine/install/ubuntu/ — all real gates run in a container; if installed: sudo usermod -aG docker $USER (re-login)"
+[[doctor.checks]]
+group = "engine"
+id = "engine image gramps-testbed:ubuntu-<ver>"
+cmd = "docker image inspect gramps-testbed:ubuntu-$(python3 engine/scripts/lib/gramps_version.py ../gramps-6.1 2>/dev/null) >/dev/null 2>&1"
+hint = "make preflight NO_CAPTURE=1"
+level = "WARN"
+
+# -- workspace: sibling checkouts --
+[[doctor.checks]]
+group = "workspace"
+id = "sibling ../gramps (upstream remote)"
+cmd = "git -C ../gramps remote get-url upstream >/dev/null 2>&1"
+hint = "./engine/scripts/bootstrap-forks.sh"
+[[doctor.checks]]
+group = "workspace"
+id = "sibling ../addons-source (upstream remote)"
+cmd = "git -C ../addons-source remote get-url upstream >/dev/null 2>&1"
+hint = "./engine/scripts/bootstrap-forks.sh"
+[[doctor.checks]]
+group = "workspace"
+id = "sibling ../addons"
+cmd = "test -e ../addons/.git"
+hint = "./engine/scripts/bootstrap-forks.sh"
+
+# -- workspace: per-version validation worktrees --
+[[doctor.checks]]
+group = "workspace"
+id = "base worktrees gramps-6.{0,1} + addons-source-6.{0,1}"
+cmd = "test -e ../gramps-6.0/.git && test -e ../gramps-6.1/.git && test -e ../addons-source-6.0/.git && test -e ../addons-source-6.1/.git"
+hint = "make worktrees   (or the full: make preflight)"
+level = "WARN"
+
+# -- workspace: per-LANE worktrees (a batch flow fans out across [driver].lanes) --
+[[doctor.checks]]
+group = "workspace"
+id = "lane worktrees lane{lane} (gramps + addons-source 6.{0,1})"
+cmd = "test -e ../gramps-6.0-lane{lane}/.git && test -e ../gramps-6.1-lane{lane}/.git && test -e ../addons-source-6.0-lane{lane}/.git && test -e ../addons-source-6.1-lane{lane}/.git"
+hint = "make worktrees LANES={lanes}"
+per_lane = true
+level = "WARN"
+
+# -- scraper (optional; Mantis thread scraping only) --
+[[doctor.checks]]
+group = "scraper (optional)"
+id = "system Chrome/Chromium"
+cmd = "command -v google-chrome google-chrome-stable chromium chromium-browser >/dev/null 2>&1"
+hint = "install the Chrome .deb (not the snap) — only for Mantis scraping"
+level = "WARN"
+[[doctor.checks]]
+group = "scraper (optional)"
+id = ".venv-mantis (playwright)"
+cmd = ".venv-mantis/bin/python -m playwright --version >/dev/null 2>&1"
+hint = "./engine/scripts/scrape-mantis.sh --setup"
+level = "WARN"
 
 # Optional advisory reviewer leaves (issue #64) — an OPEN list. The `reviewer` leaf above
 # judges fix ADEQUACY (causal adequacy, scope, validation); add role-distinct ADVISORY
