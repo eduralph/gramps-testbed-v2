@@ -95,15 +95,22 @@ else
 fi
 
 # --- 4. worktrees + engine image ----------------------------------------------
+# Provision per-lane worktrees to match [driver].lanes: a batch `flow` fans out
+# across that many workers, each patching its own gramps-6.x-laneK copy — without
+# them a multi-lane batch fails every gate landing on a missing lane. `make`
+# forwards this command-line LANES= down to preflight's recursive worktrees calls.
+LANES="$(python3 -c "import tomllib; print(tomllib.load(open('pdca.toml','rb')).get('driver',{}).get('lanes',1))" 2>/dev/null || echo 1)"
+LANES_ARG=""
+[ "${LANES:-1}" -gt 1 ] 2>/dev/null && LANES_ARG="LANES=$LANES"
 if [ "$MINIMAL" -eq 1 ]; then
   step "worktrees + engine image — skipped (--minimal)"
 elif ! have docker || ! docker info >/dev/null 2>&1; then
   step "worktrees + engine image — skipped (docker unavailable)"
-  echo "install docker (https://docs.docker.com/engine/install/ubuntu/), then: make preflight NO_CAPTURE=1"
+  echo "install docker (https://docs.docker.com/engine/install/ubuntu/), then: make preflight NO_CAPTURE=1 $LANES_ARG"
 else
-  step "worktrees + engine image (make preflight NO_CAPTURE=1)"
-  make --no-print-directory preflight NO_CAPTURE=1 \
-    || echo "bootstrap.sh: preflight reported problems — continuing (re-run 'make preflight' after fixing)"
+  step "worktrees + engine image (make preflight NO_CAPTURE=1 ${LANES_ARG:-single-lane})"
+  make --no-print-directory preflight NO_CAPTURE=1 $LANES_ARG \
+    || echo "bootstrap.sh: preflight reported problems — continuing (re-run 'make preflight $LANES_ARG' after fixing)"
 fi
 
 # --- 5. Mantis scraper (best-effort) -------------------------------------------

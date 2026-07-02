@@ -162,6 +162,26 @@ for wt in gramps-6.0 gramps-6.1 addons-source-6.0 addons-source-6.1; do
     _row WARN "worktree ../$wt" "make worktrees   (or the full: make preflight)"
   fi
 done
+# Per-lane worktrees: a batch `flow` fans out across [driver].lanes workers, and lane
+# K patches its OWN gramps-6.x-laneK / addons-source-6.x-laneK worktree (docs 09). If
+# lanes > 1 those copies MUST exist or every gate landing on a missing lane fails with
+# "worktree … missing" — the batch-flow failure this check exists to pre-empt.
+LANES="$(python3 -c "import tomllib,sys; print(tomllib.load(open('$REPO_ROOT/pdca.toml','rb')).get('driver',{}).get('lanes',1))" 2>/dev/null || echo 1)"
+if [ "${LANES:-1}" -gt 1 ] 2>/dev/null; then
+  missing=""
+  k=0
+  while [ "$k" -lt "$LANES" ]; do
+    for base in gramps-6.0 gramps-6.1 addons-source-6.0 addons-source-6.1; do
+      [ -e "$WORKSPACE/$base-lane$k/.git" ] || missing="$missing $base-lane$k"
+    done
+    k=$((k + 1))
+  done
+  if [ -z "$missing" ]; then
+    _row OK "lane worktrees (lanes=$LANES)" "gramps-6.{0,1}-lane{0..$((LANES - 1))} + addon copies"
+  else
+    _row WARN "lane worktrees (lanes=$LANES)" "make worktrees LANES=$LANES   (missing:$missing)"
+  fi
+fi
 
 echo
 echo "== scraper (optional) =="
