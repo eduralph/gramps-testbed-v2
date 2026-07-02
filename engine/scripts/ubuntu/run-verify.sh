@@ -39,6 +39,7 @@ REPO_ROOT="$(_find_repo_root)"
 ENGINE="$REPO_ROOT/engine"
 WORKSPACE="$(cd "$REPO_ROOT/.." && pwd)"
 TESTBED_NAME="$(basename "$REPO_ROOT")"
+INVOCATION_CWD="$PWD"   # for resolving a relative $PDCA_BUNDLE before the cd below
 cd "$WORKSPACE"
 
 # In-driver lane concurrency (docs 09): when the driver runs a worker pool it pins each
@@ -49,6 +50,10 @@ cd "$WORKSPACE"
 LANE_SFX="${PDCA_LANE:+-lane$PDCA_LANE}"
 
 BUNDLE="${PDCA_BUNDLE:?run-verify.sh is bundle-scoped — \$PDCA_BUNDLE must be set}"
+# The driver exports an absolute bundle dir, but hand-runs often pass a path relative to the
+# invocation CWD. Resolve it against that CWD (we already cd'd to $WORKSPACE) so both work,
+# and so the ${BUNDLE#"$WORKSPACE"/} container-path strip below sees an absolute path.
+[ "${BUNDLE#/}" != "$BUNDLE" ] || BUNDLE="$(cd "$INVOCATION_CWD" && cd "$(dirname "$BUNDLE")" && pwd)/$(basename "$BUNDLE")"
 PATCH="$BUNDLE/patch.diff"
 [ -f "$PATCH" ] || { echo "run-verify.sh: no patch.diff in $BUNDLE" >&2; exit 1; }
 
