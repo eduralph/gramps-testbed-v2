@@ -342,6 +342,15 @@ argv = ["claude", "--model", "claude-sonnet-4-6", "--effort", "medium", "--agent
 # [driver].lanes ({lane}/{lanes}); level="WARN" = optional (non-fatal).
 
 # -- engine (Docker) --
+# `timeout` is a host tool EVERY gate runner shells out to (it bounds `docker run`
+# so a hung gate fails the run instead of blocking the batch forever) — REQUIRED,
+# like git/make/python in the core section (issue #303).
+[[doctor.checks]]
+group = "engine"
+id = "timeout (gate-runner bound)"
+cmd = "command -v timeout >/dev/null 2>&1"
+hint = "install coreutils — every engine/scripts/ubuntu/run-*.sh bounds its 'docker run' with timeout; without it a hung gate never fails"
+required = true
 [[doctor.checks]]
 group = "engine"
 id = "docker daemon"
@@ -352,6 +361,16 @@ group = "engine"
 id = "engine image gramps-testbed:ubuntu-<ver>"
 cmd = "docker image inspect gramps-testbed:ubuntu-$(python3 engine/scripts/lib/gramps_version.py ../gramps-6.1 2>/dev/null) >/dev/null 2>&1"
 hint = "make preflight NO_CAPTURE=1"
+level = "WARN"
+# The image must CONTAIN the toolchain the gates exec inside it, not just exist
+# (issue #303): baked xvfb-run / dbus-run-session / gsettings / at-spi launcher /
+# msgfmt / xmlrunner for the interface+unit gates, and the black+mypy the T2-lint
+# gate pip-installs at runtime. A stale/misbuilt image otherwise dies mid-gate.
+[[doctor.checks]]
+group = "engine"
+id = "engine image in-container toolchain (interface/unit/lint gates)"
+cmd = "./engine/scripts/doctor-image-toolchain.sh"
+hint = "make preflight NO_CAPTURE=1   (rebuild the engine image — it is stale or misbuilt)"
 level = "WARN"
 
 # -- workspace: sibling checkouts --
