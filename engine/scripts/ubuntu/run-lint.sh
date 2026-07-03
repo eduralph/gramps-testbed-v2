@@ -77,17 +77,27 @@ case "$TARGET_VER" in
   *) echo "run-lint.sh: unknown CORE_VERSION '$TARGET_VER' (expected 6.0 or 6.1)" >&2; exit 2 ;;
 esac
 
-# The changed core .py files (added or modified; a deleted file's +++ is
-# /dev/null, so `+++ b/` already excludes it). These are what black checks; the
-# base worktree is upstream-gated black-clean, so this is equivalent to
-# upstream's whole-repo `black .` and gives sharper per-file errors. mypy always
-# runs whole-tree (bare `mypy`), exactly as upstream.
+# CHANGED_PY — the .py files PRESENT after the patch (added or modified): the
+# `+++ b/` side. These are what black checks (black can only format-check a file
+# that exists post-patch); the base worktree is upstream-gated black-clean, so
+# this equals upstream's whole-repo `black .` with sharper per-file errors.
 mapfile -t CHANGED_PY < <(grep -E '^\+\+\+ b/' "$PATCH" | sed -E 's|^\+\+\+ b/||' | grep -E '\.py$' || true)
-if [ "${#CHANGED_PY[@]}" -eq 0 ]; then
-  # No core .py in the patch — nothing for black/mypy to judge (e.g. a prose /
+# TOUCHED_PY — ANY .py the patch touches, including ones it DELETES (`--- a/…​.py`
+# + `+++ /dev/null`, so absent from CHANGED_PY) or RENAMES (`rename from/to`).
+# Deleting or renaming a module can break imports elsewhere that upstream's bare
+# whole-tree `mypy` would catch, so the gate must still run for a deletion-only
+# patch — only a patch that touches NO .py at all (prose / POTFILES / addon) is
+# genuinely unverifiable (issue #306, Codex P2).
+mapfile -t TOUCHED_PY < <(
+  { grep -E '^\+\+\+ b/' "$PATCH" | sed -E 's|^\+\+\+ b/||'
+    grep -E '^--- a/'   "$PATCH" | sed -E 's|^--- a/||'
+    grep -E '^rename (from|to) ' "$PATCH" | sed -E 's/^rename (from|to) //'
+  } | grep -E '\.py$' | sort -u || true)
+if [ "${#TOUCHED_PY[@]}" -eq 0 ]; then
+  # No .py touched at all — nothing for black/mypy to judge (e.g. a prose /
   # POTFILES-only / addon patch). Declare unverifiable (exit 77 -> SUMMARY §6,
   # non-fatal) rather than a hard pass or fail, mirroring run-verify.sh.
-  echo "PDCA-UNVERIFIABLE: patch has no core .py file — black/mypy have nothing to check (addon / prose / manifest-only change); the human accepts T2-lint at sign-off."
+  echo "PDCA-UNVERIFIABLE: patch touches no core .py file — black/mypy have nothing to check (addon / prose / manifest-only change); the human accepts T2-lint at sign-off."
   exit 77
 fi
 
@@ -142,8 +152,16 @@ read -r -d '' INNER <<'INNER_EOF' || true
 
     if ! git apply "$PATCH"; then echo "run-lint (container): git apply failed (base drifted?)" >&2; exit 2; fi
 
-    echo "→ black --check --diff (changed .py):"
-    black --check --diff $CHANGED_PY; blackrc=$?
+    # black checks the .py present post-patch; a deletion/rename-only patch has
+    # none, so black has nothing to format-check — skip it (mypy below still
+    # runs whole-tree, catching imports the deletion broke). (issue #306)
+    if [ -n "$CHANGED_PY" ]; then
+      echo "→ black --check --diff (changed .py):"
+      black --check --diff $CHANGED_PY; blackrc=$?
+    else
+      echo "→ black: patch adds/modifies no .py (deletion/rename only) — skipping black."
+      blackrc=0
+    fi
 
     echo "→ mypy (whole tree, mypy.ini):"
     mypy; myrc=$?
@@ -153,7 +171,7 @@ read -r -d '' INNER <<'INNER_EOF' || true
     [ "$blackrc" -eq 0 ] && [ "$myrc" -eq 0 ]
 INNER_EOF
 
-echo "→ T2-lint (core $GRAMPS_VERSION): black on ${#CHANGED_PY[@]} changed .py + mypy whole-tree, patch applied to $GRAMPS_DIR"
+echo "→ T2-lint (core $GRAMPS_VERSION): ${#TOUCHED_PY[@]} .py touched (black on ${#CHANGED_PY[@]} present post-patch) + mypy whole-tree, patch applied to $GRAMPS_DIR"
 rc=0
 timeout --kill-after=30 "$TIMEOUT" docker run --rm --name "$CNAME" \
   -v "${GRAMPS_TESTBED_PIPCACHE:-gramps-testbed-pipcache}":/home/runner/.cache/pip \
