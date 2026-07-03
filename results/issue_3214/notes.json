@@ -1,0 +1,80 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "2009-09-11 07:39": "PreformattedNotesTest.gramps (840 bytes)",
+    "2009-09-11 07:40": "indiv_complete.pdf (22,121 bytes)",
+    "2009-09-11 07:41": "FormattedNote20.jpg (37,991 bytes)",
+    "dsblank\n\n 2009-09-11 11:16\n\ndeveloper    ~0010773": "This looks like the report has a different default than the notes. So, when you change it back, it is actually marking it specifically, which then is different from the default of the report.",
+    "peterl\n\n 2009-09-11 14:38\n\ndeveloper    ~0010776": "Yes, you are right.\nThere is a conflict between the default font size in the Note editor, which is 10, and the default font size in the default style. In this case IDS-Normal for the Detailed Ind. Report and the size is 12 there.\nThe font size from the style takes over, if the size is set to 10 in the Note Editor.\nFor the font size to keep 10 I must explicit mark the text and set it to 10, otherwise I get font size 12. This is not obvious that you should do this to get the font size shown in the editor.\n\nChange default font size to 12 in the Note Editor?",
+    "dsblank\n\n 2009-09-12 12:05\n\ndeveloper    ~0010784": "I think that you are right: we should change the defaults everywhere to match each other. We should either change the reports to match the editor, or change the editor to match the reports. Perhaps changing the report defaults would be better... perhaps we see those more, and they (Benny and Zsolt?) probably picked 10 appropriately.",
+    "peterl\n\n 2009-09-12 14:11\n\ndeveloper    ~0010793": "The only way to get font size 10 is:\n\nmark the text\nchange size to say 18, something other than 10\nchange back to 10",
+    "acraphae\n\n 2010-04-06 20:02\n\ndeveloper    ~0013813": "Peter, can you check whether this is still the case with trunk?",
+    "peterl\n\n 2010-04-08 07:51\n\ndeveloper    ~0013855": "Yes, This is still the case in trunk.",
+    "sam888\n\n 2016-04-12 07:27\n\nadministrator": "3214_indiv_complete.g423.pdf (23,350 bytes)",
+    "sam888\n\n 2016-04-12 07:28\n\nadministrator    ~0047411": "As per 0003214:0010784"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "PreformattedNotesTest.gramps (840 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "indiv_complete.pdf (22,121 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "FormattedNote30.jpg (37,515 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "FormattedNote20.jpg (37,991 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "This looks like the report has a different default than the notes. So, when you change it back, it is actually marking it specifically, which then is different from the default of the report."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Yes, you are right.\nThere is a conflict between the default font size in the Note editor, which is 10, and the default font size in the default style. In this case IDS-Normal for the Detailed Ind. Report and the size is 12 there.\nThe font size from the style takes over, if the size is set to 10 in the Note Editor.\nFor the font size to keep 10 I must explicit mark the text and set it to 10, otherwise I get font size 12. This is not obvious that you should do this to get the font size shown in the editor.\n\nChange default font size to 12 in the Note Editor?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I think that you are right: we should change the defaults everywhere to match each other. We should either change the reports to match the editor, or change the editor to match the reports. Perhaps changing the report defaults would be better... perhaps we see those more, and they (Benny and Zsolt?) probably picked 10 appropriately."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "The only way to get font size 10 is:\n\nmark the text\nchange size to say 18, something other than 10\nchange back to 10"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Peter, can you check whether this is still the case with trunk?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Yes, This is still the case in trunk."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "3214_indiv_complete.g423.pdf (23,350 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "As per 0003214:0010784"
+    }
+  ],
+  "id": "3214",
+  "url": "https://gramps-project.org/bugs/view.php?id=3214"
+}

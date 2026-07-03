@@ -1,0 +1,33 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "daniele\n\n 2015-05-29 08:46\n\nreporter": "dummy_test.gramps (678 bytes)",
+    "daniele\n\n 2015-05-29 08:48\n\nreporter    ~0042025": "Look at the attached screenshot to understand the missing refresh better than by reading by words.",
+    "daniele\n\n 2015-05-29 08:48\n\nreporter": "test.png (67,981 bytes)",
+    "dsblank\n\n 2015-05-29 10:25\n\ndeveloper    ~0042027": "Thank you for the picture; that does capture the issue very nicely!\n\nI guess we should rebuild the dialog after a person is edited. However, it is complicated because the data hasn't been saved yet, so those functions that get the info from the database would have to be changed to get the info from the edited person who hasn't been saved yet."
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "dummy_test.gramps (678 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Look at the attached screenshot to understand the missing refresh better than by reading by words."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "test.png (67,981 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Thank you for the picture; that does capture the issue very nicely!\n\nI guess we should rebuild the dialog after a person is edited. However, it is complicated because the data hasn't been saved yet, so those functions that get the info from the database would have to be changed to get the info from the edited person who hasn't been saved yet."
+    }
+  ],
+  "id": "8603",
+  "url": "https://gramps-project.org/bugs/view.php?id=8603"
+}

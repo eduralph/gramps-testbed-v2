@@ -1,0 +1,26 @@
+Resolve child editors before parent commits (issue #7924)
+
+When a primary editor (e.g., EditFamily) is confirmed while a child primary
+editor it spawned is still open with unsaved data, the parent was committing
+before the child's completion callback could run. This caused the parent to
+persist without the child's reference (e.g., a new person as mother), orphaning
+the child's data.
+
+The fix relocates the child-resolve step to before the parent's commit, in the
+shared editor machinery (EditPrimary). Now when a parent is confirmed, the save
+path first resolves open dependent child editors by driving each child's
+existing save-guard (the "Save Changes?" prompt), so the child's completion
+callback lands on the parent's object before the parent reads its references and
+commits. If any child is left unresolved (the user chose "keep editing"), the
+parent save aborts entirely so no partial graph is persisted.
+
+This also closes a hole in the close-path (window-X, Cancel + Save) which
+previously bypassed the child-resolve step and committed the parent with the
+same reference-drop defect.
+
+The pure decision logic (which children must be resolved, in what order) is
+extracted to the new module gramps/gui/savecascade.py so it can be unit-tested
+headless while the live save path drives the same functions on the real window
+tree.
+
+Fixes #7924

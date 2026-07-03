@@ -1,0 +1,28 @@
+Fix citation selector search hiding existing citations
+
+When using the "Select Source or Citation" dialog, applying a text search
+would filter the source tree to show only matching sources — but the
+citations under those sources would disappear (filtered by the same
+source-title search), forcing the user to create new citations instead of
+reusing existing ones.
+
+The fix introduces CitationTreeSelectorModel, which replaces the
+selector's positive text search filters with a source-grouped membership
+set: a source is shown if its title matches OR if one of its citations
+matches the search. All citations under a shown source remain selectable,
+regardless of whether their page text matches.
+
+The standalone Citation Tree View keeps the plain CitationTreeModel with
+independent secondary filtering (unchanged). Inverted ("does not contain")
+searches preserve the base model's citation-level exclusion semantics.
+
+- gramps/gui/selectors/selectcitation.py: wire selector to new model
+- gramps/gui/views/treemodels/citationtreemodel.py: add
+  CitationTreeSelectorModel, _SourceGroupSearchFilter, grouped_shown_sources()
+- gramps/gui/views/treemodels/__init__.py: export CitationTreeSelectorModel
+- gramps/gui/views/treemodels/test/citationtreemodel_search_test.py: new test
+  covering source-matched, citation-matched, orphan citations, inverted search,
+  skip set handling, and selector wiring
+- po/POTFILES.skip: register test file
+
+Fixes #8622

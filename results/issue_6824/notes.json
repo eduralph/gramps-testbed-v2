@@ -1,0 +1,57 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "paulfranklin\n\n 2013-06-21 17:20\n\ndeveloper    ~0029494\n\n last edited: 2013-06-21 17:20\n\nview 2 revisions": "I have moved your request to the \"feature requests\"\ncategory, and slightly altered its name, to better\ndescribe what you are asking for.",
+    "sam888\n\n 2015-08-22 06:19\n\nadministrator": "6824-gramps42-output.zip (24,832 bytes)",
+    "sam888\n\n 2015-08-22 06:21\n\nadministrator    ~0044102\n\n last edited: 2015-08-22 06:24\n\nview 2 revisions": "This is a bug and not a feature request.\n\nExample output of tag:\n<img border=\"0\" align=\"right\" alt=\"\" src=\"<b>Y:\\</b>_me\\Desktop\\aaaa\\Family Tree 1_det_ancestor_report\\is654px-Aksel_Andersson.jpg\" />\n\nEach of the html reports should only output relative paths.\n\n(Confirmed on Gramps 4.2.0 and master)",
+    "paulfranklin\n\n 2015-09-20 00:16\n\ndeveloper    ~0044630": "Reminder sent to: Sam888\n\n\n\nI notice you left my new subject line alone.\n\nDoes this bug happen in any other output\ntype besides HTML?\n\nDoes this bug happen in other reports?\n\nYou have shown an incorrect output. What\nshould a correct output look like?\n\nThanks.",
+    "paulfranklin\n\n 2016-05-02 20:42\n\ndeveloper    ~0047812\n\n last edited: 2016-05-02 20:42\n\nview 2 revisions": "I never use the HTML backend (or NarWeb or WebCal).\n\nCan I reproduce it using data.gramps? How?\n\n\"What should a correct output look like?\"\n\nDoes any other part of gramps produce relative paths?\n\nThanks.",
+    "paulfranklin\n\n 2016-05-02 20:47\n\ndeveloper    ~0047813": "Also, see 0008601:0042026",
+    "sam888\n\n 2016-05-05 02:17\n\nadministrator    ~0047865": "Does any other part of gramps produce relative paths?\n\nOnly confirmed that it occurs against the \"Detailed Ancestor Report\" as mentioned by the reporter.\n\nCan I reproduce it using data.gramps? How?\n\nSo long as data.gramps has external media referenced by the report, I believe you should see the same result. I used example.gramps to recreate this.",
+    "sam888\n\n 2016-05-05 02:22\n\nadministrator    ~0047866": "\"What should a correct output look like?\"\n\nTypically looks like:\n\nsrc=\"//Family Tree 1_det_ancestor_report/is654px-Aksel_Andersson.jpg\"\""
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "I have moved your request to the \"feature requests\"\ncategory, and slightly altered its name, to better\ndescribe what you are asking for."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "6824-gramps42-output.zip (24,832 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "This is a bug and not a feature request.\n\nExample output of tag:\n<img border=\"0\" align=\"right\" alt=\"\" src=\"<b>Y:\\</b>_me\\Desktop\\aaaa\\Family Tree 1_det_ancestor_report\\is654px-Aksel_Andersson.jpg\" />\n\nEach of the html reports should only output relative paths.\n\n(Confirmed on Gramps 4.2.0 and master)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Reminder sent to: Sam888\n\n\n\nI notice you left my new subject line alone.\n\nDoes this bug happen in any other output\ntype besides HTML?\n\nDoes this bug happen in other reports?\n\nYou have shown an incorrect output. What\nshould a correct output look like?\n\nThanks."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I never use the HTML backend (or NarWeb or WebCal).\n\nCan I reproduce it using data.gramps? How?\n\n\"What should a correct output look like?\"\n\nDoes any other part of gramps produce relative paths?\n\nThanks."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Also, see 0008601:0042026"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Does any other part of gramps produce relative paths?\n\nOnly confirmed that it occurs against the \"Detailed Ancestor Report\" as mentioned by the reporter.\n\nCan I reproduce it using data.gramps? How?\n\nSo long as data.gramps has external media referenced by the report, I believe you should see the same result. I used example.gramps to recreate this."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "\"What should a correct output look like?\"\n\nTypically looks like:\n\nsrc=\"//Family Tree 1_det_ancestor_report/is654px-Aksel_Andersson.jpg\"\""
+    }
+  ],
+  "id": "6824",
+  "url": "https://gramps-project.org/bugs/view.php?id=6824"
+}

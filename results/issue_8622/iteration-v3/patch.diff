@@ -1,0 +1,568 @@
+diff --git a/gramps/gui/selectors/selectcitation.py b/gramps/gui/selectors/selectcitation.py
+index c0c2fbae96..50111ad343 100644
+--- a/gramps/gui/selectors/selectcitation.py
++++ b/gramps/gui/selectors/selectcitation.py
+@@ -37,7 +37,7 @@ SelectCitation class for Gramps.
+ from gramps.gen.const import GRAMPS_LOCALE as glocale
+ 
+ _ = glocale.translation.sgettext
+-from ..views.treemodels import CitationTreeModel
++from ..views.treemodels import CitationTreeSelectorModel
+ from .baseselector import BaseSelector
+ from gramps.gen.const import URL_MANUAL_SECT2
+ 
+@@ -64,7 +64,11 @@ class SelectCitation(BaseSelector):
+         return _("Select Source or Citation")
+ 
+     def get_model_class(self):
+-        return CitationTreeModel
++        # Use the selector-specific model so a text search keeps a matched
++        # source's existing citations reachable, instead of forcing a new one
++        # (issue 8622).  The standalone Citation Tree View keeps the plain
++        # CitationTreeModel and its independent secondary search.
++        return CitationTreeSelectorModel
+ 
+     def get_column_titles(self):
+         return [
+diff --git a/gramps/gui/views/treemodels/__init__.py b/gramps/gui/views/treemodels/__init__.py
+index 9ba865ec64..0e49a4c968 100644
+--- a/gramps/gui/views/treemodels/__init__.py
++++ b/gramps/gui/views/treemodels/__init__.py
+@@ -32,3 +32,4 @@ from .notemodel import NoteModel
+ from .citationbasemodel import CitationBaseModel
+ from .citationlistmodel import CitationListModel
+ from .citationtreemodel import CitationTreeModel
++from .citationtreemodel import CitationTreeSelectorModel
+diff --git a/gramps/gui/views/treemodels/citationtreemodel.py b/gramps/gui/views/treemodels/citationtreemodel.py
+index fcf1a61324..a7f930d426 100644
+--- a/gramps/gui/views/treemodels/citationtreemodel.py
++++ b/gramps/gui/views/treemodels/citationtreemodel.py
+@@ -232,3 +232,164 @@ class CitationTreeModel(CitationBaseModel, TreeBaseModel):
+         Gramps handle.
+         """
+         return node.name
++
++
++# -------------------------------------------------------------------------
++#
++# _SourceGroupSearchFilter
++#
++# -------------------------------------------------------------------------
++class _SourceGroupSearchFilter:
++    """
++    Group a hierarchical source->citation text search *by source* (issue 8622).
++
++    The base :class:`CitationTreeModel` applies the text search to the secondary
++    (citation) rows by the *same* column as the primary (source) rows.  On the
++    Title/Volume-Page column that means a citation is kept only when its own
++    page contains the search text -- which, for a search that matches a *source
++    title*, is almost never true -- so a matched source is shown with none of
++    its citations, and the "Select Source or Citation" selector forces the user
++    to create a *new* citation instead of reusing an existing one.
++
++    This filter restores the reachability invariant: a source -- and *every* one
++    of its citations -- is shown when the source's title matches the primary
++    search OR any of the source's citations match the secondary search.  So a
++    citation stays reachable whenever its parent source is shown, whether the
++    source was kept because its title matched or because one of its citations
++    matched (its siblings stay reachable too).
++
++    Both the set of shown source handles is computed **once**, from a single
++    pass over the source cursor (title matches) and a single pass over the
++    citation cursor (sources owning a matching citation), and cached in the
++    ``shared`` dict that the primary and secondary instances hold in common.
++    Matching is then a set-membership test.  Crucially, the source search
++    filter is only ever run against handles yielded by the *source* cursor
++    (always live), and the citation cursor only supplies ``source_handle``
++    values that are *added to a set* (never dereferenced), so an orphan
++    citation whose ``source_handle`` points at a deleted source never triggers
++    a ``get_raw_source_data`` on a missing handle during the search -- the
++    handle simply fails the membership test and the citation is hidden (its
++    source no longer exists, so it cannot be shown).
++    """
++
++    def __init__(
++        self,
++        source_filter,
++        citation_filter,
++        source_cursor,
++        citation_cursor,
++        get_source_handle,
++        secondary,
++        shared,
++    ):
++        self._source_filter = source_filter
++        self._citation_filter = citation_filter
++        self._source_cursor = source_cursor
++        self._citation_cursor = citation_cursor
++        self._get_source_handle = get_source_handle
++        self._secondary = secondary
++        self._shared = shared
++
++    def _shown_sources(self, db):
++        """
++        Set of source handles that must be shown: those whose title matches the
++        primary search, plus those owning at least one citation matching the
++        secondary search.  Computed once and cached in ``shared``.
++        """
++        shown = self._shared.get("shown")
++        if shown is None:
++            shown = set()
++            # Sources whose own (title) column matches -- handles come from the
++            # source cursor, so they are always live.
++            if self._source_filter is not None:
++                with self._source_cursor() as cursor:
++                    for handle, _data in cursor:
++                        if self._source_filter.match(handle, db):
++                            shown.add(handle)
++            # Sources owning a citation whose (page) column matches -- the
++            # source handle is only added to the set, never dereferenced, so a
++            # dangling source_handle cannot raise here.
++            if self._citation_filter is not None:
++                with self._citation_cursor() as cursor:
++                    for handle, data in cursor:
++                        if self._citation_filter.match(handle, db):
++                            shown.add(data.source_handle)
++            self._shared["shown"] = shown
++        return shown
++
++    def match(self, handle, db):
++        """
++        For a primary (source) row ``handle`` is the source handle; for a
++        secondary (citation) row it is the citation handle, mapped to its parent
++        source so all citations of a shown source stay reachable.
++        """
++        shown = self._shown_sources(db)
++        if self._secondary:
++            return self._get_source_handle(handle) in shown
++        return handle in shown
++
++
++# -------------------------------------------------------------------------
++#
++# CitationTreeSelectorModel
++#
++# -------------------------------------------------------------------------
++class CitationTreeSelectorModel(CitationTreeModel):
++    """
++    Citation tree model for the "Select Source or Citation" selector.
++
++    Identical to :class:`CitationTreeModel` except that a text search is grouped
++    by source (see :class:`_SourceGroupSearchFilter`): a source kept by the
++    search keeps *all* of its existing citations reachable, so the user can
++    reuse one instead of being forced to create a new citation (issue 8622).
++
++    The standalone Citation Tree View keeps :class:`CitationTreeModel`'s
++    independent secondary search, so its behaviour is unchanged.
++    """
++
++    def set_search(self, search):
++        """
++        See :meth:`TreeBaseModel.set_search`.  After the base builds the
++        independent primary (source) and secondary (citation) search filters,
++        widen a plain text search so it is grouped by source (issue 8622).
++        """
++        super().set_search(search)
++        # Only widen a plain text search that carries data:
++        #  * ``search`` falsy or ``search[1]`` falsy  -> search cleared;
++        #  * ``search[0]`` truthy                     -> a sidebar GenericFilter
++        #                                                (out of scope).
++        # In those cases the base filters (which may be None) are left intact.
++        if (
++            search
++            and not search[0]
++            and search[1]
++            and self.search is not None
++            and self.search2 is not None
++        ):
++            shared = {}
++            source_filter = self.search
++            citation_filter = self.search2
++            self.search = _SourceGroupSearchFilter(
++                source_filter,
++                citation_filter,
++                self.gen_cursor,
++                self.gen_cursor2,
++                self._citation_source_handle,
++                secondary=False,
++                shared=shared,
++            )
++            self.search2 = _SourceGroupSearchFilter(
++                source_filter,
++                citation_filter,
++                self.gen_cursor,
++                self.gen_cursor2,
++                self._citation_source_handle,
++                secondary=True,
++                shared=shared,
++            )
++            self.current_filter = self.search
++            self.current_filter2 = self.search2
++
++    def _citation_source_handle(self, citation_handle):
++        """Return the source handle a citation belongs to."""
++        return self.map2(citation_handle).source_handle
+diff --git a/gramps/gui/views/treemodels/test/citationtreemodel_search_test.py b/gramps/gui/views/treemodels/test/citationtreemodel_search_test.py
+new file mode 100644
+index 0000000000..16c70cf692
+--- /dev/null
++++ b/gramps/gui/views/treemodels/test/citationtreemodel_search_test.py
+@@ -0,0 +1,346 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  Gramps developers
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Regression test for issue 8622.
++
++In the "Select Source or Citation" selector the source->citation tree lets you
++expand a source and pick one of its existing citations.  As soon as a text
++search is typed, the base model filters the secondary (citation) rows by the
++*same* column and text as the primary (source) rows.  On the Title/Volume-Page
++column that drops every citation of a matched source (a citation's page rarely
++contains the source title), so the source is shown but has no citation children
++-- the user is forced to create a *new* citation instead of reusing one.
++
++These tests drive the **production** model-build path -- the selector's own
++model class, ``CitationTreeSelectorModel`` (what ``SelectCitation`` builds), and
++the plain ``CitationTreeModel`` (what the standalone Citation Tree View builds)
++-- with a ``search=`` tuple against a lightweight in-memory database, and assert
++on the resulting node map.
++
++Design notes
++------------
++* The selector-behaviour assertions do **not** hard-code the new class name so
++  their *pre-fix* failure is the wrong *behaviour* (a matched source with no
++  citation children -- an ``AssertionError``), not a bare import/``TypeError``:
++  the selector model is looked up via a fallback to today's ``CitationTreeModel``
++  when the fix is absent, so with the production change reverted the model is
++  built and the reachability assertion fails on the node map (issue 8622's
++  actual symptom), which is what the C4 red-without-fix leg exercises.
++* ``test_selector_wiring_uses_selector_model`` closes the wiring gap: it asserts
++  ``SelectCitation.get_model_class()`` really resolves to the selector model, so
++  a typo there cannot leave every other test green while the dialog stays broken.
++* ``test_selector_search_survives_orphan_citation`` covers iteration-2's
++  finding: the source-grouped secondary leg must never dereference a citation's
++  ``source_handle`` when it merely decides visibility, so a citation pointing at
++  a deleted source (a live-database reality) cannot raise ``HandleError`` during
++  the search -- a path the pre-fix code never hit for a non-matching citation.
++* The model imports :mod:`gi.repository.Gtk`, but building it with a handful of
++  rows never pops a progress dialog (the estimated time stays below the popup
++  threshold), so the whole module runs headless.
++"""
++
++import unittest
++from contextlib import contextmanager
++
++from gramps.gen.errors import HandleError
++
++from ..citationtreemodel import CitationTreeModel
++
++try:
++    # Present once the issue-8622 fix is applied; absent when the production
++    # change is reverted (the C4 red-without-fix leg) -- the fallback below then
++    # exercises today's dropping behaviour, so the red is behavioural.
++    from ..citationtreemodel import CitationTreeSelectorModel
++except ImportError:  # pragma: no cover - only on the reverted (pre-fix) tree
++    CitationTreeSelectorModel = None
++
++
++# -------------------------------------------------------------------------
++#
++# Lightweight in-memory test doubles
++#
++# -------------------------------------------------------------------------
++class _Source:
++    """Raw source data as the model's ``fmap``/sort funcs read it."""
++
++    def __init__(self, handle, gramps_id, title):
++        self.handle = handle
++        self.gramps_id = gramps_id
++        self.title = title
++        self.author = ""
++        self.abbrev = ""
++        self.pubinfo = ""
++        self.private = False
++        self.tag_list = []
++        self.change = 0
++
++
++class _Citation:
++    """Raw citation data as the model's ``fmap2``/sort funcs read it."""
++
++    def __init__(self, handle, gramps_id, page, source_handle):
++        self.handle = handle
++        self.gramps_id = gramps_id
++        self.page = page
++        self.source_handle = source_handle
++        self.date = None
++        self.confidence = 0
++        self.private = False
++        self.tag_list = []
++        self.change = 0
++
++
++class _FakeDb:
++    """Minimal database exposing only what CitationTreeModel touches."""
++
++    def __init__(self, sources, citations):
++        self._sources = {s.handle: s for s in sources}
++        self._citations = {c.handle: c for c in citations}
++
++    def is_open(self):
++        return True
++
++    # --- sources (primary) ---
++    def get_number_of_sources(self):
++        return len(self._sources)
++
++    def get_raw_source_data(self, handle):
++        # Faithful to the real DB: a missing/deleted source handle raises,
++        # so a test that reaches here for an orphan citation's source_handle
++        # fails loudly instead of silently passing.
++        try:
++            return self._sources[handle]
++        except KeyError:
++            raise HandleError("Handle %s not found" % handle)
++
++    def get_source_cursor(self):
++        return self._cursor(self._sources)
++
++    # --- citations (secondary) ---
++    def get_number_of_citations(self):
++        return len(self._citations)
++
++    def get_raw_citation_data(self, handle):
++        try:
++            return self._citations[handle]
++        except KeyError:
++            raise HandleError("Handle %s not found" % handle)
++
++    def get_citation_cursor(self):
++        return self._cursor(self._citations)
++
++    @staticmethod
++    @contextmanager
++    def _cursor(mapping):
++        yield list(mapping.items())
++
++
++# -------------------------------------------------------------------------
++#
++# The test
++#
++# -------------------------------------------------------------------------
++class CitationSelectorSearchTest(unittest.TestCase):
++    """Issue 8622 -- a shown source must keep its citations reachable."""
++
++    # Handles.
++    SRC_BIBLE = "SRC_BIBLE"
++    SRC_NEWS = "SRC_NEWS"
++    SRC_GONE = "SRC_GONE"  # never present in the DB (a deleted source)
++    CIT_B1 = "CIT_B1"
++    CIT_B2 = "CIT_B2"
++    CIT_N1 = "CIT_N1"
++    CIT_ORPH = "CIT_ORPH"  # points at SRC_GONE
++
++    def _build_db(self, with_orphan=False):
++        # Two sources; only "Holy Bible" matches a title search for "Bible".
++        sources = [
++            _Source(self.SRC_BIBLE, "S0001", "Holy Bible"),
++            _Source(self.SRC_NEWS, "S0002", "Daily Newspaper"),
++        ]
++        # Two citations under the Bible, one under the Newspaper.  Pages are
++        # distinctive so a page search can target exactly one of them.
++        citations = [
++            _Citation(self.CIT_B1, "C0001", "page 10", self.SRC_BIBLE),
++            _Citation(self.CIT_B2, "C0002", "page 20", self.SRC_BIBLE),
++            _Citation(self.CIT_N1, "C0003", "column 3", self.SRC_NEWS),
++        ]
++        if with_orphan:
++            # A citation whose owning source has been deleted -- its page does
++            # NOT match the searches below, so pre-fix it was simply skipped and
++            # its source_handle never dereferenced.
++            citations.append(
++                _Citation(self.CIT_ORPH, "C0004", "loose page", self.SRC_GONE)
++            )
++        return _FakeDb(sources, citations)
++
++    def setUp(self):
++        self.db = self._build_db()
++        # uistate is only stashed by the (non-popping) progress monitor.
++        self.uistate = object()
++
++    # Column 0 = "Source: Title or Citation: Volume/Page".  A text search is
++    # ``(filter?, (col, text, inv), exact?)`` with ``filter?`` False (not a
++    # sidebar GenericFilter).
++    @staticmethod
++    def _text_search(text):
++        return (False, (0, text, False), False)
++
++    def _selector_model(self, search, db=None):
++        """
++        Build the model the selector builds.  Falls back to the plain
++        ``CitationTreeModel`` when the fix is absent (pre-fix / reverted), so the
++        reachability assertions fail on *behaviour* rather than a missing symbol.
++        """
++        model_class = CitationTreeSelectorModel or CitationTreeModel
++        return model_class(db or self.db, self.uistate, search=search)
++
++    def _child_handles(self, model, source_handle):
++        """Handles of the citation rows under ``source_handle`` in the model."""
++        node = model.tree.get(source_handle)
++        if node is None:
++            return []
++        return [model.nodemap.node(nid).handle for _sortkey, nid in node.children]
++
++    # -- selector: source matched by its TITLE keeps all its citations --------
++    def test_selector_keeps_citations_of_title_matched_source(self):
++        """
++        A search matching a source *title* keeps that source shown *and* every
++        one of its existing citations reachable underneath it (issue 8622).
++        Pre-fix the citations are dropped -> this assertion fails behaviourally.
++        """
++        model = self._selector_model(self._text_search("Bible"))
++        try:
++            self.assertIn(
++                self.SRC_BIBLE, model.tree, "matched source must be shown"
++            )
++            self.assertEqual(
++                sorted(self._child_handles(model, self.SRC_BIBLE)),
++                [self.CIT_B1, self.CIT_B2],
++                "existing citations of the matched source must stay reachable",
++            )
++            # The non-matching source (and its citation) stays filtered out.
++            self.assertNotIn(self.SRC_NEWS, model.tree)
++        finally:
++            model.destroy()
++
++    # -- selector: source pulled in by ONE citation keeps its SIBLINGS too ----
++    def test_selector_keeps_sibling_citations_of_citation_matched_source(self):
++        """
++        A search matching a single citation's *page* ("page 10") pulls its
++        source into the tree; the invariant requires the source's *sibling*
++        citations ("page 20") to remain reachable as well -- if a source is
++        shown, all its citations are selectable (issue 8622, iteration-1
++        finding 3).  The non-matching source stays hidden.
++        """
++        model = self._selector_model(self._text_search("page 10"))
++        try:
++            self.assertIn(
++                self.SRC_BIBLE,
++                model.tree,
++                "source of a matched citation must be shown",
++            )
++            self.assertEqual(
++                sorted(self._child_handles(model, self.SRC_BIBLE)),
++                [self.CIT_B1, self.CIT_B2],
++                "sibling citations of a shown source must stay reachable, "
++                "not just the citation whose page matched",
++            )
++            # "page 10" matches no Newspaper citation and not its title.
++            self.assertNotIn(self.SRC_NEWS, model.tree)
++        finally:
++            model.destroy()
++
++    # -- selector: an orphan citation must not crash the grouped search --------
++    def test_selector_search_survives_orphan_citation(self):
++        """
++        A citation whose owning source has been deleted (a live-database
++        reality) must not break the source-grouped search: deciding a
++        citation's visibility must never dereference its ``source_handle``
++        (issue 8622, iteration-2 finding).  Pre-fix the non-matching orphan was
++        simply skipped; the fix must keep that safety -- the orphan is hidden,
++        the real match is unaffected, and *no* ``HandleError`` is raised.
++        """
++        db = self._build_db(with_orphan=True)
++        # Must not raise HandleError while building the model.
++        model = self._selector_model(self._text_search("Bible"), db=db)
++        try:
++            # The real matched source keeps its citations.
++            self.assertIn(self.SRC_BIBLE, model.tree)
++            self.assertEqual(
++                sorted(self._child_handles(model, self.SRC_BIBLE)),
++                [self.CIT_B1, self.CIT_B2],
++            )
++            # The deleted source is not shown, and the orphan citation is not
++            # smuggled in under any parent.
++            self.assertNotIn(self.SRC_GONE, model.tree)
++            self.assertNotIn(
++                self.CIT_ORPH,
++                self._child_handles(model, self.SRC_GONE),
++                "an orphan citation must stay hidden, not reachable",
++            )
++        finally:
++            model.destroy()
++
++    # -- standalone view: independent secondary search is unchanged -----------
++    def test_standalone_model_keeps_independent_secondary_search(self):
++        """
++        The plain ``CitationTreeModel`` (standalone Citation Tree View) must NOT
++        change: its secondary search stays independent, so a title search drops
++        the matched source's citations.  This pins the non-regression boundary
++        of the fix (scope: selector only).
++        """
++        model = CitationTreeModel(
++            self.db, self.uistate, search=self._text_search("Bible")
++        )
++        try:
++            self.assertIn(self.SRC_BIBLE, model.tree)
++            self.assertEqual(
++                self._child_handles(model, self.SRC_BIBLE),
++                [],
++                "standalone view keeps filtering citations by page (unchanged)",
++            )
++        finally:
++            model.destroy()
++
++    # -- wiring: the selector actually uses the selector model ----------------
++    def test_selector_wiring_uses_selector_model(self):
++        """
++        ``SelectCitation.get_model_class()`` must resolve to the selector model,
++        so the fix reaches the real dialog and a wiring typo cannot leave the
++        behavioural tests green while the user-visible bug persists (issue 8622,
++        iteration-1 finding 1).
++        """
++        if CitationTreeSelectorModel is None:
++            self.skipTest("selector model absent (pre-fix / reverted tree)")
++        # Import lazily: importing the selector (a ManagedWindow) is import-safe
++        # headless -- it only defines classes -- but keep it out of module load.
++        from gramps.gui.selectors.selectcitation import SelectCitation
++
++        # get_model_class does not touch ``self``; call it unbound.
++        self.assertIs(
++            SelectCitation.get_model_class(None),
++            CitationTreeSelectorModel,
++            "SelectCitation must build the issue-8622 selector model",
++        )
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index 6164615dea..5d2377431b 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -483,6 +483,7 @@ gramps/gui/views/treemodels/sourcemodel.py
+ #
+ # gui.views.treemodels.test package
+ #
++gramps/gui/views/treemodels/test/citationtreemodel_search_test.py
+ gramps/gui/views/treemodels/test/node_test.py
+ gramps/gui/views/treemodels/test/treebasemodel_test.py
+ #

@@ -1,0 +1,23 @@
+Review task: fix bug 7924 so a parent editor's cascade close cannot silently discard unsaved changes in an open child primary editor.
+
+Target-state caveat: `$PDCA_TARGET` is readable but currently shows the pre-fix `managedwindow.py`; the patch applies cleanly there, so unchanged behavior is cited from target source and proposed behavior from `patch.diff`.
+
+| Item | Verdict | Basis |
+|---|---|---|
+| C1 — C1 Spec | PASS | The brief states a concrete defect, invariant, scope, and success criterion for preserving child primary-editor dirty guards during parent cascade close (`brief.md:5`, `brief.md:12`, `brief.md:18`, `brief.md:32`). |
+| C2 — C2 Reproduction (red pre-fix) | PASS | Pre-fix target code routes cascade close through `close_track()` -> `recursive_action()` -> `close_item()` and then destroys the item window without consulting the child direct-close result (`gramps/gui/managedwindow.py:180`, `gramps/gui/managedwindow.py:208`, `gramps/gui/managedwindow.py:210`, `gramps/gui/managedwindow.py:217`), while the dirty prompt exists only in direct `EditPrimary.close()` (`gramps/gui/editors/editprimary.py:244`). |
+| C3 — C3 Change | PASS | The patch changes `close_track()`/`recursive_action()` to propagate a veto, makes `close_item()` treat still-open children as vetoes, and restores the parent `opened` state when a child veto aborts the cascade (`patch.diff:14`, `patch.diff:31`, `patch.diff:46`, `patch.diff:63`). |
+| C4 — C4 Verification (red->green) | NEEDS-HUMAN | DECISION OWED: the GUI red->green claim turns on running the interface repro in an available lane; the recorded interface gate did not exercise it because its worktree was missing (`check-gates.json:42`, `check-gates.json:46`), and the non-interface verify gate says no local core test was shipped (`check-gates.json:33`, `check-gates.json:37`). |
+| C5 — C5 Causal adequacy | PASS | The change reuses the existing synchronous `SaveDialog` direct-close guard (`gramps/gui/editors/editprimary.py:247`, `gramps/gui/dialog.py:87`) and prevents cascade teardown when that guarded close leaves the child open (`patch.diff:46`, `patch.diff:53`), addressing the bypass rather than adding parallel dirty state. |
+| T1 — T1 Structure | N/A | No addon layout is involved; the bundle's T1 gate reports N/A because `patch.diff` has no `addons-source` path (`check-gates.json:60`, `check-gates.json:64`). |
+| T2 — T2 Shape | PASS | The shape and POTFILES gates pass for the one touched core file and no new/removed core Python files needing registration (`check-gates.json:69`, `check-gates.json:73`, `check-gates.json:78`, `check-gates.json:82`). |
+| T3 — T3 Runtime | NEEDS-HUMAN | DECISION OWED: runtime confidence turns on whether external CI or a repaired local runner covers this GUI change; both recorded runtime gates exited before producing JUnit XML, so they do not establish a product regression signal (`check-gates.json:87`, `check-gates.json:91`, `check-gates.json:96`, `check-gates.json:100`). |
+| T4 — T4 Contribution | N/A | No commit message or PR description artifact is in this review bundle, and the contribution gate explicitly records N/A (`check-gates.json:105`, `check-gates.json:109`). |
+| T5 — T5 Judgment | PASS | The patch is narrowly scoped to the shared cascade-close path named in the brief (`brief.md:32`) and does not introduce a new dirty-tracking layer; the residual acceptance risk is the unrun GUI/runtime verification captured in C4/T3. |
+| V — Validation — fitness-to-purpose | NEEDS-HUMAN | DECISION OWED: final fitness depends on a human confirming the user-facing editor flow preserves or prompts for the child edit in the real GUI, which the brief explicitly expects at sign-off (`brief.md:12`, `brief.md:26`, `brief.md:27`). |
+
+## §6 Human Clearances
+
+- C4: Run the GUI repro against a patched target: Relationships view -> "Add a new family with person as parent" -> in Family editor click "Add a new person as mother" -> type a mother name in Person editor -> click the Family editor OK. Clear this only if the Person editor's unsaved change is either guarded by the existing "Save Changes?" dialog or otherwise remains recoverable; reject if the Person editor closes silently and loses the entry.
+- T3: Re-run the core unit and interface smoke runners in a valid lane or rely on equivalent CI. Clear this only if failures, if any, are unrelated to the `ManagedWindow` cascade-close change.
+- V: Decide whether the resulting UX is acceptable when a child veto leaves the parent editor open after the parent OK click; the patch prevents silent loss, but product acceptance of that interaction requires human sign-off.

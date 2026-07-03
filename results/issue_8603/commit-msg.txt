@@ -1,0 +1,23 @@
+fix: refresh Family Events tab when participant is renamed
+
+After editing a family member (eg the father) from within the Family editor
+and saving, the embedded Events tab must refresh to show the participant's
+current name in the "Main Participants" column. Currently, the person-update
+signal is routed to topdata_updated (editfamily.py:507), which calls load_data
+(editfamily.py:579–586) to refresh only the top father/mother panel. The
+embedded event list is never rebuilt, so its "Main Participants" column keeps
+showing the stale name.
+
+Route person-update to a new handler person_updated that calls both
+topdata_updated (preserving the existing top-panel refresh) and
+event_list.rebuild_callback (to rebuild the event-list model). This mirrors
+the pattern already used by the Children tab in the same editor (editfamily.py:
+179, 185–190), which listens for person-update and calls rebuild. The fix
+reuses rebuild_callback, the same entry point that event-update already uses
+(eventembedlist.py:152–158), so no new API is introduced.
+
+Implementation spans two hunks in editfamily.py: signal mapping at line 509,
+and a new person_updated method at lines 588–602. A hasattr guard protects
+against person-update firing before _create_tabbed_pages constructs the tab.
+
+Fixes #8603

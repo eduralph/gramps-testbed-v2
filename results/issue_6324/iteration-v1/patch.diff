@@ -1,0 +1,245 @@
+diff --git a/gramps/plugins/lib/libcairodoc.py b/gramps/plugins/lib/libcairodoc.py
+index a2da0fda15..7fa480ac73 100644
+--- a/gramps/plugins/lib/libcairodoc.py
++++ b/gramps/plugins/lib/libcairodoc.py
+@@ -603,7 +603,6 @@ class GtkDocParagraph(GtkDocBaseElement):
+         layout.set_text(self._plaintext, -1)
+         layout.set_attributes(self._attrlist)
+         layout_width, layout_height = layout.get_pixel_size()
+-        line_count = layout.get_line_count()
+         spacing = layout.get_spacing() / Pango.SCALE
+ 
+         # if all paragraph fits we don't need to cut
+@@ -615,10 +614,14 @@ class GtkDocParagraph(GtkDocBaseElement):
+ 
+         # we need to cut paragraph:
+ 
+-        # 1. if paragraph part of a cell, we do not divide if only small part,
+-        # of paragraph can be shown, instead move to next page
+-        if line_count < 4 and self._parent._type == "CELL":
+-            return (None, self), 0
++        # 1. A cell paragraph that does not fit is handled by the generic logic
++        # below: step 2 moves the whole paragraph to the next page when not even
++        # its first line fits, and step 3 splits it (placing at least the first
++        # line) otherwise.  The former "if line_count < 4 and parent is a CELL:
++        # move the whole paragraph to the next page" shortcut is removed: it made
++        # no guarantee of progress, so a short (< 4 line) cell paragraph that
++        # never fit in the height it was given was moved to a fresh page again
++        # and again and its text was silently dropped (bug 6324).
+ 
+         lineiter = layout.get_iter()
+ 
+diff --git a/gramps/plugins/test/cairodoc_table_pagination_test.py b/gramps/plugins/test/cairodoc_table_pagination_test.py
+new file mode 100644
+index 0000000000..0bf7acb170
+--- /dev/null
++++ b/gramps/plugins/test/cairodoc_table_pagination_test.py
+@@ -0,0 +1,196 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  Gramps developers
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""Regression test for bug 6324.
++
++A table cell whose wrapped text straddles a page boundary must be paginated
++in full across the pages -- it must never be silently dropped.  The cairo
++document backend used to short-circuit a short (< 4 line) cell paragraph that
++did not fit by *moving the whole paragraph to the next page*, with no guarantee
++that it would fit there either.  When the paragraph could never fit in the
++height it was given it was moved to a fresh page again and again and its text
++was never placed, so the cell rendered blank in the PDF/print output.
++
++This test drives the *production* pagination path -- ``CairoDoc.paginate`` and
++the ``GtkDocTable`` / ``GtkDocTableRow`` / ``GtkDocTableCell`` / ``GtkDocParagraph``
++``divide`` chain in :mod:`gramps.plugins.lib.libcairodoc` -- with a geometry
++that forces a wrapping cell onto a page boundary, and asserts that the cell's
++text survives (and that pagination terminates).
++
++It is headless: Pango lays text out against an in-memory cairo image surface,
++no X display / GTK main loop is required.
++"""
++
++import unittest
++
++import cairo
++import gi
++
++gi.require_version("Pango", "1.0")
++gi.require_version("PangoCairo", "1.0")
++from gi.repository import Pango, PangoCairo
++
++from gramps.gen.plug.docgen import (
++    ParagraphStyle,
++    TableStyle,
++    TableCellStyle,
++    FontStyle,
++    FONT_SANS_SERIF,
++)
++from gramps.plugins.lib.libcairodoc import (
++    CairoDoc,
++    GtkDocDocument,
++    GtkDocTable,
++    GtkDocTableRow,
++    GtkDocTableCell,
++    GtkDocParagraph,
++    fontstyle_to_fontdescription,
++)
++
++DPI = 72.0
++PAGE_WIDTH = 300.0  # points
++FONT_SIZE = 12
++# A sentence that reliably wraps to more than one, but fewer than four, lines
++# in a PAGE_WIDTH-wide, single-column cell -- i.e. the "short cell paragraph"
++# case that took the buggy move-to-next-page shortcut.
++CELL_TEXT = "This is a long cell text that will wrap onto a second line for sure yes indeed today ok"
++
++
++def _new_layout(context, cr):
++    layout = Pango.Layout(context)
++    PangoCairo.update_layout(cr, layout)
++    return layout
++
++
++def _collect_text(element):
++    """Return the text of every paragraph reachable from ``element``."""
++    texts = []
++    for child in getattr(element, "_children", []):
++        if isinstance(child, GtkDocParagraph):
++            texts.append(child._text)
++        else:
++            texts.extend(_collect_text(child))
++    return texts
++
++
++class CairoDocTablePaginationTest(unittest.TestCase):
++    """A wrapping table cell on a page boundary must not lose its text."""
++
++    def setUp(self):
++        # Headless Pango context backed by an in-memory image surface.
++        self._surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, 2000, 2000)
++        self._cr = cairo.Context(self._surface)
++        self._context = PangoCairo.font_map_get_default().create_context()
++
++        self._font = FontStyle()
++        self._font.set_type_face(FONT_SANS_SERIF)
++        self._font.set_size(FONT_SIZE)
++
++        self._para_style = ParagraphStyle()
++        self._para_style.set_font(self._font)
++        self._para_style.set_alignment(0)  # PARA_ALIGN_LEFT
++
++    def _measure(self, text):
++        """Pixel height and line count of ``text`` at the cell width."""
++        layout = _new_layout(self._context, self._cr)
++        layout.set_width(int(PAGE_WIDTH * Pango.SCALE))
++        layout.set_wrap(Pango.WrapMode.WORD_CHAR)
++        layout.set_font_description(fontstyle_to_fontdescription(self._font))
++        layout.set_text(text, -1)
++        width, height = layout.get_pixel_size()
++        return height, layout.get_line_count()
++
++    def _build_document(self):
++        table_style = TableStyle()
++        table_style.set_width(100)
++        table_style.set_columns(1)
++        table_style.set_column_width(0, 100)
++
++        table = GtkDocTable(table_style)
++        row = GtkDocTableRow([100])  # column-width list, as CairoDoc.start_row uses
++        cell = GtkDocTableCell(TableCellStyle())
++        paragraph = GtkDocParagraph(ParagraphStyle(self._para_style))
++        paragraph.add_text(CELL_TEXT)
++        cell.add_child(paragraph)
++        row.add_child(cell)
++        table.add_child(row)
++
++        document = GtkDocDocument()
++        document.add_child(table)
++        return document
++
++    def _paginate(self, document, page_height, max_iterations=40):
++        """Drive the production paginator in a bounded loop.
++
++        ``CairoDoc.paginate_document`` loops ``while not paginate(): pass`` --
++        with the bug that is an *infinite* loop, so we call the production
++        ``CairoDoc.paginate`` step ourselves with a hard iteration cap and
++        report whether it terminated.
++        """
++        doc = CairoDoc.__new__(CairoDoc)
++        doc._doc = document
++        doc._pages = []
++        doc._elements_to_paginate = []
++
++        layout = _new_layout(self._context, self._cr)
++        completed = False
++        for _ in range(max_iterations):
++            if doc.paginate(layout, PAGE_WIDTH, page_height, DPI, DPI):
++                completed = True
++                break
++        return completed, doc._pages
++
++    def test_wrapping_cell_survives_page_boundary(self):
++        full_height, line_count = self._measure(CELL_TEXT)
++        one_line_height, _ = self._measure("word")
++
++        # Sanity: this is the "short cell paragraph" case (>1 and <4 lines) that
++        # took the buggy shortcut; if the font makes it a single line the test
++        # would not exercise the bug at all.
++        self.assertGreaterEqual(line_count, 2)
++        self.assertLess(line_count, 4)
++
++        # A page height that holds at least one line but not the whole cell:
++        # the cell must therefore straddle the page boundary.
++        page_height = (one_line_height + full_height) / 2.0
++
++        completed, pages = self._paginate(self._build_document(), page_height)
++
++        # The buggy code never terminates (the cell is moved to a new page
++        # forever); the fix splits it and pagination completes.
++        self.assertTrue(
++            completed,
++            "pagination did not terminate -- the wrapping cell is being moved "
++            "to a new page indefinitely (bug 6324)",
++        )
++
++        paginated_text = " ".join(
++            text for page in pages for text in _collect_text(page)
++        )
++        for word in CELL_TEXT.split():
++            self.assertIn(
++                word,
++                paginated_text,
++                "cell text was dropped from the paginated output (bug 6324): "
++                "the word %r is missing" % word,
++            )
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index 6164615dea..37aab1eca4 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -672,6 +672,7 @@
+ #
+ # plugins/test directory
+ #
++gramps/plugins/test/cairodoc_table_pagination_test.py
+ gramps/plugins/test/db_undo_and_signals_test.py
+ gramps/plugins/test/exports_test.py
+ gramps/plugins/test/imports_test.py

@@ -1,0 +1,20 @@
+Do not shadow focused text entries' Ctrl+C in list views
+
+NavigationView's window-level key_press_handler consumed Ctrl+C
+before a focused sidebar/filter text entry could own the keystroke.
+This prevented standard text editing operations (Copy/Cut/Paste) in
+focused editables while list views were open.
+
+Add a focus check: if the focused widget is a Gtk.Editable or
+Gtk.TextView, return False to let the event propagate to the focused
+editable. When the list/tree itself holds focus, the object-copy
+behaviour is preserved.
+
+This restores the invariant that a window/view-level accelerator must
+not shadow the standard text-editing keystrokes of a focused
+text-editable widget — the focused editable owns Copy/Cut/Paste.
+Applies to all NavigationView subclasses (People, Families, Events,
+Places, Sources, Citations, Repositories, Media, Notes), not just
+one view.
+
+Fixes #6170

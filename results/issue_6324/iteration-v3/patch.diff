@@ -1,0 +1,509 @@
+diff --git a/gramps/plugins/lib/libcairodoc.py b/gramps/plugins/lib/libcairodoc.py
+index a2da0fda15..2bed8bf36b 100644
+--- a/gramps/plugins/lib/libcairodoc.py
++++ b/gramps/plugins/lib/libcairodoc.py
+@@ -549,7 +549,7 @@ class GtkDocParagraph(GtkDocBaseElement):
+                 self._text, -1, "\000"
+             )
+ 
+-    def divide(self, layout, width, height, dpi_x, dpi_y):
++    def divide(self, layout, width, height, dpi_x, dpi_y, force_split=False):
+         self.__parse_text()
+ 
+         l_margin = self._style.get_left_margin() * dpi_x / 2.54
+@@ -616,8 +616,13 @@ class GtkDocParagraph(GtkDocBaseElement):
+         # we need to cut paragraph:
+ 
+         # 1. if paragraph part of a cell, we do not divide if only small part,
+-        # of paragraph can be shown, instead move to next page
+-        if line_count < 4 and self._parent._type == "CELL":
++        # of paragraph can be shown, instead move to next page.
++        # bug 6324: 'force_split' overrides this keep-together rule when the row
++        # is already being split across the page boundary by a sibling cell --
++        # keeping this short paragraph together would then leave its cell blank
++        # at the foot of the page beside a sibling that keeps its text, so we
++        # split it here instead.
++        if not force_split and line_count < 4 and self._parent._type == "CELL":
+             return (None, self), 0
+ 
+         lineiter = layout.get_iter()
+@@ -853,6 +858,18 @@ class GtkDocTable(GtkDocBaseElement):
+         while row_index < len(self._children):
+             row = self._children[row_index]
+             (r1, r2), row_height = row.divide(layout, table_width, height, dpi_x, dpi_y)
++            if r1 is None:
++                # bug 6324: the row was kept together and must move to the next
++                # page whole.  Take it (and every row after it) out of this part
++                # of the table and hand them to the continuation table, so the
++                # row is not duplicated on both pages.
++                new_table = GtkDocTable(self._style)
++                list(map(new_table.add_child, self._children[row_index:]))
++                del self._children[row_index:]
++                if not self._children:
++                    # nothing of the table fits on this page; move it all onward
++                    return (None, new_table), 0
++                return (self, new_table), table_height
+             if r2 is not None:
+                 # break the table in two parts
+                 break
+@@ -904,8 +921,10 @@ class GtkDocTableRow(GtkDocBaseElement):
+         # the highest cell gives the height of the row
+         cell_heights = []
+         dividedrow = False
++        cell_split = False
+         cell_width_iter = self._style.__iter__()
+         new_row = GtkDocTableRow(self._style)
++        kept_cells = []
+         for cell in self._children:
+             cell_width = 0
+             for i in range(cell.get_span()):
+@@ -914,13 +933,42 @@ class GtkDocTableRow(GtkDocBaseElement):
+             (c1, c2), cell_height = cell.divide(
+                 layout, cell_width, height, dpi_x, dpi_y
+             )
++            if c1 is None and not cell_split:
++                # bug 6324: this cell could place none of its content in the
++                # available height and no earlier cell has been split across the
++                # boundary yet, so nothing of the row is committed to this page.
++                # Move the WHOLE row to the next page in one piece: the short
++                # cell is kept together (honouring the keep-together rule) and no
++                # cell is left blank at the foot of the page beside a sibling
++                # that keeps its text.
++                return (None, self), 0
++            if c1 is None:
++                # bug 6324: an earlier cell was genuinely split, so the row
++                # already spans the page boundary and cannot be moved whole.
++                # Force this cell to split as well, so its first lines render
++                # here beside its split sibling instead of leaving it blank.
++                (c1, c2), cell_height = cell.divide(
++                    layout, cell_width, height, dpi_x, dpi_y, force_split=True
++                )
+             cell_heights.append(cell_height)
+-            if c2 is None:
++            if c1 is None:
++                # bug 6324: even forced, not one line of this cell fits in the
++                # room the split sibling left (e.g. a taller font); move the
++                # whole cell onward and leave an empty placeholder here rather
++                # than dropping its content.
++                dividedrow = True
++                new_row.add_child(c2)
++                kept_cells.append(GtkDocTableCell(cell._style, cell.get_span()))
++            elif c2 is None:
+                 emptycell = GtkDocTableCell(c1._style, c1.get_span())
+                 new_row.add_child(emptycell)
++                kept_cells.append(c1)
+             else:
+                 dividedrow = True
++                cell_split = True
+                 new_row.add_child(c2)
++                kept_cells.append(c1)
++        self._children = kept_cells
+ 
+         # save height [inch] of the row to be able to draw exact cell border
+         row_height = max(cell_heights)
+@@ -976,7 +1024,7 @@ class GtkDocTableCell(GtkDocBaseElement):
+     def get_span(self):
+         return self._span
+ 
+-    def divide(self, layout, width, height, dpi_x, dpi_y):
++    def divide(self, layout, width, height, dpi_x, dpi_y, force_split=False):
+         h_padding = self._style.get_padding() * dpi_x / 2.54
+         v_padding = self._style.get_padding() * dpi_y / 2.54
+ 
+@@ -993,8 +1041,18 @@ class GtkDocTableCell(GtkDocBaseElement):
+         for child in self._children:
+             if new_cell is None:
+                 (e1, e2), child_height = child.divide(
+-                    layout, width, available_height, dpi_x, dpi_y
++                    layout, width, available_height, dpi_x, dpi_y, force_split
+                 )
++                # bug 6324: the cell's first child could place none of its
++                # content in the available height (a short paragraph hitting the
++                # keep-together rule, or content taller than the space left).
++                # Report that by returning the cell intact -- do NOT fall through
++                # to the code below, which would truncate self._children to []
++                # and leave the cell blank on this page while its content is
++                # carried away.  The caller (GtkDocTableRow.divide) decides
++                # whether to move the whole row or to force this cell to split.
++                if e1 is None and childnr == 0:
++                    return (None, self), 0
+                 cell_height += child_height
+                 available_height -= child_height
+                 if e2 is not None:
+@@ -1084,12 +1142,12 @@ class GtkDocPicture(GtkDocBaseElement):
+         self._height = height
+         self._crop = crop
+ 
+-    def divide(self, layout, width, height, dpi_x, dpi_y):
++    def divide(self, layout, width, height, dpi_x, dpi_y, force_split=False):
+         img_width = self._width * dpi_x / 2.54
+         img_height = self._height * dpi_y / 2.54
+ 
+         # image can't be divided, a new page must begin
+-        # if it can't fit on the current one
++        # if it can't fit on the current one (force_split cannot change this)
+         if img_height <= height:
+             return (self, None), img_height
+         else:
+diff --git a/gramps/plugins/test/cairodoc_table_pagination_test.py b/gramps/plugins/test/cairodoc_table_pagination_test.py
+new file mode 100644
+index 0000000000..56a246feac
+--- /dev/null
++++ b/gramps/plugins/test/cairodoc_table_pagination_test.py
+@@ -0,0 +1,344 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  Gramps developers
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""Regression test for bug 6324 (cairo/PDF table cell dropped at a page break).
++
++In the cairo (print/PDF) document backend, a table row that lands near the
++bottom of a page with a cell whose short paragraph has to wrap to a second line
++was rendered *torn*: the wrapping cell printed **blank** at the foot of the page
++while its text was pushed onto the next page, beside blank copies of the row's
++other cells.  dsblank reported "the cell prints no text at all" at the bottom of
++a page (Mantis 6324).
++
++The pagination invariant is that all cells of a table row begin together: a
++cell whose text crosses a page boundary must appear in full across the pages --
++either the whole row moves to the next page, or the row splits with every cell
++rendering its first lines on the same page as its siblings -- and a cell must
++never be left blank while a sibling cell in the same row keeps its text.
++
++This test drives the **production** pagination path -- ``CairoDoc.paginate`` and
++the ``GtkDocTable`` / ``GtkDocTableRow`` / ``GtkDocTableCell`` /
++``GtkDocParagraph`` ``divide`` chain in
++:mod:`gramps.plugins.lib.libcairodoc` -- against a realistic geometry, and
++checks that the wrapping cell begins on the same page as its rowmate and that no
++line is dropped.  It covers **both** page-boundary branches:
++
++* the wrapping cell is the *last* column (the whole row moves to the next page);
++* an *earlier* column splits across the boundary and the later short column must
++  split too instead of being left blank beside it.
++
++It is headless: Pango lays text out against an in-memory cairo image surface; no
++X display, GTK main loop, D-Bus or AT-SPI is used.
++"""
++
++import unittest
++
++import cairo
++import gi
++
++gi.require_version("Pango", "1.0")
++gi.require_version("PangoCairo", "1.0")
++from gi.repository import Pango, PangoCairo
++
++from gramps.gen.plug.docgen import (
++    ParagraphStyle,
++    TableStyle,
++    TableCellStyle,
++    FontStyle,
++    FONT_SANS_SERIF,
++)
++from gramps.plugins.lib.libcairodoc import (
++    CairoDoc,
++    GtkDocDocument,
++    GtkDocTable,
++    GtkDocTableRow,
++    GtkDocTableCell,
++    GtkDocParagraph,
++    fontstyle_to_fontdescription,
++)
++
++DPI = 72.0
++PAGE_WIDTH = 500.0  # points
++FONT_SIZE = 12
++
++# Distinctive opening tokens so a cell's rendered text can be located per page
++# regardless of where Pango wraps it.
++LABEL_TEXT = "Zlabel"
++# A value that wraps to more than one but fewer than four lines in a
++# half-page-wide, single-column cell -- the "short cell paragraph" that hits the
++# keep-together branch of GtkDocParagraph.divide.
++WRAP_TEXT = (
++    "Wstart is a long cell value that will wrap onto a second line for sure "
++    "yes indeed today"
++)
++# A value that is four or more lines, so it is genuinely split (not kept
++# together) when it lands at a page boundary.
++TALL_TEXT = (
++    "Talpha bravo charlie delta echo foxtrot golf hotel india juliet kilo "
++    "lima mike november oscar papa quebec romeo sierra tango uniform victor "
++    "whiskey xray yankee zulu one two three four five six seven eight nine ten"
++)
++
++
++class CairoDocTablePaginationTest(unittest.TestCase):
++    """A wrapping table cell at a page boundary must not tear its row."""
++
++    def setUp(self):
++        # Headless Pango context backed by an in-memory image surface.
++        self._surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, 4000, 4000)
++        self._cr = cairo.Context(self._surface)
++        self._context = PangoCairo.font_map_get_default().create_context()
++        self._layout = Pango.Layout(self._context)
++        PangoCairo.update_layout(self._cr, self._layout)
++
++        self._font = FontStyle()
++        self._font.set_type_face(FONT_SANS_SERIF)
++        self._font.set_size(FONT_SIZE)
++
++        self._para_style = ParagraphStyle()
++        self._para_style.set_font(self._font)
++        self._para_style.set_alignment(0)  # PARA_ALIGN_LEFT
++
++    # -- builders ---------------------------------------------------------
++
++    def _row(self, texts):
++        """A two-column row; ``texts`` is one string per cell."""
++        row = GtkDocTableRow([50, 50])  # column-width list, as start_row uses
++        for text in texts:
++            cell = GtkDocTableCell(TableCellStyle())
++            paragraph = GtkDocParagraph(ParagraphStyle(self._para_style))
++            paragraph.add_text(text)
++            cell.add_child(paragraph)
++            row.add_child(cell)
++        return row
++
++    def _table(self, rows):
++        table_style = TableStyle()
++        table_style.set_width(100)
++        table_style.set_columns(2)
++        table_style.set_column_width(0, 50)
++        table_style.set_column_width(1, 50)
++        table = GtkDocTable(table_style)
++        for texts in rows:
++            table.add_child(self._row(texts))
++        return table
++
++    # -- production-path measurement -------------------------------------
++
++    def _row_height(self, texts):
++        """Full rendered height of a row, via the production ``divide``.
++
++        Dividing with a very large available height fully places the row and
++        returns its true height; this is the same code pagination uses, so the
++        page geometry below is derived from production, not re-implemented.
++        """
++        (r1, r2), height = self._row(texts).divide(
++            self._layout, PAGE_WIDTH, 100000.0, DPI, DPI
++        )
++        self.assertIsNotNone(r1)
++        self.assertIsNone(r2)
++        return height
++
++    def _line_count(self, text):
++        """Number of wrapped lines of ``text`` at the cell text width."""
++        # table width == PAGE_WIDTH (table style width 100%); each of the two
++        # columns is half of that; cell padding defaults to 0.
++        cell_width = PAGE_WIDTH * 0.5
++        layout = Pango.Layout(self._context)
++        PangoCairo.update_layout(self._cr, layout)
++        layout.set_width(int(cell_width * Pango.SCALE))
++        layout.set_wrap(Pango.WrapMode.WORD_CHAR)
++        layout.set_font_description(fontstyle_to_fontdescription(self._font))
++        layout.set_text(text, -1)
++        return layout.get_line_count()
++
++    # -- production paginator (bounded) ----------------------------------
++
++    def _paginate(self, table, page_height, max_iterations=60):
++        """Drive the production paginator step in a bounded loop.
++
++        ``CairoDoc.paginate_document`` is ``while not paginate(): pass`` -- an
++        unbounded driver.  We call the production ``CairoDoc.paginate`` step
++        ourselves with a hard iteration cap so a pagination that fails to make
++        progress is reported instead of hanging the suite.
++        """
++        document = GtkDocDocument()
++        document.add_child(table)
++
++        doc = CairoDoc.__new__(CairoDoc)
++        doc._doc = document
++        doc._pages = []
++        doc._elements_to_paginate = []
++
++        completed = False
++        for _ in range(max_iterations):
++            if doc.paginate(self._layout, PAGE_WIDTH, page_height, DPI, DPI):
++                completed = True
++                break
++        return completed, doc._pages
++
++    # -- analysis of the paginated output --------------------------------
++
++    def _page_texts(self, pages):
++        """Concatenated rendered ``_plaintext`` per page."""
++        out = []
++        for page in pages:
++            words = []
++            for table in page._children:
++                if not isinstance(table, GtkDocTable):
++                    continue
++                for row in table._children:
++                    for cell in row._children:
++                        for child in cell._children:
++                            if isinstance(child, GtkDocParagraph):
++                                words.append(child._plaintext)
++            out.append(" ".join(words))
++        return out
++
++    def _first_page(self, pages, marker):
++        """Index of the first page whose rendered text contains ``marker``."""
++        for index, text in enumerate(self._page_texts(pages)):
++            if marker in text:
++                return index
++        return None
++
++    def _pages_containing(self, pages, marker):
++        return [
++            index
++            for index, text in enumerate(self._page_texts(pages))
++            if marker in text
++        ]
++
++    def _assert_no_dropped_words(self, pages, text):
++        rendered = " ".join(self._page_texts(pages))
++        for word in text.split():
++            self.assertIn(
++                word,
++                rendered,
++                "wrapping cell text was dropped from the paginated output "
++                "(bug 6324): the word %r is missing" % word,
++            )
++
++    # -- the tests --------------------------------------------------------
++
++    def test_wrapping_last_cell_moves_row_whole(self):
++        """Last-column wrapping cell at the page foot: the row moves whole.
++
++        Filler rows fill most of the page; the final ``[LABEL, WRAP]`` row lands
++        where the one-line LABEL cell fits but the wrapping cell does not.  The
++        whole row must move to the next page -- pre-fix the LABEL rendered alone
++        with a blank cell beside it (Mantis 6324).
++        """
++        # Sanity: WRAP_TEXT must be the "short (2-3 line) cell paragraph" case
++        # that takes the keep-together branch; a font substitution making it one
++        # line, or four+ lines, would not exercise the bug -- fail loudly.
++        self.assertGreaterEqual(self._line_count(WRAP_TEXT), 2)
++        self.assertLess(self._line_count(WRAP_TEXT), 4)
++
++        filler_h = self._row_height(["filler a", "filler b"])
++        wrap_h = self._row_height([LABEL_TEXT, WRAP_TEXT])
++        self.assertGreater(wrap_h, filler_h)  # the wrapping row is taller
++
++        # Page holds three filler rows plus an amount strictly between one line
++        # (the LABEL cell) and the full wrapping row: LABEL fits at the bottom,
++        # the wrapping cell cannot -- forcing the boundary case.
++        page_height = 3 * filler_h + (filler_h + wrap_h) / 2.0
++
++        table = self._table([["filler a", "filler b"]] * 3 + [[LABEL_TEXT, WRAP_TEXT]])
++        completed, pages = self._paginate(table, page_height)
++
++        self.assertTrue(completed, "pagination did not terminate (bug 6324)")
++        self.assertGreaterEqual(
++            len(pages),
++            2,
++            "geometry did not straddle a page boundary -- the test is not "
++            "exercising the wrapping-cell-at-page-bottom case",
++        )
++
++        # The row's two cells must begin on the same page: pre-fix the LABEL
++        # rendered a page before its wrapping rowmate (the torn row).
++        label_page = self._first_page(pages, LABEL_TEXT)
++        wrap_page = self._first_page(pages, "Wstart")
++        self.assertIsNotNone(label_page)
++        self.assertIsNotNone(wrap_page)
++        self.assertEqual(
++            wrap_page,
++            label_page,
++            "table row torn at the page boundary (bug 6324): the wrapping cell "
++            "begins on page %s but its rowmate LABEL is on page %s"
++            % (wrap_page, label_page),
++        )
++        self._assert_no_dropped_words(pages, WRAP_TEXT)
++
++    def test_wrapping_cell_splits_beside_split_sibling(self):
++        """Earlier column splits: the later short column must split too.
++
++        A ``[TALL, WRAP]`` row lands where the four+-line TALL cell splits across
++        the boundary but the short WRAP cell (kept-together) cannot fit.  The
++        WRAP cell must render its first lines beside TALL rather than blank --
++        pre-fix TALL split alone with a blank cell beside it (the same bug in the
++        multi-column / cell-split branch).
++        """
++        self.assertGreaterEqual(self._line_count(WRAP_TEXT), 2)
++        self.assertLess(self._line_count(WRAP_TEXT), 4)
++        self.assertGreaterEqual(self._line_count(TALL_TEXT), 4)  # genuinely split
++
++        filler_h = self._row_height(["filler a", "filler b"])
++        tall_h = self._row_height([TALL_TEXT, WRAP_TEXT])
++        line_h = (tall_h - filler_h) / (self._line_count(TALL_TEXT) - 1)
++
++        # One filler row plus about two text lines of room: TALL places two lines
++        # and splits, but the three-line WRAP cell cannot fit and would (pre-fix)
++        # be left blank beside it.
++        page_height = filler_h + 2 * line_h
++
++        table = self._table([["filler a", "filler b"], [TALL_TEXT, WRAP_TEXT]])
++        completed, pages = self._paginate(table, page_height)
++
++        self.assertTrue(completed, "pagination did not terminate (bug 6324)")
++        self.assertGreaterEqual(len(pages), 2)
++
++        # Precondition: the TALL cell must genuinely split (span >= 2 pages),
++        # otherwise this is not the cell-split branch.
++        self.assertGreaterEqual(len(self._pages_containing(pages, "Talpha")), 1)
++        self.assertGreaterEqual(len(self._pages_containing(pages, "zulu")), 1)
++        self.assertGreater(
++            self._first_page(pages, "zulu"),
++            self._first_page(pages, "Talpha"),
++            "the TALL cell did not split across a page boundary -- the test is "
++            "not exercising the cell-split branch",
++        )
++
++        # The wrapping cell must begin on the same page as the split TALL cell,
++        # not a page later beside a blank placeholder (bug 6324).
++        tall_page = self._first_page(pages, "Talpha")
++        wrap_page = self._first_page(pages, "Wstart")
++        self.assertIsNotNone(wrap_page)
++        self.assertEqual(
++            wrap_page,
++            tall_page,
++            "table row torn at the page boundary (bug 6324): the wrapping cell "
++            "begins on page %s but its splitting rowmate begins on page %s"
++            % (wrap_page, tall_page),
++        )
++        self._assert_no_dropped_words(pages, WRAP_TEXT)
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index 6164615dea..37aab1eca4 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -672,6 +672,7 @@ gramps/plugins/sidebar/expandersidebar.py
+ #
+ # plugins/test directory
+ #
++gramps/plugins/test/cairodoc_table_pagination_test.py
+ gramps/plugins/test/db_undo_and_signals_test.py
+ gramps/plugins/test/exports_test.py
+ gramps/plugins/test/imports_test.py

@@ -1,0 +1,22 @@
+Reference HTML report images by a report-relative path
+
+The HTML backend of the text reports (e.g. Detailed Ancestor/Descendant
+Report) wrote each embedded image's <img src> as the absolute filesystem
+path of the report's data directory (datadirfull()). The generated .html
+therefore only rendered on the machine that produced it — copy or share it
+and every image broke.
+
+HtmlDoc.add_media now references images by the report-relative data-directory
+path (datadir(), the data subdirectory basename) while the on-disk copy still
+targets the absolute datadirfull() location. The backend already copies images
+into that report-relative subdirectory, so the written src now matches the
+on-disk layout and the document stays valid wherever it is opened. Only the
+reference changes; the copy destination is unchanged.
+
+- gramps/plugins/docgen/htmldoc.py: reference images by the report-relative
+  datadir() path instead of the absolute datadirfull() path
+- gramps/plugins/test/htmldoc_relmedia_test.py: new test asserting the emitted
+  <img src> is relative and the copy destination stays absolute
+- po/POTFILES.skip: register test file
+
+Fixes #6824

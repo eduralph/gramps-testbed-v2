@@ -1,0 +1,87 @@
+diff --git a/gramps/gui/managedwindow.py b/gramps/gui/managedwindow.py
+index 010d25db0d..402ef1c728 100644
+--- a/gramps/gui/managedwindow.py
++++ b/gramps/gui/managedwindow.py
+@@ -194,23 +194,35 @@ class GrampsWindowManager:
+         # starting with the given item.
+         # Eventualy, every non-list item (leaf) will be reached
+         # and the func(item,*args) will be called on that item.
++        # If func vetoes the action (returns a true value), the recursion
++        # stops and the veto is propagated to the caller, so a cascade close
++        # can be aborted rather than tearing the remaining windows down (see
++        # close_child_windows / close_item, bug #7924).
+         if isinstance(item, list):
+             # If this item is a branch
+             # close the children except for the first one
+             for sub_item in item[1:]:
+-                self.recursive_action(sub_item, func, *args)
++                if self.recursive_action(sub_item, func, *args):
++                    return True
+             # return the first child
+             last_item = item[0]
+         else:
+             # This item is a leaf -- no children to close
+             # return itself
+             last_item = item
+-        func(last_item, *args)
++        return func(last_item, *args)
+ 
+     def close_item(self, item, *args):
+         # Given an item, close its window and remove it's ID from the dict
+         if item.opened:
+             item.close()
++            # close() routes through the window's own save-guard. A primary
++            # editor holding unsaved data pops its "Save Changes?" prompt and,
++            # if the user cancels it, stays open (item.opened remains True).
++            # Honour that veto: leave the window intact and signal the caller
++            # to abort the cascade, so the edits are not discarded (bug #7924).
++            if item.opened:
++                return True
+         if item.window_id:
+             del self.id2item[item.window_id]
+             item.window_id = None
+@@ -218,6 +230,29 @@ class GrampsWindowManager:
+             item.get_window().destroy()
+             item.window = None
+ 
++    def close_child_windows(self, track):
++        # Close only the child windows of the item at `track`, leaving the
++        # item itself (item[0] of its branch) untouched. Each child is closed
++        # through its own close-guard, so a child primary editor with unsaved
++        # data gets the same "Save Changes?" prompt a direct close would show.
++        #
++        # Returns True if a child vetoed its close (e.g. the prompt was
++        # cancelled -- "keep editing"). The caller must then abort its own
++        # close, and abort *before* mutating any of its own state, so the
++        # child's unsaved edits are preserved and no window is left
++        # half-torn-down (bug #7924).
++        try:
++            item = self.get_item_from_track(track)
++        except IndexError:
++            return False
++        if not isinstance(item, list):
++            # A leaf item has no child windows.
++            return False
++        for sub_item in item[1:]:
++            if self.recursive_action(sub_item, self.close_item):
++                return True
++        return False
++
+     def remove_item(self, track):
+         # We need the whole gymnastics below because our item
+         # may actually be a list consisting of a single real
+@@ -597,6 +632,14 @@ class ManagedWindow:
+         if hasattr(self, "opened") and not self.opened:
+             _LOG.warning("Tried to close a ManagedWindow more than once.")
+             return  # in case close somehow gets called again
++        # Before tearing down this window, resolve the save-guard of any
++        # tracked child editor that holds unsaved data (bug #7924). If the
++        # user cancels that "Save Changes?" prompt the child vetoes its close:
++        # abort the whole close now -- while this window is still fully intact
++        # and none of its own state has been mutated -- so the child's edits
++        # are preserved and neither window is left half-destroyed.
++        if self.uistate.gwm.close_child_windows(self.track):
++            return True
+         self.opened = False
+         self._save_position(save_config=False)  # the next line will save it
+         self._save_size()
