@@ -598,9 +598,28 @@ cmd = "PDCA_PROD_PACKAGE=gramps python3 scripts/checks/test_exercises_production
 gating = false
 scope = "bundle"
 
+# T2-lint — the two STATIC-ANALYSIS gates upstream Gramps CI enforces but the
+# behavioural (C4/T3) and shape (T2) gates above do NOT: black formatting
+# (.github/workflows/black.yml → `psf/black@stable` = `black --check --diff .`)
+# and mypy typing (.github/workflows/gramps-ci.yml → `mypy`, reading the repo's
+# mypy.ini). A patch can pass C4 red→green and the T3 suite yet still trip these,
+# opening an upstream PR that fails CI — so this GATES: a lint-dirty bundle never
+# reaches a clean COMPLETE. run-lint.sh applies patch.diff to the pinned upstream
+# worktree in the same Docker image and runs black (on the patch's .py) + mypy
+# (whole-tree); it self-declares UNVERIFIABLE (§6) when the patch has no core .py
+# (addon / prose / manifest-only). Bundle-scoped, core-only (mypy.ini + black
+# defaults are the core repo's); publish re-runs it as a pre-push guard.
+[[gates.checks]]
+id = "T2-lint"
+tier = "T2"
+label = "black + mypy clean (upstream CI parity)"
+cmd = "CORE_VERSION=6.1 ./engine/scripts/ubuntu/run-lint.sh"
+gating = true
+scope = "bundle"
+target = "core"
+
 # --- STAGED (not yet ported / wired) -----------------------------------------
 # An interface-level C4 via run-interface.sh lands here once that runner is
-# ported (C4-verify is LIVE above — the unit-level per-fix gate). A black/ruff
-# formatter gate (doc 16 §Coding style SHOULD, doc16:106) can be added repo-
-# scoped when the target repo enforces it; T2-shape covers the static MUSTs.
+# ported (C4-verify is LIVE above — the unit-level per-fix gate); T2-shape covers
+# the static-MUST subset of §Coding style, T2-lint the black/mypy gates above.
 

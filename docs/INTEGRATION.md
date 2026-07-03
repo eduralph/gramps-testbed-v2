@@ -114,7 +114,8 @@ vendored ruleset; each target carries its auditable origin per doc 16
 > `engine/` here — the reference repo's `agent-work/scripts/` + top-level `docker/`
 > were consolidated into one namespace on integration. **Ported & wired:**
 > `ubuntu/run-unit.sh` (T3-unit), `ubuntu/run-addon-unit.sh` (T3-addon-unit),
-> `ubuntu/run-verify.sh` (C4-verify, gating), `ubuntu/run-interface.sh`
+> `ubuntu/run-verify.sh` (C4-verify, gating), `ubuntu/run-lint.sh` (T2-lint —
+> black + mypy, gating), `ubuntu/run-interface.sh`
 > (T3-interface smoke, advisory) + the interface suite at `engine/interface/`,
 > the image helpers `ubuntu/{rebuild-image,clean-build}.sh`, and the
 > `scripts/lib/` helpers — all live in `pdca.toml`. **Not yet ported:** the manual
@@ -180,6 +181,19 @@ vendored ruleset; each target carries its auditable origin per doc 16
     manufacture a non-`test_` module just to give `run-verify` a file to revert — that ships
     dead scaffolding (worked example: the dropped `tests/plugin_load_gate.py` in
     820-pluginloading-gate).
+  - **Per-fix lint gate (black + mypy): `./engine/scripts/ubuntu/run-lint.sh`
+    (T2-lint, ported, gating, core).** Reproduces the two static-analysis gates
+    upstream Gramps CI enforces but the behavioral/shape gates do not — black
+    (`black --check`, `.github/workflows/black.yml`) and mypy (bare `mypy` over
+    `mypy.ini`, `gramps-ci.yml`). It applies `patch.diff` to the pinned upstream
+    worktree in the same Docker image, black-checks the patch's `.py` and runs
+    mypy whole-tree. Distinct exit codes so a caller can tell a real failure from
+    setup breakage: **1** = lint-dirty (block), **2** = infra/setup (missing
+    worktree, git-apply failure), **77** = no core `.py` to lint (§6). Core-only
+    (`mypy.ini` + black defaults are the core repo's); an addon patch self-exits
+    77. **`publish` re-runs it as a pre-push guard** (blocks only on exit 1), so a
+    lint-dirty bundle never opens an upstream PR that fails CI — closing the gap
+    that let 7924/6324/8622 trip lint after publish.
   - **Per-fix interface verify — behavioral C4 (issue #157):**
     `./engine/scripts/ubuntu/run-verify-interface.sh` **(ported, ADVISORY)** — the GUI sibling
     of `run-verify.sh`. Instead of the patch's own unit test it runs the bug's committed
