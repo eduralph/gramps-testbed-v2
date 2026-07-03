@@ -317,7 +317,7 @@ line number**, so an edit to a vendored page doesn't invalidate the anchor; the
 | T2 shape | `AGENTS.md §File Headers` (GPL header MUST; empty `__init__.py` marker exempt) + `§Logging` (no diagnostic `print()`) — applies to **core and addon** `.py`; `black` is a separate formatter gate | `engine/conformance/t2_shape.py` | `python3 ./engine/conformance/gate.py T2` | [built — advisory `T2-shape`, bundle-scoped; checks touched addon dirs AND core files; type-hint/docstring/`cb_` SHOULDs left to reviewer judgment] |
 | T2 potfiles | `doc16-core §Adding and removing Python files` — a new core `.py` MUST be listed in `po/POTFILES.in`/`POTFILES.skip`, and a deleted one removed from both (core-only, read from the patch) | `engine/conformance/t2_potfiles.py` (via `gate.py T2-potfiles`) | `python3 ./engine/conformance/gate.py T2-potfiles` | [built — **GATING** `T2-potfiles`, bundle-scoped, `target=core`; contribution-scoped (the patch's added/removed `.py` only) so no legacy false-positives. Issue #67 added the checker; the gating promotion split it out of `T2-shape`] |
 | T3 runtime | doc 16 §Runtime / §Testing; gramps test suite (stdlib `unittest`), baseline-diffed against `engine/baselines/*.json` | local Docker mirror + upstream CI | `t3_baseline.py ./engine/scripts/ubuntu/run-unit.sh` (likewise run-interface); addon gates are a **version matrix** — `T3-addon-unit-6{0,1}` run `CORE_VERSION=6.x run-addon-unit.sh` in the pinned `make worktrees` checkouts | [built — advisory `T3-unit` / `T3-interface` + the `T3-addon-unit-6{0,1}` matrix (each addons-source branch × its matching core; issue #10); all wrapped by `t3_baseline.py` so only a delta from the recorded baseline raises §6 (issue #7)] |
-| T4 contribution | `{core,addon} §Commit messages` + `§Mantis trailer keywords`; the four-section PR body (Root cause / Fix / Verified against / Test) is `doc16-core §Contributor workflow` — **core-only** | `engine/conformance/t4_contribution.py` | `python3 ./engine/conformance/gate.py T4` (validates the bundle's `commit-msg.txt` / `pr-description.md` against the patch's target) | [built — advisory `T4-contribution`, bundle-scoped] |
+| T4 contribution | `{core,addon} §Commit messages` + `§Mantis trailer keywords`; the user-impact-led PR body (a `**User impact:**` opener before Root cause — #106) is `doc16-core §Contributor workflow` — **core-only** | `engine/conformance/t4_contribution.py` | `python3 ./engine/conformance/gate.py T4` (validates the bundle's `commit-msg.txt` / `pr-description.md` against the patch's target) | [built — advisory `T4-contribution`, bundle-scoped] |
 | T5 judgment | reviewer contract below | Check reviewer + sign-off | (model) | [planned] |
 
 - **Why advisory (gating = false):** T1/T2-shape/T4 audit the *touched* contribution and
@@ -401,10 +401,11 @@ line number**, so an edit to a vendored page doesn't invalidate the anchor; the
 - **Commit-message format:** past-tense one-line subject; body explains the *why*,
   not just the *what*; trailer
   `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`. A
-  "Verified against" reference cites `path:lines` against the **target branch**
+  Verification's "Checked" reference cites `path:lines` against the **target branch**
   (no SHA unless cross-branch/historical); the commit that *caused* a bug gets an
   explicitly-labelled line **with** its SHA.
-- **PR description format:** Root cause / Fix / Verified against / Test (see
+- **PR description format (#106):** a `**User impact:**` opener (before Root cause) then
+  Summary / What to look at / Root cause / Fix / Verification (see
   `templates/pr-description.md.tpl`). Reference the Mantis issue when one exists
   (**optional** for addons-source — doc 16 §Contributor workflow) using the bare `#nnnn`
   MantisBT hook form; never a GitHub URL or a cross-ref to an upstream repo (see

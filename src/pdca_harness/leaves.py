@@ -1298,10 +1298,9 @@ def _publish_prompt(d: Path, cfg: Config) -> str:
 
 def _stub_publish(d: Path, cfg: Config) -> None:
     # Offline placeholders, shaped to pass a contribution (T4) gate: summary ≤70,
-    # blank line, body ≤80, the configured issue trailer last; PR body has the gramps
-    # doc16 sections (Root cause / Fix / Verified against / Test) the engine T4 gate
-    # enforces — NOT the template's generic #106 structure (which gramps maintainers
-    # don't use). See the leaves/templates note in the integration PR.
+    # blank line, body ≤80, the configured issue trailer last; the PR body follows
+    # the #106 structure the engine T4 gate enforces — a `**User impact:**` opener
+    # BEFORE Root cause (Summary / What to look at / Root cause / Fix / Verification).
     issue_id = d.name.removeprefix("issue_")
     trailer = cfg.issue_trailer.format(id=issue_id) if cfg.issue_trailer else ""
     body = (
@@ -1312,13 +1311,15 @@ def _stub_publish(d: Path, cfg: Config) -> None:
     if trailer:
         body += f"\n{trailer}\n"
     (d / "commit-msg.txt").write_text(body, encoding="utf-8")
-    # PR body mirrors pr-description.md.tpl: a `**User impact:**` opener BEFORE Root cause
-    # and the issue-trailer form last, so the offline path keeps passing the T4
-    # contribution gate (contribcheck).
+    # PR body mirrors pr-description.md.tpl: a `**User impact:**` opener BEFORE Root
+    # cause and the issue-trailer form last, so the offline path keeps passing the T4
+    # contribution gate.
     pr_trailer = trailer if trailer else f"References #{issue_id}"
     (d / "pr-description.md").write_text(
-        "## Root cause\nstub.\n\n## Fix\nstub.\n\n## Verified against\n"
-        "- path:1 — stub.\n\n## Test\nstub regression test.\n\n"
+        "## Summary\n**User impact:** stub user-visible effect.\n\nstub one-line change.\n\n"
+        "## What to look at\nstub.\n\n## Root cause\nstub.\n\n"
+        "## Fix\nstub.\n\n## Verification\n- Claim: stub.\n- Checked: path:1 — stub.\n"
+        "- Test: path:1 — stub regression test, fails pre-fix / passes post-fix.\n\n"
         f"{pr_trailer}\n",
         encoding="utf-8",
     )

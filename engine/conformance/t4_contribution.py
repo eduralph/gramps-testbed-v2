@@ -11,12 +11,12 @@
 
 T4 checks the *contribution wrapper* — the commit message and the PR body — not
 the code, and it is **target-aware**: the commit-message rules are shared by both
-guidelines' §Commit messages, but the **four-section PR body** (Root cause / Fix /
-Verified against / Test) is a **core-only** rule (core §Contributor workflow); the
-addon guideline only requires a Mantis bug reference in the PR body. So an addon
-contribution is never failed against the core PR-body rule, nor vice versa
-(testbed issue #6). Cited by **section** via :mod:`doc16` so anchors survive page
-edits.
+guidelines' §Commit messages, but the **user-impact-led PR body** (a
+``**User impact:**`` opener before Root cause — the #106 format) is a **core-only**
+rule (core §Contributor workflow); the addon guideline only requires a Mantis bug
+reference in the PR body. So an addon contribution is never failed against the core
+PR-body rule, nor vice versa (testbed issue #6). Cited by **section** via
+:mod:`doc16` so anchors survive page edits.
 
 Commit message (``check_commit_msg``, both targets — §Commit messages /
 §Mantis trailer keywords):
@@ -30,8 +30,8 @@ Commit message (``check_commit_msg``, both targets — §Commit messages /
 
 PR body (``check_pr_body``):
 
-  * MUST (**core only**): structured Root cause / Fix / Verified against / Test
-    (core §Contributor workflow)
+  * MUST (**core only**): opens with a non-empty ``**User impact:**`` line, before
+    ``## Root cause`` — the user-visible effect leads (core §Contributor workflow)
   * MUST: references the Mantis bug with ``#NNNN`` (core §Contributor workflow /
     addon §addons-source: bug reference in PR body)
 
@@ -139,28 +139,37 @@ def check_commit_msg(text: str, target: str = "core", *, require_trailer: bool =
     return violations
 
 
-# The four required PR-body sections — a CORE rule (core §Contributor workflow).
-_PR_SECTIONS = ("Root cause", "Fix", "Verified against", "Test")
+# The #106 PR-body rule (core §Contributor workflow): the body must LEAD with a
+# non-empty `**User impact:**` line — the user-visible effect, in plain language —
+# that comes BEFORE `## Root cause`, so a reader grasps WHY before the internals.
+_USER_IMPACT = re.compile(r"(?im)^[ \t>]*\*\*User impact:\*\*[ \t]*(\S.*)$")
+_ROOT_CAUSE = re.compile(r"(?im)^#+[ \t]*Root cause\b")
 _BUG_REF = re.compile(r"#\d+")
 
 
 def check_pr_body(text: str, target: str = "core", *, require_trailer: bool = True) -> list[str]:
     """Return the PR-body MUST violations for the given target.
 
-    The four-section structure (Root cause / Fix / Verified against / Test) is a
-    **core-only** MUST; the addon guideline only mandates a Mantis bug reference.
-    ``require_trailer=False`` (declared ticketless) waives the ``#NNNN`` reference —
-    the section structure is still required.
+    The **core** rule (#106) is that the body opens with a non-empty
+    ``**User impact:**`` line that PRECEDES ``## Root cause`` — the user-visible
+    effect must lead, before the internals. The addon guideline only mandates a
+    Mantis bug reference. ``require_trailer=False`` (declared ticketless) waives the
+    ``#NNNN`` reference — the user-impact opener is still required.
     """
     violations: list[str] = []
-    low = text.lower()
     if target == "core":
         cite = doc16.cite("core", "Contributor workflow")
-        for section in _PR_SECTIONS:
-            if section.lower() not in low:
+        impact = _USER_IMPACT.search(text)
+        if not impact:
+            violations.append(
+                f"pr-body: must open with a non-empty '**User impact:**' line "
+                f"(the user-visible effect, before Root cause) ({cite})"
+            )
+        else:
+            root = _ROOT_CAUSE.search(text)
+            if root and impact.start() > root.start():
                 violations.append(
-                    f"pr-body: missing '{section}' section — core PR body must be "
-                    f"Root cause / Fix / Verified against / Test ({cite})"
+                    f"pr-body: '**User impact:**' must come BEFORE '## Root cause' ({cite})"
                 )
         bug_cite = cite
     else:

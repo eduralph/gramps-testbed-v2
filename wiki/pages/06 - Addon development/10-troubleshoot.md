@@ -204,7 +204,7 @@ Two things to check:
 
 1. **Branch target.** `addons-source` PRs target `maintenance/gramps60`, not `master`. Gary cherry-picks forward to `gramps61`. Core PRs target `maintenance/gramps61`. A PR against the wrong branch may sit untouched waiting for retargeting. See [16-guidelines → Contributor workflowN-guidelines.md#contributor-workflow).
 
-2. **PR body shape.** Reviewers expect *Root cause / Fix / Verified against / Test*. A PR body that skips one of those sections often returns without a substantive review until it conforms.
+2. **PR body shape.** Reviewers expect a **`**User impact:**`** opener (before Root cause), then *Summary / What to look at / Root cause / Fix / Verification* (the #106 format). A PR body that leads with internals instead of the user-visible effect often returns without a substantive review until it conforms.
 
 ### "PR was rejected as duplicate."
 

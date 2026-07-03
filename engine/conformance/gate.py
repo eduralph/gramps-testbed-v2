@@ -22,8 +22,8 @@ target is derived from ``$PDCA_BUNDLE`` rather than the whole working tree, and
     patch touches no checkable ``.py`` path.
   * **T4** — the bundle's ``commit-msg.txt`` / ``pr-description.md``, judged
     against the **core** or **addon** guideline by whether the patch touches an
-    addon (the four-section PR body is a core-only MUST). Neither file present →
-    **N/A** → pass.
+    addon (the ``**User impact:**`` opener before Root cause is a core-only MUST).
+    Neither file present → **N/A** → pass.
 
 These gates are **advisory** (``gating = false`` in ``pdca.toml``): they audit
 the touched contribution and surface doc-16 violations as evidence for the

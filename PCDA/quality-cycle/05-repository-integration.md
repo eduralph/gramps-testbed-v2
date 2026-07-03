@@ -110,7 +110,7 @@ Instantiates [02 - Cycle Artifacts](02-cycle-artifacts.md) §Bundle layout. Inte
 Instantiates Tier 4 ([04 - Validation Tooling](04-validation-tooling.md)). Integration MUST declare:
 
 - **Commit-message format** — subject length, wrap column, trailer format, required references.
-- **PR description format** — the project's expected sections (the testbed's `CLAUDE.md` has "Root cause / Fix / Verified against / Test").
+- **PR description format** — the project's expected sections (the testbed uses the #106 form: a `**User impact:**` opener before Root cause, then Summary / What to look at / Root cause / Fix / Verification).
 - **Enforcement mechanism** — which checks fire via commit-msg hook (fork-local), which via fork PR CI, which catch at human review.
 
 ### 9. Repo-specific scripts and tooling
@@ -208,7 +208,7 @@ The testbed's integration lived across `CLAUDE.md`, `agent-work/`, and
 | **5. Upstream-isn't-ahead routine** | `CLAUDE.md` §"Pre-flight: check upstream isn't ahead" — search-by-affected-file-path rule, GitHub tokenization caveat ("`latex in:title` does NOT match 'Latexdoc'"), `git log upstream/maintenance/gramps60 -- <Addon>/` for addons. |
 | **6. Brief / design-proposal templates** | `agent-work/templates/SUMMARY.md.tpl`; `agent-work/templates/exit-brief.md.tpl`; `agent-work/templates/increment-brief.md.tpl`. Design-proposal template: **[planned]** (GEPS 049 was authored upstream, not via this cycle — see [07 - Case Study - CI Hardening](07-case-study-ci-hardening.md) §Parallel example). |
 | **7. Bundle and act-log paths** | Triage bundles: `agent-work/results/<batch>/issue_<mantis-id>/` (current convention; some historical batches under `agent-work/batches/<batch>/results/`). CI-hardening bundles (testbed self-improvement cycle): `agent-work/results/ci-hardening/ci-<slug>/` (consolidated from former root `/results/`). Act log: **[planned]** as `agent-work/act-log.md` or `process/act-log.md`; current practice is to log Act outcomes in batch exit briefs. Iterate archive: rejected attempts preserved in `iteration-v<N>/` per [03 - Cycle Automation](03-cycle-automation.md) §Driver skeleton. |
-| **8. Committing and PR conventions** | `CLAUDE.md` §"PR description format" — Root cause / Fix / Verified against / Test. Enforcement: human review today; commit-msg hook **[planned]** (Tier 4 greenfield per [04 - Validation Tooling](04-validation-tooling.md)). |
+| **8. Committing and PR conventions** | §"PR description format" — the #106 form: a `**User impact:**` opener before Root cause, then Summary / What to look at / Root cause / Fix / Verification. Enforcement: the T4 gate (`engine/conformance/t4_contribution.py`) + human review. |
 | **9. Repo-specific scripts and tooling** | See expanded table below. |
 | **10. Maintainer and governance** | `CLAUDE.md` §"Eduard's review gate" — Eduard opens fork PRs as draft and re-reads with fresh eyes before marking ready; Claude commits and stops there. Solo author; no team review. |
 | **11. P-/D-/C-/A- extensions** | None today. **[planned]** when running cycles surface project-specific tightenings. |

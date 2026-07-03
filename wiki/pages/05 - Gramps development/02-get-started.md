@@ -175,7 +175,7 @@ empty string instead.
 Fixes #12345.
 ```
 
-Structure the PR body as **Root cause / Fix / Verified against / Test**, citing `path:lines` on `maintenance/gramps61`, and end it with the same `Fixes #NNNN` ([[16-guidelines]] §Contributor workflow).
+Open the PR body with a **`**User impact:**`** line (the user-visible effect, before Root cause), then structure it **Summary / What to look at / Root cause / Fix / Verification**, citing `path:lines` on `maintenance/gramps61` in the Verification "Checked" line, and end it with the same `Fixes #NNNN` ([[16-guidelines]] §Contributor workflow).
 
 ## See also
 
