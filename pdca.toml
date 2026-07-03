@@ -55,7 +55,12 @@ worktree = false
 #     for a resource not expressed as a doctor row; a non-zero exit aborts. Serial (lanes<=1)
 #     runs never preflight; empty ⇒ only the doctor rows (or nothing). It only VERIFIES —
 #     provisioning stays the instance's job (e.g. `make worktrees LANES={lanes}`).
-# lane_preflight = "test -e ../repo-lane{lanes}/.git || { echo 'run: make worktrees LANES={lanes}'; exit 1; }"
+# We use lane_preflight (not a REQUIRED per_lane doctor row) so the batch preflight aborts on
+# missing lanes WITHOUT making `pdca doctor` hard-fail on them: bootstrap.sh runs doctor
+# BEFORE it provisions the worktrees, so a required lane row would deadlock a clean setup
+# (doctor stops pass 1 before `make preflight` ever creates the lanes). The lane worktrees
+# stay a WARN doctor row (advisory visibility); this command is the batch-time hard gate.
+lane_preflight = '''k=0; while [ "$k" -lt {lanes} ]; do for w in gramps-6.0 gramps-6.1 addons-source-6.0 addons-source-6.1; do test -e "../$w-lane$k/.git" || { echo "missing lane worktree ../$w-lane$k — run: make worktrees LANES={lanes}"; exit 1; }; done; k=$((k+1)); done'''
 # Wave-based batch sequencing (#wave-model). When `pdca flow` is given several ids it runs
 # them as an ordered sequence of dependency waves (computed from each brief's `Depends on`
 # / `Conflicts with`): a wave's bundles build in parallel, then its accepted work reaches
@@ -380,18 +385,19 @@ hint = "make worktrees   (or the full: make preflight)"
 level = "WARN"
 
 # -- workspace: per-LANE worktrees (a batch flow fans out across [driver].lanes) --
-# REQUIRED (issue #300): the driver's per-lane preflight (preflight.py) runs the
-# REQUIRED per_lane doctor rows once BEFORE a lanes>1 fan-out and ABORTS the batch
-# if a lane worktree is missing — so a batch never runs against absent lanes and
-# produces a pile of infra-false-red bundles. per_lane rows expand to nothing when
-# lanes<=1 (serial mode needs no lane copies), so this only bites an actual fan-out.
+# WARN, not required (issue #300): the batch preflight is the [driver].lane_preflight
+# command above (it hard-aborts a lanes>1 fan-out on a missing lane). This row stays
+# ADVISORY so `pdca doctor` shows per-lane status without hard-failing a clean bootstrap
+# — bootstrap.sh runs doctor BEFORE it provisions the worktrees, so a required lane row
+# would stop pass 1 before `make preflight` ever creates them. per_lane rows expand to
+# nothing when lanes<=1, so serial setups see no lane rows at all.
 [[doctor.checks]]
 group = "workspace"
 id = "lane worktrees lane{lane} (gramps + addons-source 6.{0,1})"
 cmd = "test -e ../gramps-6.0-lane{lane}/.git && test -e ../gramps-6.1-lane{lane}/.git && test -e ../addons-source-6.0-lane{lane}/.git && test -e ../addons-source-6.1-lane{lane}/.git"
 hint = "make worktrees LANES={lanes}   (a lanes>1 batch needs per-lane worktrees)"
 per_lane = true
-required = true
+level = "WARN"
 
 # -- scraper (optional; Mantis thread scraping only) --
 [[doctor.checks]]
