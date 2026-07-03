@@ -1,0 +1,21 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "user2418\n\n 2014-03-19 20:15\n\n   ~0035263": "I'm also experiencing this with Gramps 4.0.2 on Linux Mint 16.",
+    "sam888\n\n 2015-09-06 05:40\n\nadministrator    ~0044361\n\n last edited: 2015-09-06 05:42\n\nview 2 revisions": "CTRL+C pops up the Clipboard.\n\nCTRL+V works in sidebar.\n\n(Tested Gramps master)"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "I'm also experiencing this with Gramps 4.0.2 on Linux Mint 16."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "CTRL+C pops up the Clipboard.\n\nCTRL+V works in sidebar.\n\n(Tested Gramps master)"
+    }
+  ],
+  "id": "6170",
+  "url": "https://gramps-project.org/bugs/view.php?id=6170"
+}

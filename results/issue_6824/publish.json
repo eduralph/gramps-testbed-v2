@@ -1,0 +1,10 @@
+{
+  "mode": "new-pr",
+  "branch": "fix/bug-6824-html-report-relative-media-paths",
+  "pr_url": "https://github.com/gramps-project/gramps/pull/2452",
+  "base": "maintenance/gramps61",
+  "repo": "gramps-project/gramps",
+  "by": "Eduard Ralph",
+  "date": "2026-07-03",
+  "id_pending": false
+}

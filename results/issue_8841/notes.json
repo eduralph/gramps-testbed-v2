@@ -1,0 +1,76 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "dsblank\n\n 2015-08-15 17:14\n\ndeveloper    ~0043969": "Can you provide a screenshot indicating what the link looks like, and where you are clicking?",
+    "ronjohn\n\n 2015-08-15 17:35\n\nreporter": "gramps_notes_http.png (51,203 bytes)",
+    "ronjohn\n\n 2015-08-15 17:39\n\nreporter    ~0043975": "Hopefully you can see the cursor bar at the end of the link. In that window, I actually clicked far to the the lower right of the link, and Gtk put the cursor at the end of the link, since that's the end of the note. That's when Gramps fires off the \"open link\" command.\n\nDoes it matter that I use Chromium? I don't see how it should, but just in case...",
+    "dsblank\n\n 2015-08-15 22:49\n\ndeveloper    ~0043982": "I can't replicate the issue, because I have to right-click on the link and select \"Open Link\"... wonder why yours fires without having to right-click?\n\nI don't think your browser has anything to do with the way that Gramps operates in that window.",
+    "ronjohn\n\n 2015-08-15 22:55\n\nreporter    ~0043983": "Does it matter that I'm using XFCE?\n\nBTW...\n\n$ gramps -v\nGramps Settings:\n\npython : 3.4.0\ngramps : 4.2.0\ngtk++ : 3.10.8\npygobject : 3.12.0\npango : 1.36.3\nbsddb : 6.0.1\nbsddb.db : 5.3.28\ncairo : 1.13.1\npycairo : 1.10.0\nosmgpsmap : 1.0\nGExiv2 : 0.10\nICU : 52.1\nPyICU : 1.5\no.s. : linux\nkernel : 3.13.0-54-generic\n\nEnvironment settings:\n\nLANG : en_US.UTF-8\nLANGUAGE : en\nGRAMPSI18N: not set\nGRAMPSHOME: not set\nGRAMPSDIR : not set\nPYTHONPATH:\n/usr/lib/python3/dist-packages/gramps\n/usr/bin\n/usr/lib/python3.4\n/usr/lib/python3.4/plat-x86_64-linux-gnu\n/usr/lib/python3.4/lib-dynload\n/usr/local/lib/python3.4/dist-packages\n/usr/lib/python3/dist-packages\n\nNon-python dependencies:\n\nGraphviz : 2.36\nGhostscr. : 9.10\n\nSystem PATH env variable:\n /usr/local/sbin\n /usr/local/bin\n /usr/sbin\n /usr/bin\n /sbin\n /bin\n /usr/games\n /usr/local/games",
+    "sam888\n\n 2015-08-15 23:50\n\nadministrator    ~0043985\n\n last edited: 2016-03-01 22:13\n\nview 3 revisions": "Unable to reproduce on ms-windows 7(Gramps 4.2.0 Hans Ulrich Frink's build) can only open link in way mentioned in 0008841:0043982",
+    "sam888\n\n 2015-08-16 00:02\n\nadministrator    ~0043986\n\n last edited: 2015-08-16 00:07\n\nview 2 revisions": "Single clicked at the bottom of the note text area and the Firefox fired up and showed the link.\n\nA quick double click in the same position and I briefly see the link being highlighted (as if \"Select All\" had been used) and firefox started. (see screenshot)\n\nReproduced on Gramps master on Ubuntu 14.04.3 (Unity windows manager)\n\nNote: I do not have Chromium installed.",
+    "sam888\n\n 2015-08-16 00:02\n\nadministrator": "linkselected-example-note.png (38,423 bytes)",
+    "sam888\n\n 2015-08-16 00:05\n\nadministrator": "terminal-gramps-master.txt (22,871 bytes)",
+    "dsblank\n\n 2015-08-17 21:31\n\ndeveloper    ~0044044": "I can't replicate on Ubuntu 14.04.3 LTS, Unity. I'm using Chrome. I can't get the browser to open, unless I right-click and select \"Open Link\" or if I control+left-click.\n\nGramps Settings:\n\npython : 3.4.0\ngramps : 5.0.0-d76757d\n\ngtk++ : 3.10.8\npygobject : 3.12.0\npango : 1.36.3\nbsddb : 6.0.1\nbsddb.db : 5.3.28\ncairo : 1.13.1\npycairo : 1.10.0\nosmgpsmap : not found\nGExiv2 : not found\nICU : 52.1\nPyICU : 1.5\no.s. : linux\nkernel : 3.13.0-61-generic\n\nEnvironment settings:\n\nLANG : en_US.UTF-8\nLANGUAGE : en\nGRAMPSI18N: not set\nGRAMPSHOME: not set\nGRAMPSDIR : not set\nPYTHONPATH:\n/home/dblank/gramps/master/gramps\n/home/dblank/gramps/master\n/usr/lib/python3/dist-packages\n/usr/local/lib/python3.4/dist-packages/calysto-0.9.1-py3.4.egg\n/usr/local/lib/python3.4/dist-packages/familysearch_python_sdk_opensource-1.0.3-py3.4.egg\n/usr/local/lib/python3.4/dist-packages/metakernel-0.9.0-py3.4.egg\n/usr/lib/python3.4\n/usr/lib/python3.4/plat-x86_64-linux-gnu\n/usr/lib/python3.4/lib-dynload\n/usr/local/lib/python3.4/dist-packages\n\nNon-python dependencies:\n\nGraphviz : 2.36\nGhostscr. : 9.10",
+    "sam888\n\n 2015-08-18 00:10\n\nadministrator    ~0044049": "Reproducable for me on Ubuntu 14.04.3 LTS, Unity. I only have the Default Firefox (v40) installed.\n\nGramps Settings:\n\npython : 3.4.0\ngramps : 5.0.0-d76757d\n\ngtk++ : 3.10.8\npygobject : 3.12.0\npango : 1.36.3\nbsddb : 6.0.1\nbsddb.db : 5.3.28\ncairo : 1.13.1\npycairo : 1.10.0\nosmgpsmap : 1.0\nGExiv2 : 0.10\nICU : 52.1\nPyICU : 1.5\no.s. : linux\nkernel : 3.13.0-36-generic\n\nEnvironment settings:\n\nLANG : en_US.UTF-8\nLANGUAGE : en\nGRAMPSI18N: not set\nGRAMPSHOME: not set\nGRAMPSDIR : not set\nPYTHONPATH:\n/home/grampsdev/aaSandbox/gramps/gramps\n/home/grampsdev/aaSandbox/gramps\n/home/grampsdev/.virtualenvs/3grampspy/lib/python3.4\n/home/grampsdev/.virtualenvs/3grampspy/lib/python3.4/plat-x86_64-linux-gnu\n/home/grampsdev/.virtualenvs/3grampspy/lib/python3.4/lib-dynload\n/usr/lib/python3.4\n/usr/lib/python3.4/plat-x86_64-linux-gnu\n/home/grampsdev/.virtualenvs/3grampspy/lib/python3.4/site-packages\n\nNon-python dependencies:\n\nGraphviz : 2.36\nGhostscr. : 9.10\n\nSystem PATH env variable:\n /home/grampsdev/.virtualenvs/3grampspy/bin\n /usr/local/sbin\n /usr/local/bin\n /usr/sbin\n /usr/bin\n /sbin\n /bin\n /usr/games\n /usr/local/games",
+    "ronjohn\n\n 2015-08-19 13:22\n\nreporter    ~0044055": "Could it be a configuration issue? Since you all use Unity, and I use XFCE, it would have to be Gtk."
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Can you provide a screenshot indicating what the link looks like, and where you are clicking?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "gramps_notes_http.png (51,203 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Hopefully you can see the cursor bar at the end of the link. In that window, I actually clicked far to the the lower right of the link, and Gtk put the cursor at the end of the link, since that's the end of the note. That's when Gramps fires off the \"open link\" command.\n\nDoes it matter that I use Chromium? I don't see how it should, but just in case..."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I can't replicate the issue, because I have to right-click on the link and select \"Open Link\"... wonder why yours fires without having to right-click?\n\nI don't think your browser has anything to do with the way that Gramps operates in that window."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Does it matter that I'm using XFCE?\n\nBTW...\n\n$ gramps -v\nGramps Settings:\n\npython : 3.4.0\ngramps : 4.2.0\ngtk++ : 3.10.8\npygobject : 3.12.0\npango : 1.36.3\nbsddb : 6.0.1\nbsddb.db : 5.3.28\ncairo : 1.13.1\npycairo : 1.10.0\nosmgpsmap : 1.0\nGExiv2 : 0.10\nICU : 52.1\nPyICU : 1.5\no.s. : linux\nkernel : 3.13.0-54-generic\n\nEnvironment settings:\n\nLANG : en_US.UTF-8\nLANGUAGE : en\nGRAMPSI18N: not set\nGRAMPSHOME: not set\nGRAMPSDIR : not set\nPYTHONPATH:\n/usr/lib/python3/dist-packages/gramps\n/usr/bin\n/usr/lib/python3.4\n/usr/lib/python3.4/plat-x86_64-linux-gnu\n/usr/lib/python3.4/lib-dynload\n/usr/local/lib/python3.4/dist-packages\n/usr/lib/python3/dist-packages\n\nNon-python dependencies:\n\nGraphviz : 2.36\nGhostscr. : 9.10\n\nSystem PATH env variable:\n /usr/local/sbin\n /usr/local/bin\n /usr/sbin\n /usr/bin\n /sbin\n /bin\n /usr/games\n /usr/local/games"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Unable to reproduce on ms-windows 7(Gramps 4.2.0 Hans Ulrich Frink's build) can only open link in way mentioned in 0008841:0043982"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Single clicked at the bottom of the note text area and the Firefox fired up and showed the link.\n\nA quick double click in the same position and I briefly see the link being highlighted (as if \"Select All\" had been used) and firefox started. (see screenshot)\n\nReproduced on Gramps master on Ubuntu 14.04.3 (Unity windows manager)\n\nNote: I do not have Chromium installed."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "terminal-gramps-master.txt (22,871 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I can't replicate on Ubuntu 14.04.3 LTS, Unity. I'm using Chrome. I can't get the browser to open, unless I right-click and select \"Open Link\" or if I control+left-click.\n\nGramps Settings:\n\npython : 3.4.0\ngramps : 5.0.0-d76757d\n\ngtk++ : 3.10.8\npygobject : 3.12.0\npango : 1.36.3\nbsddb : 6.0.1\nbsddb.db : 5.3.28\ncairo : 1.13.1\npycairo : 1.10.0\nosmgpsmap : not found\nGExiv2 : not found\nICU : 52.1\nPyICU : 1.5\no.s. : linux\nkernel : 3.13.0-61-generic\n\nEnvironment settings:\n\nLANG : en_US.UTF-8\nLANGUAGE : en\nGRAMPSI18N: not set\nGRAMPSHOME: not set\nGRAMPSDIR : not set\nPYTHONPATH:\n/home/dblank/gramps/master/gramps\n/home/dblank/gramps/master\n/usr/lib/python3/dist-packages\n/usr/local/lib/python3.4/dist-packages/calysto-0.9.1-py3.4.egg\n/usr/local/lib/python3.4/dist-packages/familysearch_python_sdk_opensource-1.0.3-py3.4.egg\n/usr/local/lib/python3.4/dist-packages/metakernel-0.9.0-py3.4.egg\n/usr/lib/python3.4\n/usr/lib/python3.4/plat-x86_64-linux-gnu\n/usr/lib/python3.4/lib-dynload\n/usr/local/lib/python3.4/dist-packages\n\nNon-python dependencies:\n\nGraphviz : 2.36\nGhostscr. : 9.10"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Reproducable for me on Ubuntu 14.04.3 LTS, Unity. I only have the Default Firefox (v40) installed.\n\nGramps Settings:\n\npython : 3.4.0\ngramps : 5.0.0-d76757d\n\ngtk++ : 3.10.8\npygobject : 3.12.0\npango : 1.36.3\nbsddb : 6.0.1\nbsddb.db : 5.3.28\ncairo : 1.13.1\npycairo : 1.10.0\nosmgpsmap : 1.0\nGExiv2 : 0.10\nICU : 52.1\nPyICU : 1.5\no.s. : linux\nkernel : 3.13.0-36-generic\n\nEnvironment settings:\n\nLANG : en_US.UTF-8\nLANGUAGE : en\nGRAMPSI18N: not set\nGRAMPSHOME: not set\nGRAMPSDIR : not set\nPYTHONPATH:\n/home/grampsdev/aaSandbox/gramps/gramps\n/home/grampsdev/aaSandbox/gramps\n/home/grampsdev/.virtualenvs/3grampspy/lib/python3.4\n/home/grampsdev/.virtualenvs/3grampspy/lib/python3.4/plat-x86_64-linux-gnu\n/home/grampsdev/.virtualenvs/3grampspy/lib/python3.4/lib-dynload\n/usr/lib/python3.4\n/usr/lib/python3.4/plat-x86_64-linux-gnu\n/home/grampsdev/.virtualenvs/3grampspy/lib/python3.4/site-packages\n\nNon-python dependencies:\n\nGraphviz : 2.36\nGhostscr. : 9.10\n\nSystem PATH env variable:\n /home/grampsdev/.virtualenvs/3grampspy/bin\n /usr/local/sbin\n /usr/local/bin\n /usr/sbin\n /usr/bin\n /sbin\n /bin\n /usr/games\n /usr/local/games"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Could it be a configuration issue? Since you all use Unity, and I use XFCE, it would have to be Gtk."
+    }
+  ],
+  "id": "8841",
+  "url": "https://gramps-project.org/bugs/view.php?id=8841"
+}

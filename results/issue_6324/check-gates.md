@@ -1,0 +1,32 @@
+# Check gates — issue_6324
+
+**Overall (gating): fail**
+
+The Check 5/5/1: 5 correctness · 5 conformance · 1 validation.
+
+## Correctness (5)
+
+| Check | Result | Oracle | Rule | Evidence | Gating |
+|---|---|---|---|---|---|
+| C1 Spec | none | brief.md | — | — | no |
+| C2 Reproduction (red pre-fix) | none | (no gate configured) | — | — | no |
+| C3 Change | none | patch.diff | — | — | no |
+| C4 fix verified: test red pre-fix, green post-fix | fail | ./engine/scripts/ubuntu/run-verify.sh | C4-verify | run-verify.sh: core worktree /home/eddie/gramps/gramps-6.1-lane0 missing — run 'make worktrees LANES=N'. | yes |
+| C5 test exercises the production path (not a copy) | pass | PDCA_PROD_PACKAGE=gramps python3 scripts/checks/test_exercises_production.py | C5-prod-path | added test(s) import the production package 'gramps' | no |
+
+## Conformance (5)
+
+| Check | Result | Oracle | Rule | Evidence | Gating |
+|---|---|---|---|---|---|
+| T1 structure: addon layout vs doc 16 §Structure (folder==id, target_version, fname, no __init__.py) | pass | python3 ./engine/conformance/gate.py T1 | T1-structure | T1 – N/A: no addons-source path in patch.diff (core-only change; §Structure is addon-only) | no |
+| T2 shape: code shape vs doc 16 §Coding style (GPL header on touched files; print() advisory for reviewer) | pass | python3 ./engine/conformance/gate.py T2 | T2-shape | T2 ✓ shape: 1 file(s) conform to doc 16 §Coding style (2 advisory) | no |
+| T2 potfiles: new/removed core .py registered in po/POTFILES.in|.skip (doc 16 §Adding and removing Python files) | pass | python3 ./engine/conformance/gate.py T2-potfiles | T2-potfiles | T2 ✓ potfiles: new/removed core .py registered (doc 16 §Adding and removing Python files) | yes |
+| T3 runtime: gramps core unit suite (whole-suite baseline) | fail | CORE_VERSION=6.1 python3 ./engine/conformance/t3_baseline.py ./engine/scripts/ubuntu/run-unit.sh | T3-unit | T3-baseline [delta]: DELTA: runner exited 1 producing NO JUnit XML — a pre-test crash (install / GI bootstrap / test col | no |
+| T4 contribution: commit/PR wrapper vs doc 16 §Commit messages + §Contributor workflow | pass | python3 ./engine/conformance/gate.py T4 | T4-contribution | T4 – N/A: no commit-msg.txt or pr-description.md in the bundle | no |
+| T5 Judgment | none | reviewer + human sign-off | — | — | no |
+
+## Validation (1)
+
+| Check | Result | Oracle | Rule | Evidence | Gating |
+|---|---|---|---|---|---|
+| Validation — fitness-to-purpose | none | human at sign-off | — | — | no |

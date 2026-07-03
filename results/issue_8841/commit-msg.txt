@@ -1,0 +1,21 @@
+Fix styled-text note hyperlink click detection
+
+When a user clicks in empty space beside or below a hyperlink in a Note's
+styled-text view, GTK's get_iter_at_location() snaps the click to the nearest
+character position. The existing code treats that snapped position as a real
+link match, so the link opens even though the user never clicked on it.
+
+Add a new _pointer_over_iter() predicate to verify that the pointer is actually
+within the rendered glyph of a character, not merely adjacent to it. Because
+get_iter_at_location() advances past a glyph when the click lands in its
+trailing (right) half, the predicate checks the bounding rectangle of the
+character at the snapped position and, on a miss, the one immediately before it.
+Gate both URL regexp matches and internal link tags on this check, so clicks in
+the empty area beside/below a link no longer register as hits, while a click
+anywhere on the link glyph -- left or right half -- still opens it.
+
+This fixes the invariant that link activation requires the pointer to be over
+the link's rendered glyph, not over the nearest position when a click falls
+outside the text.
+
+Fixes #8841

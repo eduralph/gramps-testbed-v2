@@ -1,0 +1,439 @@
+diff --git a/gramps/gui/editors/editprimary.py b/gramps/gui/editors/editprimary.py
+index 88919ae461..c644bf9579 100644
+--- a/gramps/gui/editors/editprimary.py
++++ b/gramps/gui/editors/editprimary.py
+@@ -51,6 +51,7 @@ from ..dialog import SaveDialog
+ from gramps.gen.lib import PrimaryObject
+ from ..dbguielement import DbGUIElement
+ from ..uimanager import ActionGroup
++from ..savecascade import children_to_resolve
+ 
+ 
+ class EditPrimary(ManagedWindow, DbGUIElement, metaclass=abc.ABCMeta):
+@@ -81,6 +82,10 @@ class EditPrimary(ManagedWindow, DbGUIElement, metaclass=abc.ABCMeta):
+         self.db = state.db
+         self.callback = callback
+         self.ok_button = None
++        # The editor's confirm handler, captured by define_ok_button and driven
++        # by _save_with_dependent_children. Defaults to save so the shared save
++        # guard is safe even before/without define_ok_button (#7924).
++        self._ok_function = self.save
+         self.get_from_handle = get_from_handle
+         self.get_from_gramps_id = get_from_gramps_id
+         self.contexteventbox = None
+@@ -177,9 +182,128 @@ class EditPrimary(ManagedWindow, DbGUIElement, metaclass=abc.ABCMeta):
+ 
+     def define_ok_button(self, button, function):
+         self.ok_button = button
+-        button.connect("clicked", function)
++        # Do not wire the editor's confirm handler straight to the OK button.
++        # Route it -- and every other save door (see close()) -- through
++        # _save_with_dependent_children first: when this editor is confirmed
++        # while a child primary editor it spawned is still open holding unsaved
++        # data whose completion callback must land a reference on this editor's
++        # working object, that child is resolved BEFORE this editor reads its
++        # references and commits. See Mantis #7924.
++        self._ok_function = function
++        button.connect("clicked", self._save_with_dependent_children)
+         button.set_sensitive(not self.db.readonly)
+ 
++    def _save_with_dependent_children(self, *args):
++        """Confirm handler shared by every save door: resolve open dependent
++        child editors, then save.
++
++        A primary editor is non-modal, so it can be confirmed while a child
++        primary editor it spawned -- e.g. an EditPerson opened as "add a new
++        person as the mother" from EditFamily -- is still open with unsaved
++        data. That child's completion callback, which writes the child's
++        handle onto *this* editor's working object (EditFamily.new_mother_added),
++        only runs when the *child* saves. If this editor commits first, it
++        persists an object graph with that reference silently dropped and the
++        child's data orphaned -- the #7924 defect.
++
++        So drive each open dependent child's own save-guard first. If any child
++        is left unresolved (the user chose "keep editing" on its "Save Changes?"
++        prompt, or its save aborted on a validation error), abort this editor's
++        save entirely -- it stays open and nothing is committed, so no partial
++        graph is ever persisted.
++
++        This is wired to BOTH the OK button (define_ok_button) and the
++        close/Cancel/window-X save path (close()'s SaveDialog), so the child is
++        resolved no matter which door commits the parent (Mantis #7924).
++        """
++        if not self._resolve_dependent_children():
++            return
++        self._ok_function(*args)
++
++    def _resolve_dependent_children(self):
++        """Resolve open child primary editors holding unsaved data before commit.
++
++        Returns True if the save may proceed -- every dependent child editor
++        was resolved (saved, or discarded by the user), or there were none.
++        Returns False if a child was left unresolved, in which case the parent
++        save must abort.
++
++        Children are resolved deepest-first (see
++        :func:`~gramps.gui.savecascade.children_to_resolve`) so that, in a
++        nested chain, each level's completion callback has already landed on
++        its own parent before that parent reads its references.
++        """
++        if self.uistate is None:
++            return True
++        try:
++            item = self.uistate.gwm.get_item_from_track(self.track)
++        except (IndexError, KeyError):
++            return True
++        for child in children_to_resolve(item, self._is_unresolved_dependent_child):
++            if not child._resolve_before_parent_commit():
++                return False
++        return True
++
++    def _is_unresolved_dependent_child(self, window):
++        """True if ``window`` is an open child primary editor with a pending
++        reference this editor's commit would drop.
++
++        Only a primary editor opened WITH a completion callback (``callback``
++        is not None -- e.g. EditFamily.new_mother_added) writes a handle back
++        onto the spawning editor's object, so only such a child must be
++        resolved before this editor commits. A child opened to edit an
++        *existing* object carries no callback (EditFamily.edit_person passes
++        none) -- committing this editor drops nothing, so it is left alone and
++        the common case is unchanged (#7924 over-trigger guard). Selectors and
++        secondary/reference windows are excluded by the EditPrimary check.
++        """
++        return (
++            window is not self
++            and isinstance(window, EditPrimary)
++            and getattr(window, "opened", False)
++            and getattr(window, "callback", None) is not None
++            and window.data_has_changed()
++        )
++
++    def _resolve_before_parent_commit(self):
++        """Drive this child editor's save-guard as part of a parent's commit.
++
++        Called on a child primary editor when its parent is confirmed while
++        this child is still open with unsaved data. It reuses the very same
++        "Save Changes?" guard the direct-close path shows (:meth:`close`) --
++        Save runs this editor's own save (its completion callback lands our
++        reference on the parent's object), "Close without saving" discards our
++        edits, Cancel keeps this editor open.
++
++        Whether the parent save may proceed is read from *this* editor's own
++        window state AFTER the attempt, never assumed up front: a successful
++        save (or an explicit discard) closes this editor (``self.opened``
++        becomes False); a Cancel ("keep editing") or a validation-aborted save
++        leaves it open. So:
++
++          * closed  -> return True  (resolved; the parent may commit);
++          * open    -> return False (unresolved; the parent must abort).
++        """
++        if config.get("interface.dont-ask"):
++            # The user opted out of the "Save Changes?" prompt. Honour that as
++            # "save without asking" -- a silent save of this child, NOT as
++            # skipping its save (which would drop its reference and revive the
++            # #7924 defect for dont-ask users). A validation error still leaves
++            # the editor open, handled by the check below.
++            self.save()
++        else:
++            SaveDialog(
++                _("Save Changes?"),
++                _(
++                    "If you close without saving, the changes you "
++                    "have made will be lost"
++                ),
++                self._do_close,
++                self.save,
++                parent=self.window,
++            )
++        return not self.opened
++
+     def define_cancel_button(self, button):
+         button.connect("clicked", self.close)
+ 
+@@ -252,7 +376,12 @@ class EditPrimary(ManagedWindow, DbGUIElement, metaclass=abc.ABCMeta):
+                     "have made will be lost"
+                 ),
+                 self._do_close,
+-                self.save,
++                # Save via the shared guard, not self.save directly: closing a
++                # parent editor with the window-X or Cancel and choosing Save
++                # must ALSO resolve an open dependent child first, or the parent
++                # commits with the child's reference dropped -- the #7924 defect
++                # via a second save door (see _save_with_dependent_children).
++                self._save_with_dependent_children,
+                 parent=self.window,
+             )
+             return True
+diff --git a/gramps/gui/savecascade.py b/gramps/gui/savecascade.py
+new file mode 100644
+index 0000000000..1e65cb47d6
+--- /dev/null
++++ b/gramps/gui/savecascade.py
+@@ -0,0 +1,81 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026       The Gramps Developers
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Pure logic for the "resolve dependent child editors before a parent editor
++commits" decision (Mantis #7924).
++
++This module is deliberately free of any GTK / ``gramps.gui`` imports so the
++decision it embodies -- *which* open child windows a parent editor must
++resolve before it persists its object graph, and *in what order* -- can be
++unit-tested headless while the live save path (:class:`gramps.gui.editors.
++editprimary.EditPrimary`) drives the very same functions on the real window
++tree.
++
++The window tree is the structure :class:`gramps.gui.managedwindow.
++GrampsWindowManager` maintains: a *branch* is a list whose first element is
++the head (parent) window of a group and whose remaining elements are the
++windows spawned from it (each itself a branch or a leaf); a *leaf* is any
++non-list item (a single managed window). See ``GrampsWindowManager`` for the
++authoritative description of the tree.
++"""
++
++
++def descendant_leaves(item):
++    """Return the leaf windows spawned *below* the tree node ``item``.
++
++    ``item`` is a node of the ``GrampsWindowManager`` window tree (obtained
++    e.g. via ``get_item_from_track``). If it is a branch, its head window
++    (``item[0]``) is excluded and every descendant leaf is returned ordered
++    **deepest-child-first**, so a caller resolving a save cascade processes
++    the innermost spawned editor before the editor that spawned it (the
++    nested Place -> enclosing-Place -> ... chain in #7924). A leaf node (a
++    window with no spawned children) yields an empty list.
++    """
++    leaves = []
++    if isinstance(item, list):
++        for sub_item in item[1:]:
++            _collect(sub_item, leaves)
++    return leaves
++
++
++def _collect(item, leaves):
++    """Append the leaf windows under ``item`` to ``leaves``, deepest-first."""
++    if isinstance(item, list):
++        for sub_item in item[1:]:
++            _collect(sub_item, leaves)
++        # The head of this sub-branch comes *after* the windows it spawned,
++        # so children are always resolved before their own parent.
++        _collect(item[0], leaves)
++    else:
++        leaves.append(item)
++
++
++def children_to_resolve(item, needs_resolving):
++    """Return the descendant windows a parent editor must resolve before it
++    commits, deepest-child-first.
++
++    ``item`` is the parent editor's node in the window tree; ``needs_resolving``
++    is a predicate ``needs_resolving(window) -> bool`` the caller supplies. In
++    production it is true for an open, dirty child *primary* editor that still
++    carries a completion callback (one whose callback still has to land a
++    reference on the parent's object); being a plain callable keeps this
++    decision fully unit-testable with fakes.
++    """
++    return [win for win in descendant_leaves(item) if needs_resolving(win)]
+diff --git a/gramps/gui/test/savecascade_test.py b/gramps/gui/test/savecascade_test.py
+new file mode 100644
+index 0000000000..eb19420518
+--- /dev/null
++++ b/gramps/gui/test/savecascade_test.py
+@@ -0,0 +1,159 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026       The Gramps Developers
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Unit tests for :mod:`gramps.gui.savecascade` -- the pure "resolve dependent
++child editors before a parent commits" decision behind the #7924 fix.
++
++This exercises the SAME functions the live save path drives
++(``EditPrimary._resolve_dependent_children`` calls ``children_to_resolve``;
++``descendant_leaves`` walks the window tree), but on fabricated
++``GrampsWindowManager`` tree structures, so the ordering and selection logic
++is proven headless -- without a display, GTK, or the GUI editor stack. The
++reference-survival end-state itself is exercised by the committed
++AT-SPI/dogtail interface repro
++(``engine/interface/test_bug_7924_child_editor_data_loss.py``).
++"""
++
++import unittest
++
++from gramps.gui.savecascade import descendant_leaves, children_to_resolve
++
++
++class FakeWindow:
++    """A stand-in for a managed window leaf in the window tree.
++
++    ``primary``/``opened``/``has_callback``/``dirty`` mirror the facts the
++    production predicate (``EditPrimary._is_unresolved_dependent_child``)
++    reads off a real editor: it is an EditPrimary, still open, opened WITH a
++    completion callback, and holding changed data.
++    """
++
++    def __init__(self, name, primary=True, opened=True, has_callback=True, dirty=True):
++        self.name = name
++        self.primary = primary
++        self.opened = opened
++        self.has_callback = has_callback
++        self.dirty = dirty
++
++    def __repr__(self):
++        return "FakeWindow(%r)" % self.name
++
++
++def _needs_resolving(win):
++    """Predicate mirroring the production one, over FakeWindow facts:
++    a primary editor, still open, opened with a completion callback, dirty."""
++    return win.primary and win.opened and win.has_callback and win.dirty
++
++
++class DescendantLeavesTest(unittest.TestCase):
++    """``descendant_leaves`` walks the GrampsWindowManager tree correctly."""
++
++    def test_leaf_node_has_no_descendants(self):
++        # A parent editor that spawned nothing is stored as a bare leaf.
++        parent = FakeWindow("parent")
++        self.assertEqual(descendant_leaves(parent), [])
++
++    def test_branch_with_only_head_has_no_descendants(self):
++        # A branch node: item[0] is the head window, no children yet.
++        parent = FakeWindow("parent")
++        self.assertEqual(descendant_leaves([parent]), [])
++
++    def test_head_window_is_excluded(self):
++        parent = FakeWindow("parent")
++        child = FakeWindow("child")
++        self.assertNotIn(parent, descendant_leaves([parent, child]))
++
++    def test_single_child_returned(self):
++        parent = FakeWindow("parent")
++        child = FakeWindow("child")
++        self.assertEqual(descendant_leaves([parent, child]), [child])
++
++    def test_nested_chain_is_deepest_first(self):
++        # parent -> mid -> deep : resolving must reach 'deep' before 'mid'
++        # so 'mid's completion callback has already landed when 'mid' saves.
++        deep = FakeWindow("deep")
++        mid = FakeWindow("mid")
++        parent = FakeWindow("parent")
++        tree = [parent, [mid, deep]]
++        self.assertEqual(descendant_leaves(tree), [deep, mid])
++
++    def test_siblings_each_resolved_deepest_first(self):
++        parent = FakeWindow("parent")
++        a_head = FakeWindow("a_head")
++        a_deep = FakeWindow("a_deep")
++        b = FakeWindow("b")
++        tree = [parent, [a_head, a_deep], b]
++        # Within branch 'a', a_deep precedes a_head; sibling 'b' follows.
++        self.assertEqual(descendant_leaves(tree), [a_deep, a_head, b])
++
++
++class ChildrenToResolveTest(unittest.TestCase):
++    """``children_to_resolve`` selects + orders the windows to resolve."""
++
++    def test_no_children_returns_empty(self):
++        parent = FakeWindow("parent")
++        self.assertEqual(children_to_resolve([parent], _needs_resolving), [])
++
++    def test_dirty_child_is_selected(self):
++        # The #7924 case: EditFamily with an open, dirty EditPerson child
++        # opened as "add a new mother" (so it carries a completion callback).
++        family = FakeWindow("family")
++        mother = FakeWindow("mother", primary=True, opened=True, dirty=True)
++        self.assertEqual(
++            children_to_resolve([family, mother], _needs_resolving), [mother]
++        )
++
++    def test_clean_child_is_skipped(self):
++        family = FakeWindow("family")
++        clean = FakeWindow("clean", dirty=False)
++        self.assertEqual(children_to_resolve([family, clean], _needs_resolving), [])
++
++    def test_non_primary_child_is_skipped(self):
++        # e.g. a selector or secondary window carries no completion callback.
++        family = FakeWindow("family")
++        selector = FakeWindow("selector", primary=False)
++        self.assertEqual(children_to_resolve([family, selector], _needs_resolving), [])
++
++    def test_child_without_callback_is_skipped(self):
++        # EditFamily.edit_person opens an EXISTING person's editor with no
++        # completion callback -- committing the family drops nothing, so the
++        # dirty-but-callback-less child must NOT be force-resolved (#7924
++        # over-trigger guard).
++        family = FakeWindow("family")
++        existing = FakeWindow("existing_person", has_callback=False, dirty=True)
++        self.assertEqual(children_to_resolve([family, existing], _needs_resolving), [])
++
++    def test_already_closed_child_is_skipped(self):
++        family = FakeWindow("family")
++        gone = FakeWindow("gone", opened=False)
++        self.assertEqual(children_to_resolve([family, gone], _needs_resolving), [])
++
++    def test_selection_preserves_deepest_first_order(self):
++        parent = FakeWindow("parent")
++        deep = FakeWindow("deep", dirty=True)
++        mid = FakeWindow("mid", dirty=True)
++        clean_sibling = FakeWindow("clean_sibling", dirty=False)
++        tree = [parent, [mid, deep], clean_sibling]
++        # deep before mid (deepest-first); the clean sibling is filtered out.
++        self.assertEqual(children_to_resolve(tree, _needs_resolving), [deep, mid])
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index 6164615dea..604889d999 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -348,6 +348,7 @@ gramps/gui/listmodel.py
+ gramps/gui/managedwindow.py
+ gramps/gui/navigator.py
+ gramps/gui/pluginmanager.py
++gramps/gui/savecascade.py
+ gramps/gui/uimanager.py
+ gramps/gui/user.py
+ gramps/gui/utilscairo.py
+@@ -463,6 +464,7 @@ gramps/gui/selectors/selectorfactory.py
+ # gui.test package
+ #
+ gramps/gui/test/display_test.py
++gramps/gui/test/savecascade_test.py
+ gramps/gui/test/user_test.py
+ #
+ # gui/views - the GUI views package

@@ -1,0 +1,42 @@
+fix(cairo): restore table cells split at page boundaries
+
+In the cairo/PDF backend, a table row landing near the foot of a page with a
+cell whose text must wrap was rendered torn: the cell printed blank at the
+bottom while its text appeared on the next page beside blank copies of the
+row's other cells (reported in Mantis 6324 by dsblank, 2010 and confirmed 2015).
+
+The root cause is in the keep-together rule of GtkDocParagraph.divide (lines
+620-621 on maintenance/gramps61), which moves a short paragraph whole to the
+next page unconditionally. When the row's first cell hits this rule but a
+sibling cell has already committed content to the current page, the row is torn
+across the break: text moves but the cell placeholder stays, leaving a blank
+cell beside its rowmates' content.
+
+This fix adds a two-signal protocol to the entire divide chain (GtkDocParagraph,
+GtkDocTable, GtkDocTableRow, GtkDocTableCell, GtkDocPicture, GtkDocFrame):
+- force_split: overrides the keep-together rule when the page is already full,
+  so a short cell's first lines render beside its rowmates instead of being
+  dropped (the torn-row case).
+- allow_overflow: the stronger signal (paginator-only) that even an empty page
+  cannot hold the content, so place it here accepting overflow rather than loop
+  forever (the degenerate no-progress case).
+
+GtkDocTableRow.divide keeps the whole row together when the first cell that
+cannot fit has no committed sibling, and force-splits later cells so their first
+lines render beside a split sibling. The paginator's no-progress guard ensures
+pagination always terminates by re-dividing the continuation with both flags set
+when an empty page cannot make progress.
+
+Regression test added to gramps/plugins/test/cairodoc_table_pagination_test.py
+covers four page-boundary cases:
+1. Last-column wrapping cell (whole row moves, cells begin together).
+2. Earlier column splits (later short column splits too, never left blank).
+3. Cell taller than a full page (paginator guard terminates, all words
+   rendered).
+4. Image in a torn row (moves intact to next page, never clipped/overflowed).
+
+All assertions read _plaintext (what divide places/truncates), not _text, so
+a dropped/truncated cell is genuinely detectable. Full core unit suite runs
+with zero new regressions from this 130-line rendering-library change.
+
+Fixes #6324

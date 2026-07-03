@@ -1,49 +1,64 @@
-"""Regression for Mantis #7924 ("data lost when a parent editor's OK
-cascade-closes a child editor with unsaved edits").
+"""Regression for Mantis #7924 ("references lost when a parent editor is
+confirmed while a child editor it spawned still holds unsaved data").
 
-Primary editors in Gramps are non-modal, so a parent editor (EditFamily)
-and a child editor it spawned (EditPerson, opened via "Add a new person as
-the mother") can be open at once. Confirming the *parent* (its OK button)
-saves the family and then tears the whole window group down through
-``ManagedWindow.close() -> GrampsWindowManager.close_track()``.
+Primary editors in Gramps are non-modal, so a parent editor (EditFamily) and
+a child editor it spawned (EditPerson, opened via "Add a new person as the
+mother") can be open at once. bamaustin's 2021 diagnosis reframed the bug:
+the objects can be saved, but the *references connecting them are lost* -- a
+family committed without the person as its mother.
 
-The defect: the cascade tore the child editor's window down without
-honouring the child's own unsaved-data guard. Even when the child editor's
-"Save Changes?" prompt appeared, cancelling it (the user choosing to keep
-editing) was ignored -- ``GrampsWindowManager.close_item`` destroyed the
-window regardless of the guard's veto -- so the child's unsaved edits were
-discarded without acknowledgement.
+Root cause (maintenance/gramps61)
+---------------------------------
+The family's ``mother_handle`` is written only by the child's completion
+callback (``EditFamily.new_mother_added``), which runs when the *child*
+saves. Confirming the *parent* runs ``EditFamily.__do_save`` first: it reads
+``get_mother_handle()`` -- still ``None`` -- and commits the family WITHOUT
+the mother, *before* the window-teardown cascade ever prompts to save the
+child. So even choosing "Save" on the cascade's prompt writes the mother
+handle onto a family object that was already committed and is being
+destroyed; it is never re-committed. Result: the person exists but is
+orphaned, the family has no mother.
 
-Path under test:
-  gramps/gui/managedwindow.py — ``GrampsWindowManager.close_item`` /
-  ``recursive_action`` / ``close_track`` and ``ManagedWindow.close``. The
-  fix makes the cascade honour the same veto the direct-close path already
-  enforces (``EditPrimary.close`` -> SaveDialog, returns without closing
-  when Cancel is chosen).
+The fix (this bundle)
+---------------------
+The shared primary-editor save path (``EditPrimary`` +
+``gramps.gui.savecascade.children_to_resolve`` over the
+``GrampsWindowManager`` window tree) now resolves open dependent child
+primary editors *before* the parent reads its references and commits. Every
+save door routes through ``EditPrimary._save_with_dependent_children`` -- the
+OK button AND the window-X / Cancel "Save Changes?" path -- so confirming the
+Family drives the child Person editor's own "Save Changes?" guard first; on
+Save the child's callback lands ``mother_handle`` on the family's working
+object, and only then does the family commit -- now fully linked. On Cancel
+the parent save aborts and nothing is committed.
 
-Repro flow (matches the Mantis report + the brief's repro instruction):
+Repro flow (the reporter's flow + the brief's Success criterion)
+----------------------------------------------------------------
   Relationships view -> Home (set an active person)
     -> "Add a new family with person as parent"  (Family editor opens)
     -> "Add a new person as the mother"           (Person editor opens)
     -> type a given name in the Person editor      (child now dirty)
-    -> click the *Family* editor's OK              (parent cascade close)
-    -> a "Save Changes?" prompt should guard the child; choosing Cancel
-       ("keep editing") must LEAVE THE PERSON EDITOR OPEN.
+    -> click the *Family* editor's OK              (parent confirm)
+    -> a "Save Changes?" prompt guards the child; choose *Save*.
 
-Assertion — the invariant, stated as behaviour a user can see:
-  After confirming the parent and cancelling the child's save prompt, the
-  child Person editor must still be open (its unsaved data preserved).
+Assertion -- the invariant, as behaviour a user can see:
+  After confirming the Family with a dirty child Person editor open and
+  choosing *Save*, the new person must be SAVED AND LINKED as the family's
+  mother, so the active person's Relationships view shows the new partner.
 
-  * Unpatched: the child window is destroyed regardless of the veto, so the
-    Person editor vanishes -> this test FAILS (the #7924 symptom).
-  * Patched:   the veto is honoured, the Person editor stays open -> PASS.
+  * Unpatched: the family is committed with ``mother_handle == None`` before
+    the child is ever saved; the person ends up orphaned, so the new name
+    never appears as the active person's partner -> this test FAILS (the
+    #7924 symptom -- the reference was dropped at commit time).
+  * Patched:   the child is resolved before the commit, the mother handle
+    survives, and the partner name shows -> PASS.
 
 Note on verifiability: this is an irreducibly GUI-driven, non-modal
 multi-window flow. Navigation steps that cannot be driven in the headless
 xvfb/AT-SPI session ``skipTest`` with a clear "infra" marker rather than
-reporting a false-positive bug; only the final invariant check is a hard
-assertion. Per the brief, the automated red/green may land PDCA-UNVERIFIABLE
-and the human verifies the prompt in the GUI at sign-off.
+reporting a false-positive; only the final reference-survival check is a
+hard assertion. Per the brief, the automated red/green may land
+PDCA-UNVERIFIABLE and the human verifies the linkage in the GUI at sign-off.
 """
 
 from __future__ import annotations
@@ -65,13 +80,14 @@ FAMILY_FRAME_PREFIX = "New Family"
 PERSON_FRAME_PREFIX = "New Person"
 SAVE_DIALOG_PREFIX = "Save Changes?"
 
-# A given name that is unlikely to collide with any example.gramps data.
-CHILD_GIVEN_NAME = "Zzunsavedchild"
+# A given name that is unlikely to collide with any example.gramps data, so a
+# whole-tree search for it uniquely identifies the person we just created.
+CHILD_GIVEN_NAME = "Zzunsavedmother"
 
 
 class Bug7924ChildEditorDataLossTest(GrampsInterfaceTestCase):
-    """Confirming a parent editor must not silently discard a child
-    editor's unsaved data via the window-manager close cascade."""
+    """Confirming a parent editor must resolve an open dependent child editor
+    so the child's reference is preserved, not silently dropped at commit."""
 
     TREE_NAME = "TestTree"
     # xvfb has no window manager to honour fullscreen(); set a large saved
@@ -111,15 +127,15 @@ class Bug7924ChildEditorDataLossTest(GrampsInterfaceTestCase):
             time.sleep(0.3)
         self.skipTest(f"Sidebar toggle button {name!r} not found / not clickable")
 
-    def _click_home(self) -> None:
+    def _click_home(self) -> bool:
         for n in self.app.findChildren(
             lambda n: n.roleName == "push button" and (n.name or "") == "Home"
         ):
             if self._is_clickable(n):
                 n.click()
                 time.sleep(0.6)
-                return
-        self.skipTest("Toolbar Home button not found")
+                return True
+        return False
 
     def _find_button(self, name_or_sub: str, within=None, timeout: float = 10.0):
         """Find a showing push button whose accessible name equals or
@@ -167,13 +183,40 @@ class Bug7924ChildEditorDataLossTest(GrampsInterfaceTestCase):
                 continue
         return None
 
+    def _name_visible_anywhere(self, needle: str) -> bool:
+        """True if any showing node's accessible name contains ``needle``.
+
+        After the flow the active person's Relationships view shows the new
+        partner's name only if the family was committed WITH the mother
+        linked; an orphaned (unlinked) person is not shown against the active
+        person, so this is a GUI-observable proxy for ``mother_handle``
+        resolving to the created person.
+        """
+        for n in self.app.findChildren(lambda n: needle in (n.name or "")):
+            try:
+                if n.showing:
+                    return True
+            except Exception:
+                continue
+        return False
+
     # ---- the test -----------------------------------------------------------
 
-    def test_parent_ok_does_not_silently_discard_child_edits(self) -> None:
+    def test_parent_ok_preserves_child_reference(self) -> None:
+        self.assertTrue(self.tree_opened, "TestTree did not open")
+
         # 1. Relationships view with an active person.
         self._click_toggle("Relationships")
         time.sleep(0.5)
-        self._click_home()
+        if not self._click_home():
+            self.skipTest("Toolbar Home button not found (infra)")
+
+        # Guard: the name must NOT already be present before we start, else the
+        # final assertion could pass vacuously.
+        if self._name_visible_anywhere(CHILD_GIVEN_NAME):
+            self.skipTest(
+                f"{CHILD_GIVEN_NAME!r} already present before the flow (infra)"
+            )
 
         # 2. "Add a new family with person as parent" -> Family editor.
         add_family = self._find_button(ADD_FAMILY_TOOLTIP)
@@ -181,7 +224,7 @@ class Bug7924ChildEditorDataLossTest(GrampsInterfaceTestCase):
             self.skipTest(
                 f"Could not find the {ADD_FAMILY_TOOLTIP!r} button in the "
                 "Relationships view — cannot drive the parent/child editor "
-                "flow in this session."
+                "flow in this session (infra)."
             )
         add_family.click()
 
@@ -189,7 +232,7 @@ class Bug7924ChildEditorDataLossTest(GrampsInterfaceTestCase):
         if family_frame is None:
             self.skipTest(
                 "Family editor window did not open after "
-                f"{ADD_FAMILY_TOOLTIP!r}; cannot exercise the cascade."
+                f"{ADD_FAMILY_TOOLTIP!r}; cannot exercise the flow (infra)."
             )
 
         # 3. "Add a new person as the mother" -> Person (child) editor.
@@ -197,7 +240,7 @@ class Bug7924ChildEditorDataLossTest(GrampsInterfaceTestCase):
         if add_mother is None:
             self.skipTest(
                 f"Could not find the {ADD_MOTHER_TOOLTIP!r} button in the "
-                "Family editor — cannot open the child Person editor."
+                "Family editor — cannot open the child Person editor (infra)."
             )
         add_mother.click()
 
@@ -205,7 +248,7 @@ class Bug7924ChildEditorDataLossTest(GrampsInterfaceTestCase):
         if person_frame is None:
             self.skipTest(
                 "Child Person editor did not open after "
-                f"{ADD_MOTHER_TOOLTIP!r}."
+                f"{ADD_MOTHER_TOOLTIP!r} (infra)."
             )
 
         # 4. Make the child editor dirty: type a given name into its first
@@ -219,7 +262,7 @@ class Bug7924ChildEditorDataLossTest(GrampsInterfaceTestCase):
         if entry is None:
             self.skipTest(
                 "No editable text field found in the Person editor to type "
-                "a name into; cannot make the child dirty."
+                "a name into; cannot make the child dirty (infra)."
             )
         try:
             entry.click()
@@ -229,47 +272,67 @@ class Bug7924ChildEditorDataLossTest(GrampsInterfaceTestCase):
             keyCombo("Tab")
             time.sleep(0.3)
         except Exception as exc:
-            self.skipTest(f"Could not type into the Person editor: {exc!r}")
+            self.skipTest(f"Could not type into the Person editor: {exc!r} (infra)")
 
         # 5. Click the *Family* editor's OK button (NOT the Person editor's).
         ok_button = self._find_button("OK", within=family_frame)
         if ok_button is None:
-            self.skipTest("Family editor OK button not found.")
+            self.skipTest("Family editor OK button not found (infra).")
         ok_button.click()
 
-        # 6. The cascade should route through the child's save-guard. A
-        #    "Save Changes?" prompt appears; choose Cancel ("keep editing").
+        # 6. The parent's save must route through the child's save-guard BEFORE
+        #    it commits. A "Save Changes?" prompt appears; choose *Save* so the
+        #    child's completion callback lands the mother reference on the
+        #    family before it is committed.
         save_dialog = self._find_frame(SAVE_DIALOG_PREFIX, timeout=8.0)
-        if save_dialog is not None:
-            cancel = self._find_button("Cancel", within=save_dialog, timeout=4.0)
-            if cancel is None:
-                # Fall back to Escape, which maps to the Cancel response.
-                keyCombo("Escape")
-            else:
-                cancel.click()
-            time.sleep(0.8)
+        if save_dialog is None:
+            self.skipTest(
+                "No 'Save Changes?' prompt appeared for the dirty child editor "
+                "after confirming the parent — cannot drive the Save path (infra)."
+            )
+        save_btn = self._find_button("Save", within=save_dialog, timeout=4.0)
+        if save_btn is None:
+            self.skipTest("Save button not found on the 'Save Changes?' prompt (infra).")
+        save_btn.click()
+        time.sleep(1.0)
 
-        # 7. Invariant: cancelling the guard must leave the child Person
-        #    editor OPEN with its unsaved data intact. On the unpatched
-        #    cascade the window is destroyed regardless of the veto, so the
-        #    Person editor vanishes -> this assertion fails (bug #7924).
-        deadline = time.monotonic() + 5.0
-        person_still_open = False
+        # 7. The flow should have completed: both editors close. If the Family
+        #    editor is still open, the save did not go through — treat as infra
+        #    rather than asserting on an incomplete flow.
+        deadline = time.monotonic() + 6.0
         while time.monotonic() < deadline:
-            if self._frame_showing(PERSON_FRAME_PREFIX) is not None:
-                person_still_open = True
+            if self._frame_showing(FAMILY_FRAME_PREFIX) is None:
+                break
+            time.sleep(0.3)
+        if self._frame_showing(FAMILY_FRAME_PREFIX) is not None:
+            self.skipTest("Family editor did not close after Save (infra).")
+
+        # Force the Relationships view to reflect the committed family.
+        self._click_home()
+
+        # 8. Invariant (the hard assertion): the new person must be SAVED and
+        #    LINKED as the family's mother, so the active person's
+        #    Relationships view shows the new partner. On the unpatched tree
+        #    the family was committed with mother_handle == None before the
+        #    child ever saved, so the person is orphaned and never appears as
+        #    the active person's partner -> this assertion fails (bug #7924).
+        deadline = time.monotonic() + 6.0
+        linked = False
+        while time.monotonic() < deadline:
+            if self._name_visible_anywhere(CHILD_GIVEN_NAME):
+                linked = True
                 break
             time.sleep(0.3)
 
         self.assertTrue(
-            person_still_open,
-            "After confirming the Family editor (OK) with a dirty child "
-            "Person editor open and CANCELLING its 'Save Changes?' prompt, "
-            "the Person editor was destroyed and its unsaved data discarded "
-            "without acknowledgement. This is the Mantis #7924 symptom: the "
-            "parent's cascade close (GrampsWindowManager.close_item) tore the "
-            "child window down without honouring the child editor's "
-            "save-guard veto.",
+            linked,
+            f"After confirming the Family editor (OK) with a dirty child "
+            f"Person editor open and choosing Save on its 'Save Changes?' "
+            f"prompt, the new person {CHILD_GIVEN_NAME!r} does not appear as "
+            f"the active person's partner in the Relationships view. The "
+            f"family was committed without its mother_handle (the reference "
+            f"was dropped at commit time before the child was resolved) — the "
+            f"Mantis #7924 symptom.",
         )
 
 

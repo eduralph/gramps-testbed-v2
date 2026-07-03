@@ -1,0 +1,157 @@
+diff --git a/gramps/gui/editors/editprimary.py b/gramps/gui/editors/editprimary.py
+index 88919ae461..5c146a5ce4 100644
+--- a/gramps/gui/editors/editprimary.py
++++ b/gramps/gui/editors/editprimary.py
+@@ -177,9 +177,111 @@ class EditPrimary(ManagedWindow, DbGUIElement, metaclass=abc.ABCMeta):
+ 
+     def define_ok_button(self, button, function):
+         self.ok_button = button
+-        button.connect("clicked", function)
++        # Do not wire the editor's save straight to the OK button. Route it
++        # through _save_with_dependent_children first, so that when this
++        # editor is confirmed while a child primary editor it spawned is still
++        # open with unsaved data, the child is resolved (its completion
++        # callback lands its reference on this editor's object) BEFORE this
++        # editor reads its references and commits. See Mantis #7924.
++        self._ok_function = function
++        button.connect("clicked", self._save_with_dependent_children)
+         button.set_sensitive(not self.db.readonly)
+ 
++    def _save_with_dependent_children(self, *args):
++        """OK-button handler: resolve open dependent child editors, then save.
++
++        A primary editor is non-modal, so it can be confirmed (OK) while a
++        child primary editor it spawned -- e.g. an EditPerson opened as "add a
++        new person as the mother" from EditFamily -- is still open holding
++        unsaved data. That child's completion callback (which writes the
++        child's handle onto *this* editor's working object, e.g.
++        EditFamily.new_mother_added) only runs when the *child* saves. If this
++        editor commits first, it persists an object graph with that reference
++        silently dropped and the child's data orphaned -- the #7924 defect.
++
++        So before running the real save, drive each open dependent child's own
++        save-guard. On Save the child's callback lands its reference on this
++        editor's object; on "Close without saving" the user accepts losing
++        that reference; on Cancel ("keep editing") the whole parent save is
++        aborted (this editor stays open, nothing is committed) so no partial
++        graph is ever persisted.
++        """
++        if not self._resolve_dependent_children():
++            # A child's save was cancelled -- keep this editor open, uncommitted.
++            # The real save (which is what disables the OK button) never ran, so
++            # the OK button is still sensitive and the user can try again.
++            return
++        self._ok_function(*args)
++
++    def _resolve_dependent_children(self):
++        """Resolve open child primary editors holding unsaved data before commit.
++
++        Returns True if the save may proceed -- every dirty dependent child
++        editor was either saved or discarded by the user, or there were none.
++        Returns False if the user chose Cancel ("keep editing") on a child's
++        "Save Changes?" prompt, in which case the parent save must abort.
++
++        Children are resolved deepest-first so that, in a nested chain (e.g.
++        bamaustin's Place -> enclosing-Place -> ... stack), each level's
++        completion callback has already landed on its own parent before that
++        parent reads its references.
++        """
++        if self.uistate is None:
++            return True
++        for child in self.uistate.gwm.get_descendant_windows(self.track):
++            # Only child *primary* editors carry unsaved data plus a completion
++            # callback that writes a reference back onto their parent's object.
++            if child is self or not isinstance(child, EditPrimary):
++                continue
++            # Skip any window already torn down (defensive: resolving a deeper
++            # child never closes its ancestors, but guard the snapshot anyway).
++            if not getattr(child, "opened", False):
++                continue
++            if not child.data_has_changed():
++                continue
++            if not child._resolve_before_parent_commit():
++                return False
++        return True
++
++    def _resolve_before_parent_commit(self):
++        """Drive this child editor's save-guard as part of a parent's commit.
++
++        Reuses the very same "Save Changes?" prompt the direct-close path shows
++        (:meth:`close`), but reports the user's choice so the parent can decide
++        whether to proceed:
++
++          * Save                  -> run our save (its completion callback lands
++                                     our reference on the parent's object);
++                                     report True.
++          * Close without saving  -> discard our edits; report True (the user
++                                     accepted losing this reference).
++          * Cancel / keep editing -> report False so the parent save aborts.
++
++        If the user disabled the guard (``interface.dont-ask``) the parent's
++        cascade close discards this child exactly as before, so proceed without
++        prompting (True) -- the pre-existing behaviour for that opt-out.
++        """
++        if config.get("interface.dont-ask"):
++            return True
++        outcome = {"proceed": False}
++
++        def _discard(*args):
++            outcome["proceed"] = True
++            self._do_close()
++
++        def _save(*args):
++            outcome["proceed"] = True
++            self.save()
++
++        SaveDialog(
++            _("Save Changes?"),
++            _("If you close without saving, the changes you have made will be lost"),
++            _discard,
++            _save,
++            parent=self.window,
++        )
++        return outcome["proceed"]
++
+     def define_cancel_button(self, button):
+         button.connect("clicked", self.close)
+ 
+diff --git a/gramps/gui/managedwindow.py b/gramps/gui/managedwindow.py
+index 010d25db0d..be290b4c3d 100644
+--- a/gramps/gui/managedwindow.py
++++ b/gramps/gui/managedwindow.py
+@@ -167,6 +167,35 @@ class GrampsWindowManager:
+                 return self.id2item[key]
+         return None
+ 
++    def get_descendant_windows(self, track):
++        """Return the managed windows spawned *below* the window at ``track``.
++
++        Lists every descendant leaf window (the head window at ``track`` itself
++        is excluded), ordered deepest-child-first, so a caller resolving a save
++        cascade processes the innermost spawned editor before its parent. Used
++        by :class:`~.editors.editprimary.EditPrimary` to drive open child
++        editors' save-guards before the parent editor commits (Mantis #7924).
++        """
++        try:
++            item = self.get_item_from_track(track)
++        except (IndexError, KeyError):
++            return []
++        windows = []
++        if isinstance(item, list):
++            # item[0] is the window at `track`; item[1:] are windows it spawned.
++            for sub_item in item[1:]:
++                self._collect_windows(sub_item, windows)
++        return windows
++
++    def _collect_windows(self, item, windows):
++        """Append the leaf windows under ``item`` to ``windows``, deepest first."""
++        if isinstance(item, list):
++            for sub_item in item[1:]:
++                self._collect_windows(sub_item, windows)
++            self._collect_windows(item[0], windows)
++        else:
++            windows.append(item)
++
+     def find_modal_window(self, window):
+         """This finds a ManagedWindow that is modal, if any, excluding the
+         'window' that is a parameter.  There should be only one.

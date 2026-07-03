@@ -1,0 +1,69 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "dsblank\n\n 2013-01-12 15:42\n\ndeveloper": "Screenshot from 2013-01-12 10:28:13.png (61,823 bytes)",
+    "bmcage\n\n 2013-01-14 19:01\n\ndeveloper    ~0026984": "I suppose this is gramps40 also, if so, better to put on roadmap of 4.0.0",
+    "dsblank\n\n 2013-01-14 19:05\n\ndeveloper    ~0026985": "Yes, this issue may go back to the beginning of time...",
+    "bmcage\n\n 2013-01-15 10:41\n\ndeveloper    ~0026992": "I don't find this report in http://svn.code.sf.net/p/gramps-addons/code/trunk/listings/addons-en.txt\n\nHow to obtain it to test this bug?",
+    "dsblank\n\n 2013-01-15 12:03\n\ndeveloper    ~0026994": "That was a bug in addons; fixed, and now Database Differences Report is now available.",
+    "bmcage\n\n 2013-03-29 17:12\n\ndeveloper    ~0028178": "Doug,\n\nSo this bug can be put on resolved?",
+    "dsblank\n\n 2013-09-23 17:16\n\ndeveloper    ~0031536": "Resolved? I don't think so. The bug I mentioned that was fixed was the missing report. As far as I know, the missing cells in the table at bottom of a page is still an issue.",
+    "romjerome\n\n 2013-09-24 09:06\n\ndeveloper    ~0031542\n\n last edited: 2014-01-22 17:49\n\nview 2 revisions": "I do not know if it is related but during experimental backport to 3.4.x ( 0007072:0031541 ), I got an AttributeError, something like: \"TableCellStyle does not have set border() attribute\".\n\n<pre>@@ -343,7 +372,7 @@\n\n     #Table Styles\n     cell = TableCellStyle()\ncell.set_borders(1)\n#cell.set_borders(1)</pre>",
+    "paulfranklin\n\n 2014-01-22 17:33\n\ndeveloper    ~0034350": "Doug,\n\nCan this one be moved to 4.0.99? Or do you want it\nmoved to 4.0.4? (It started out in 4.0.0, a year ago.)\n\n(I assume it won't be fixed soon, but if I'm wrong\nit could certainly stay on the 4.0.3 roadmap.)\n\nThanks.",
+    "dsblank\n\n 2015-05-28 15:53\n\ndeveloper    ~0041998": "This is still an issue, but can continually be bumped until someone addresses it."
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Screenshot from 2013-01-12 10:28:13.png (61,823 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I suppose this is gramps40 also, if so, better to put on roadmap of 4.0.0"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Yes, this issue may go back to the beginning of time..."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I don't find this report in http://svn.code.sf.net/p/gramps-addons/code/trunk/listings/addons-en.txt\n\nHow to obtain it to test this bug?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "That was a bug in addons; fixed, and now Database Differences Report is now available."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Doug,\n\nSo this bug can be put on resolved?"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Resolved? I don't think so. The bug I mentioned that was fixed was the missing report. As far as I know, the missing cells in the table at bottom of a page is still an issue."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I do not know if it is related but during experimental backport to 3.4.x ( 0007072:0031541 ), I got an AttributeError, something like: \"TableCellStyle does not have set border() attribute\".\n\n<pre>@@ -343,7 +372,7 @@\n\n     #Table Styles\n     cell = TableCellStyle()\ncell.set_borders(1)\n#cell.set_borders(1)</pre>"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Doug,\n\nCan this one be moved to 4.0.99? Or do you want it\nmoved to 4.0.4? (It started out in 4.0.0, a year ago.)\n\n(I assume it won't be fixed soon, but if I'm wrong\nit could certainly stay on the 4.0.3 roadmap.)\n\nThanks."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "This is still an issue, but can continually be bumped until someone addresses it."
+    }
+  ],
+  "id": "6324",
+  "url": "https://gramps-project.org/bugs/view.php?id=6324"
+}

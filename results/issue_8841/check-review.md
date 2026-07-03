@@ -1,0 +1,21 @@
+Reviewing issue 8841: fix styled-text note hyperlink activation so clicks in empty space beside/below a link do not open the snapped nearest link.
+
+| Item | Verdict | Basis |
+| --- | --- | --- |
+| C1 — C1 Spec | PASS | The brief defines the defect, success criterion, invariant, scope, and target branch for the hyperlink hit-test bug; decision owed is only whether later verification proves this exact GUI behavior, not what must be built (`brief.md:5`, `brief.md:11`, `brief.md:16`, `brief.md:25`). |
+| C2 — C2 Reproduction (red pre-fix) | PASS | The target preimage still uses `get_iter_at_location(x, y)` and immediately derives `self.match`/link tags from that snapped iter, matching the stated red mechanism for empty-space clicks (`gramps/gui/widgets/styledtexteditor.py:435`, `gramps/gui/widgets/styledtexteditor.py:438`, `gramps/gui/widgets/styledtexteditor.py:446`; repro described at `brief.md:31`). |
+| C3 — C3 Change | PASS | The patch is narrowly scoped to `StyledTextEditor`, adds a geometry guard before URL/link matching, and clears `self.match` when the pointer is outside the iter rectangle (`patch.diff:27`, `patch.diff:39`, `patch.diff:49`). |
+| C4 — C4 Verification (red→green) | NEEDS-HUMAN | DECISION OWED: the human must clear whether the withheld AT-SPI/dogtail repro was actually red pre-fix and green post-fix, because `check-gates.json` reports core verification unverifiable and interface verification failed from missing lane worktree, while my local Xvfb probe could not initialize a display (`check-gates.json:33`, `check-gates.json:42`, `check-gates.json:46`). |
+| C5 — C5 Causal adequacy | PASS | The patched guard sits before the production path that emits `match-changed`, which sets `url_match`, and before button press consumes `url_match` to call `_open_url_cb`; this addresses the snapped-iter cause rather than only browser launch (`gramps/gui/widgets/styledtexteditor.py:450`, `gramps/gui/widgets/styledtexteditor.py:404`, `gramps/gui/widgets/styledtexteditor.py:511`, `gramps/gui/widgets/styledtexteditor.py:516`). |
+| T1 — T1 Structure | N/A | No addon path is changed; the configured structure gate also treats this as addon-only and not applicable to the core file patch (`patch.diff:1`, `check-gates.json:60`, `check-gates.json:64`). |
+| T2 — T2 Shape | PASS | The only touched source file already has the GPL header, the patch adds no new core Python files requiring POTFILES registration, and both shape/POTFILES gates pass (`gramps/gui/widgets/styledtexteditor.py:1`, `check-gates.json:69`, `check-gates.json:78`). |
+| T3 — T3 Runtime | NEEDS-HUMAN | DECISION OWED: the human must decide whether to accept or rerun runtime coverage, because both unit and GUI smoke gates failed before producing JUnit XML, which is an environment/runner result rather than demonstrated patch behavior (`check-gates.json:87`, `check-gates.json:96`). |
+| T4 — T4 Contribution | N/A | No commit message or PR description artifact is present in this review bundle, and the contribution gate explicitly marks that wrapper check N/A (`check-gates.json:105`, `check-gates.json:109`). |
+| T5 — T5 Judgment | PASS | Advisory judgment: the patch is minimal, applies cleanly to the target preimage, and changes the hit-test decision point rather than out-of-scope menu or browser-launch behavior; remaining judgment is captured under C4/T3/V (`brief.md:28`, `patch.diff:1`). |
+| V — Validation — fitness-to-purpose | NEEDS-HUMAN | DECISION OWED: a human must validate the actual user-facing GUI fitness-to-purpose: empty-area clicks beside/below a read-only note link must not open the browser, while on-link glyph clicks must still open under the existing gesture semantics (`brief.md:11`, `brief.md:13`). |
+
+## §6 Human Clearances
+
+1. C4 verification: rerun or inspect the withheld `engine/interface/test_bug_0008841_note_link_hittest.py` result and confirm red pre-fix / green post-fix for empty-space clicks and real link clicks.
+2. T3 runtime: decide whether the unit/interface pre-test runner failures are waived infrastructure issues or require a clean rerun before sign-off.
+3. V validation: manually confirm in Gramps Notes on the patched build that clicking beside/below the URL does nothing and clicking on the rendered URL still follows the existing Ctrl+click/view-mode behavior.

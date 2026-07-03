@@ -1,0 +1,15 @@
+fix(odf): scale drawn text font size with report scale factor
+
+When a graphical report applies a "scale tree to fit" factor, ODT box text
+now renders at the same scaled font size as PDF/cairo output instead of
+staying at the original unscaled size and overflowing the shrunk boxes.
+
+The ODF backend moved text-style resolution from init time (when the sheet
+was unscaled) to draw time: drawn text now emits a style override when the
+current font size differs from the pre-written named style, enabling
+descent-tree and similar reports to scale their box text in ODT parity with
+the PDF path. Unscaled output stays byte-identical. Two edge cases
+(empty paragraph-style name, style-name collision) are guarded by regression
+tests.
+
+Fixes #5733

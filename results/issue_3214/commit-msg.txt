@@ -1,0 +1,19 @@
+fix(styled-text): skip applying default-valued style tags
+
+The buffer's apply path unconditionally re-tagged a style value even
+when it equaled the default, leaving explicit default-valued tags in
+stored StyledText. This broke report rendering: reports treat explicit
+tags as absolute overrides, differing from notes whose defaults were
+never touched.
+
+The fix guards both the int (FONTSIZE) and str (FONTFACE, FONTCOLOR,
+HIGHLIGHT) style-apply branches to skip tagging when the value equals
+the default, matching the invariant already enforced in clear_selection
+and after_insert_text. Setting a value to its default now leaves the
+selection unchanged — identical to if the style had never been applied.
+
+Regression test added: StyledTextBuffer._apply_style_to_selection now
+correctly clears default-valued tags, driven by a unit test that sets
+FONTSIZE from 12 back to 10 and asserts no explicit tag remains.
+
+Fixes #3214

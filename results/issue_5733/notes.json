@@ -1,0 +1,99 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "paulfranklin\n\n 2012-05-10 13:15\n\ndeveloper    ~0023962": "Reminder sent to: ander882\n\n\n\nHi Craig,\n\nSince I am guessing you might not be able to look into\nthis soon I am filing this to get it into the system.",
+    "ander882\n\n 2012-05-30 17:01\n\ndeveloper    ~0024318\n\n last edited: 2012-05-30 17:03\n\nview 2 revisions": "ok, I found the problem.\nAll of the format information for fonts, etc is written to file BEFORE the begin_report procedure is called in the reports. begin_report is also where the report is made, the scale factor is known, and the fonts are scaled properly. So in short, the default font info is written to file, then calculated correctly.\n\nTo fix this error, move everything in the begin_report section to init (because the scaling of the fonts is the last thing done in begin_report) and BAM! works great.\n\ntwo ways to fix:\n\nSimply move everything in begin_report to init. No real problem with this.\nUpdate the document generator to run begin_report FIRST, then start making the actual file (.odt, .pdf, etc), then run write_report.\n\n2) technically makes more sense as write_report should ONLY do what it says. write the report. init should only do basic setup and begin_report... Well it is somewhere in the middle but it should NOT start writing anything.\n\n2) could also introduce errors in other reports which is a BIG problem\n\nIs there any specification written as to WHAT init, begin_report, write_report should do and the general flow control (overview) of what happens before, in between, and after these procedures?\n\nCraig A.",
+    "ander882\n\n 2012-05-30 17:08\n\ndeveloper    ~0024319": "super simple diff for the Ancestor report attached.",
+    "ander882\n\n 2012-05-31 12:48\n\ndeveloper": "5733.diff (1,043 bytes)",
+    "paulfranklin\n\n 2012-05-31 13:16\n\ndeveloper    ~0024334": "Yes, as you've discovered, only three (official) reports\nsay \"def begin_report\" and two of them are yours. And while\n\"begin_report\" is called as part of the normal report\ngeneration (CLI, GUI, and book report), the normal one which\nis thus hit (for everybody but the three of you) is just a\n\"pass\" -- so I guess it depends on what you want to accomplish\nin your two reports, where you then put the code to accomplish it.\n\nI will, however, point out that this is a bug against 3.4.x\nand so I don't think rewriting the report system is the right\nway to fix it. Anything major like that should only be done\nin trunk, and probably only after much discussion.\n\nThanks.",
+    "ander882\n\n 2012-05-31 14:06\n\ndeveloper    ~0024335": "I had the same idea. As only three reports use begin_report (maybe this is why?), I will simply use the attached diff file and call it good.\n\nIn the future I can look into the flow of the back ends...\n\nCraig A.",
+    "paulfranklin\n\n 2012-05-31 15:02\n\ndeveloper    ~0024336": "I applied your patch and made a five-generation descendant\nchart and indeed all the text was shrunken, so as far as I'm\nconcerned you can apply the patch to gramps34 (and trunk)\nand mark this bug as resolved.\n\nI don't use ODT except when testing (as now) and so I was\na little surprised to see that the text in the boxes wasn't\nwhat I was expecting. I had two (at most) lines per box\nand the top line was centered in the box while the second\nline was then left-justified against the edge of the top\nstring (not the box). An interesting combination. But I\ndon't care and at any rate that is certainly not what this\nbug is about.\n\nThank you for fixing this. Now I can use both output types\nwhen I make my book reports (and use your reports), whereas\nbefore I had to use only PDF. So now I can compare the two.",
+    "ander882\n\n 2012-05-31 19:18\n\ndeveloper    ~0024340": "updated trunk and 3.4",
+    "paulfranklin\n\n 2013-03-18 19:09\n\ndeveloper    ~0027916\n\n last edited: 2013-03-18 19:23\n\nview 2 revisions": "The fix -- done in gramps34 (19730) and trunk (19731) --\nwas reverted for gramps34 in 19749. (The 19749 commit note\nsays, in part, that the \"fix is worse than the original.\")\n\nI have reverted it for gramps40 and trunk, in the process\nof investigating and fixing #6542 -- so I am reopening this.",
+    "vassilii\n\n 2013-08-28 09:55\n\ndeveloper    ~0030834": "Moving inactive non-major and non-regression issues to 3.4.7, 3.4.6 is diverging :-(",
+    "paulfranklin\n\n 2014-01-20 18:10\n\ndeveloper    ~0034201": "Removing from the roadmap.\n\nIt is already assigned.",
+    "sam888\n\n 2015-06-16 23:08\n\nadministrator": "Family Tree 1_descend_chart_gramps413.odt (11,308 bytes)",
+    "sam888\n\n 2015-06-16 23:09\n\nadministrator": "Family Tree 1_descend_chart.odt - LibreOffice Writer_gramps413.png (122,566 bytes)",
+    "sam888\n\n 2015-06-16 23:10\n\nadministrator    ~0042634": "Gramps 4.1.3 & ODT viewed in LibreOffice Writer 4.4.3.",
+    "sam888\n\n 2015-06-16 23:12\n\nadministrator": "Family Tree 1_ancestor_chart-gramps413.odt (5,765 bytes)"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Reminder sent to: ander882\n\n\n\nHi Craig,\n\nSince I am guessing you might not be able to look into\nthis soon I am filing this to get it into the system."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "ok, I found the problem.\nAll of the format information for fonts, etc is written to file BEFORE the begin_report procedure is called in the reports. begin_report is also where the report is made, the scale factor is known, and the fonts are scaled properly. So in short, the default font info is written to file, then calculated correctly.\n\nTo fix this error, move everything in the begin_report section to init (because the scaling of the fonts is the last thing done in begin_report) and BAM! works great.\n\ntwo ways to fix:\n\nSimply move everything in begin_report to init. No real problem with this.\nUpdate the document generator to run begin_report FIRST, then start making the actual file (.odt, .pdf, etc), then run write_report.\n\n2) technically makes more sense as write_report should ONLY do what it says. write the report. init should only do basic setup and begin_report... Well it is somewhere in the middle but it should NOT start writing anything.\n\n2) could also introduce errors in other reports which is a BIG problem\n\nIs there any specification written as to WHAT init, begin_report, write_report should do and the general flow control (overview) of what happens before, in between, and after these procedures?\n\nCraig A."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "super simple diff for the Ancestor report attached."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "5733.diff (1,043 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Yes, as you've discovered, only three (official) reports\nsay \"def begin_report\" and two of them are yours. And while\n\"begin_report\" is called as part of the normal report\ngeneration (CLI, GUI, and book report), the normal one which\nis thus hit (for everybody but the three of you) is just a\n\"pass\" -- so I guess it depends on what you want to accomplish\nin your two reports, where you then put the code to accomplish it.\n\nI will, however, point out that this is a bug against 3.4.x\nand so I don't think rewriting the report system is the right\nway to fix it. Anything major like that should only be done\nin trunk, and probably only after much discussion.\n\nThanks."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I had the same idea. As only three reports use begin_report (maybe this is why?), I will simply use the attached diff file and call it good.\n\nIn the future I can look into the flow of the back ends...\n\nCraig A."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "I applied your patch and made a five-generation descendant\nchart and indeed all the text was shrunken, so as far as I'm\nconcerned you can apply the patch to gramps34 (and trunk)\nand mark this bug as resolved.\n\nI don't use ODT except when testing (as now) and so I was\na little surprised to see that the text in the boxes wasn't\nwhat I was expecting. I had two (at most) lines per box\nand the top line was centered in the box while the second\nline was then left-justified against the edge of the top\nstring (not the box). An interesting combination. But I\ndon't care and at any rate that is certainly not what this\nbug is about.\n\nThank you for fixing this. Now I can use both output types\nwhen I make my book reports (and use your reports), whereas\nbefore I had to use only PDF. So now I can compare the two."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "updated trunk and 3.4"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "The fix -- done in gramps34 (19730) and trunk (19731) --\nwas reverted for gramps34 in 19749. (The 19749 commit note\nsays, in part, that the \"fix is worse than the original.\")\n\nI have reverted it for gramps40 and trunk, in the process\nof investigating and fixing #6542 -- so I am reopening this."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Moving inactive non-major and non-regression issues to 3.4.7, 3.4.6 is diverging :-("
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Removing from the roadmap.\n\nIt is already assigned."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Family Tree 1_descend_chart_gramps413.odt (11,308 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Family Tree 1_descend_chart.odt - LibreOffice Writer_gramps413.png (122,566 bytes)"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Gramps 4.1.3 & ODT viewed in LibreOffice Writer 4.4.3."
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Family Tree 1_ancestor_chart-gramps413.odt (5,765 bytes)"
+    }
+  ],
+  "id": "5733",
+  "url": "https://gramps-project.org/bugs/view.php?id=5733"
+}

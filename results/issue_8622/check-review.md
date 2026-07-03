@@ -1,0 +1,22 @@
+Task under review: fix issue 8622 so the Select Source or Citation dialog search keeps existing citation children reachable under shown sources.
+
+Target-state caveat: `$PDCA_TARGET` points at `/home/eddie/gramps/gramps` on `master`, while the brief targets `maintenance/gramps61`; the new code is absent there and `git apply --check patch.diff` rejected only `po/POTFILES.skip` context, so new-code citations below are grounded on `patch.diff`.
+
+| Item | Verdict | Basis |
+|---|---|---|
+| C1 — C1 Spec | PASS | The brief states the user-visible defect, success criterion, invariant, target branch, and selector-only/shared-model scope boundary clearly enough to review against: `brief.md:6`, `brief.md:12`, `brief.md:18`, `brief.md:24`, `brief.md:31`. |
+| C2 — C2 Reproduction (red pre-fix) | PASS | The added regression test is designed to fail behaviorally pre-fix by falling back to `CitationTreeModel` and asserting a title-matched source still has both citation children: `patch.diff:234`, `patch.diff:424`, `patch.diff:430`, `patch.diff:433`. |
+| C3 — C3 Change | PASS | The change is selector-scoped: `SelectCitation` is wired to `CitationTreeSelectorModel`, while the new class documents that the standalone Citation Tree View remains on the plain model: `patch.diff:17`, `patch.diff:23`, `patch.diff:121`, `patch.diff:140`. |
+| C4 — C4 Verification (red→green) | FAIL | The configured red-to-green verification did not run successfully because the runner reported the core worktree missing; my temporary-copy focused run also failed before collection with `ResourcePath.ERROR`, so there is no completed C4 execution to accept: `check-gates.json:33`, `check-gates.json:37`. |
+| C5 — C5 Causal adequacy | PASS | Root cause is the base model creating independent primary/secondary search filters on the same column/text, and the patch replaces only the selector's positive search filters with a source-grouped membership set that preserves children and guards orphan citation source handles: `gramps/gui/views/treemodels/treebasemodel.py:467`, `gramps/gui/views/treemodels/treebasemodel.py:471`, `gramps/gui/views/treemodels/treebasemodel.py:479`, `patch.diff:82`, `patch.diff:105`, `patch.diff:109`. |
+| T1 — T1 Structure | N/A | This is a core GUI/model change, not an addon layout change; the configured structure gate likewise marks addon structure N/A: `check-gates.json:60`, `check-gates.json:64`. |
+| T2 — T2 Shape | PASS | The new test has the project GPL header and the patch registers the new core test file in `po/POTFILES.skip`; automated shape/POTFILES gates passed in the artifact: `patch.diff:198`, `patch.diff:203`, `patch.diff:570`, `patch.diff:578`, `check-gates.json:69`, `check-gates.json:78`. |
+| T3 — T3 Runtime | FAIL | The whole-suite unit and GUI smoke runtime gates both failed before producing JUnit XML, so runtime health is not demonstrated by the artifact: `check-gates.json:87`, `check-gates.json:91`, `check-gates.json:96`, `check-gates.json:100`. |
+| T4 — T4 Contribution | N/A | No commit message or PR description artifact is present in this bundle, matching the contribution gate's N/A result: `check-gates.json:105`, `check-gates.json:109`. |
+| T5 — T5 Judgment | NEEDS-HUMAN | DECISION OWED: decide whether the selector-only positive-search grouping is the intended semantic boundary, because the brief flags selector-only vs shared model as a judgment call and the patch explicitly leaves inverted searches on the base independent secondary filter: `brief.md:35`, `brief.md:36`, `patch.diff:133`, `patch.diff:159`. |
+| V — Validation — fitness-to-purpose | NEEDS-HUMAN | DECISION OWED: confirm the actual dialog behavior is fit for use, because no interface repro exists and my local attempt could not launch the focused test environment; the human should run the brief's Add Existing Citation search flow and verify citation children are expandable/selectable: `brief.md:38`, `brief.md:40`, `check-gates.json:42`, `check-gates.json:46`. |
+
+## §6 Human Decisions
+
+1. T5 — Scope/judgment: accept or reject the patch's semantic boundary that only the selector uses source-grouped positive text search, while standalone citation views and inverted searches keep independent secondary filtering.
+2. V — Fitness-to-purpose: run the GUI flow from `brief.md:38` on a correctly patched `maintenance/gramps61` checkout and confirm a search-matched source can still be expanded and an existing citation selected without creating a new citation.

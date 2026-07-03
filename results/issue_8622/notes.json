@@ -1,0 +1,33 @@
+{
+  "summary": "Summary",
+  "fields": {
+    "sam888\n\n 2015-06-13 01:06\n\nadministrator    ~0042510": "Can you provide the output version information from Gramps\n\neg:from a command line $python gramps.py -v\n\nor equivalent.\n\nhttps://gramps-project.org/wiki/index.php?title=Gramps_4.1_Wiki_Manual_-_Command_Line#Version_options",
+    "clausimu\n\n 2015-06-14 17:48\n\nreporter    ~0042528": "Sure - here it is:\n\nGramps Settings:\n\npython : 2.7.8\ngramps : 4.1.3-1\ngtk++ : 3.14.13\npygobject : 3.14.0\npango : 1.36.8\nNot using bsddb3\nbsddb : 6.0.0\nbsddb.db : 4.8.30\ncairo : 1.14.0\npycairo : 1.10.0\nosmgpsmap : 1.0\nGExiv2 : 0.10\nICU : 53.1\nPyICU : PYICU_VER\no.s. : linux2\nkernel : 3.16.7-21-desktop\n\nEnvironment settings:\n\nLANG : en_US.UTF-8\nLANGUAGE : en\nGRAMPSI18N: not set\nGRAMPSHOME: not set\nGRAMPSDIR : not set\nPYTHONPATH:\n/usr/lib/python2.7/site-packages/gramps\n/usr/bin\n/usr/lib/python27.zip\n/usr/lib64/python2.7\n/usr/lib64/python2.7/plat-linux2\n/usr/lib64/python2.7/lib-tk\n/usr/lib64/python2.7/lib-old\n/usr/lib64/python2.7/lib-dynload\n/usr/lib64/python2.7/site-packages\n/usr/lib64/python2.7/site-packages/PIL\n/usr/local/lib64/python2.7/site-packages\n/usr/local/lib/python2.7/site-packages\n/usr/lib64/python2.7/site-packages/gtk-2.0\n/usr/lib/python2.7/site-packages\n\nNon-python dependencies:\n\nGraphviz : 2.38\nGhostscr. : 9.15\n\nSystem PATH env variable:\n /home/clausimu/bin\n /usr/local/bin\n /usr/bin\n /bin\n /usr/bin/X11\n /usr/games",
+    "sam888\n\n 2015-06-24 07:04\n\nadministrator    ~0042857\n\n last edited: 2016-02-07 00:35\n\nview 2 revisions": "Confirmed Gramps 4.1.3",
+    "sam888\n\n 2015-06-24 07:06\n\nadministrator": "selection of existing - Gramps413.png (93,436 bytes)"
+  },
+  "notes": [
+    {
+      "author": "",
+      "date": "",
+      "text": "Can you provide the output version information from Gramps\n\neg:from a command line $python gramps.py -v\n\nor equivalent.\n\nhttps://gramps-project.org/wiki/index.php?title=Gramps_4.1_Wiki_Manual_-_Command_Line#Version_options"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Sure - here it is:\n\nGramps Settings:\n\npython : 2.7.8\ngramps : 4.1.3-1\ngtk++ : 3.14.13\npygobject : 3.14.0\npango : 1.36.8\nNot using bsddb3\nbsddb : 6.0.0\nbsddb.db : 4.8.30\ncairo : 1.14.0\npycairo : 1.10.0\nosmgpsmap : 1.0\nGExiv2 : 0.10\nICU : 53.1\nPyICU : PYICU_VER\no.s. : linux2\nkernel : 3.16.7-21-desktop\n\nEnvironment settings:\n\nLANG : en_US.UTF-8\nLANGUAGE : en\nGRAMPSI18N: not set\nGRAMPSHOME: not set\nGRAMPSDIR : not set\nPYTHONPATH:\n/usr/lib/python2.7/site-packages/gramps\n/usr/bin\n/usr/lib/python27.zip\n/usr/lib64/python2.7\n/usr/lib64/python2.7/plat-linux2\n/usr/lib64/python2.7/lib-tk\n/usr/lib64/python2.7/lib-old\n/usr/lib64/python2.7/lib-dynload\n/usr/lib64/python2.7/site-packages\n/usr/lib64/python2.7/site-packages/PIL\n/usr/local/lib64/python2.7/site-packages\n/usr/local/lib/python2.7/site-packages\n/usr/lib64/python2.7/site-packages/gtk-2.0\n/usr/lib/python2.7/site-packages\n\nNon-python dependencies:\n\nGraphviz : 2.38\nGhostscr. : 9.15\n\nSystem PATH env variable:\n /home/clausimu/bin\n /usr/local/bin\n /usr/bin\n /bin\n /usr/bin/X11\n /usr/games"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "Confirmed Gramps 4.1.3"
+    },
+    {
+      "author": "",
+      "date": "",
+      "text": "selection of existing - Gramps413.png (93,436 bytes)"
+    }
+  ],
+  "id": "8622",
+  "url": "https://gramps-project.org/bugs/view.php?id=8622"
+}

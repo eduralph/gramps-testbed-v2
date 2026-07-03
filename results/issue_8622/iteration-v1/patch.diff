@@ -1,0 +1,378 @@
+diff --git a/gramps/gui/selectors/baseselector.py b/gramps/gui/selectors/baseselector.py
+index 777db87412..1154091697 100644
+--- a/gramps/gui/selectors/baseselector.py
++++ b/gramps/gui/selectors/baseselector.py
+@@ -272,6 +272,14 @@ class BaseSelector(ManagedWindow):
+     def get_model_class(self):
+         assert False, "Must be defined in the subclass"
+ 
++    def get_model_kwargs(self):
++        """
++        Extra keyword arguments passed to the model class in
++        :meth:`build_tree`.  Selectors override this to tune their model;
++        the default adds nothing.
++        """
++        return {}
++
+     def get_column_titles(self):
+         """
+         Defines the columns to show in the selector. Must be defined in the
+@@ -352,6 +360,7 @@ class BaseSelector(ManagedWindow):
+             sort_map=self.column_order(),
+             skip=self.skip_list,
+             search=filter_info,
++            **self.get_model_kwargs(),
+         )
+ 
+         self.tree.set_model(self.model)
+diff --git a/gramps/gui/selectors/selectcitation.py b/gramps/gui/selectors/selectcitation.py
+index c0c2fbae96..4a18e5cdd7 100644
+--- a/gramps/gui/selectors/selectcitation.py
++++ b/gramps/gui/selectors/selectcitation.py
+@@ -66,6 +66,12 @@ class SelectCitation(BaseSelector):
+     def get_model_class(self):
+         return CitationTreeModel
+ 
++    def get_model_kwargs(self):
++        # Keep a searched-for source's existing citations reachable in the
++        # selector, so an existing citation can be reused instead of being
++        # forced to create a new one (issue 8622).
++        return {"match_child_via_parent": True}
++
+     def get_column_titles(self):
+         return [
+             (_("Source: Title or Citation: Volume/Page"), 350, BaseSelector.TEXT, 0),
+diff --git a/gramps/gui/views/treemodels/citationtreemodel.py b/gramps/gui/views/treemodels/citationtreemodel.py
+index fcf1a61324..d7b67e5cf6 100644
+--- a/gramps/gui/views/treemodels/citationtreemodel.py
++++ b/gramps/gui/views/treemodels/citationtreemodel.py
+@@ -59,6 +59,48 @@ from .treebasemodel import TreeBaseModel
+ from .citationbasemodel import CitationBaseModel
+ 
+ 
++# -------------------------------------------------------------------------
++#
++# SourceOrCitationSearchFilter
++#
++# -------------------------------------------------------------------------
++class SourceOrCitationSearchFilter:
++    """
++    Secondary-row search filter for the "Select Source or Citation" selector.
++
++    In a hierarchical source->citation tree a plain text search filters the
++    secondary (citation) rows by the *same* column and text as the primary
++    (source) rows.  For a search on the title/page column that drops every
++    citation of a matched source (a citation's page rarely contains the source
++    title), leaving the source expandable but empty -- the user is then forced
++    to create a *new* citation instead of reusing an existing one (issue 8622).
++
++    This filter keeps a citation reachable when *either* the citation itself
++    matches the citation search *or* its parent source matches the source
++    search.  So a source that the search retains keeps its existing citations
++    selectable, while the independent citation search is preserved.
++    """
++
++    def __init__(self, citation_filter, source_filter, get_source_handle):
++        self.citation_filter = citation_filter
++        self.source_filter = source_filter
++        self.get_source_handle = get_source_handle
++
++    def match(self, handle, db):
++        """
++        Return True if the citation matches, or if its parent source (which is
++        shown by the primary search) does -- so the source's citations stay
++        reachable under it.
++        """
++        if self.citation_filter is not None and self.citation_filter.match(handle, db):
++            return True
++        if self.source_filter is not None:
++            source_handle = self.get_source_handle(handle)
++            if source_handle:
++                return self.source_filter.match(source_handle, db)
++        return False
++
++
+ # -------------------------------------------------------------------------
+ #
+ # CitationModel
+@@ -78,7 +120,13 @@ class CitationTreeModel(CitationBaseModel, TreeBaseModel):
+         search=None,
+         skip=set(),
+         sort_map=None,
++        match_child_via_parent=False,
+     ):
++        # When True (set by the Select Source or Citation selector), a text
++        # search that keeps a source also keeps that source's citations
++        # reachable under it (issue 8622).  The default (used by the standalone
++        # Citation Tree View) leaves the independent secondary search intact.
++        self._match_child_via_parent = match_child_via_parent
+         self.db = db
+         self.number_items = self.db.get_number_of_sources
+         self.map = self.db.get_raw_source_data
+@@ -177,6 +225,34 @@ class CitationTreeModel(CitationBaseModel, TreeBaseModel):
+             self.citation_tag_color,
+         ]
+ 
++    def set_search(self, search):
++        """
++        See :meth:`TreeBaseModel.set_search`.
++
++        When this model backs the Select Source or Citation selector
++        (``match_child_via_parent``), widen the secondary (citation) search so
++        a citation is retained when its parent source matches the search, i.e.
++        whenever the source itself is shown.  This keeps a searched-for
++        source's existing citations selectable instead of forcing a new one
++        (issue 8622).  The plain (standalone Citation Tree View) behaviour is
++        unchanged.
++        """
++        TreeBaseModel.set_search(self, search)
++        if (
++            self._match_child_via_parent
++            and search
++            and not search[0]  # a text search, not a GenericFilter (sidebar)
++            and search[1]  # (col, text, inv) present, i.e. a non-empty search
++            and self.search is not None
++            and self.search2 is not None
++        ):
++            self.search2 = SourceOrCitationSearchFilter(
++                self.search2,
++                self.search,
++                lambda handle: self.map2(handle).source_handle,
++            )
++            self.current_filter2 = self.search2
++
+     def color_column(self):
+         """
+         Return the color column.
+diff --git a/gramps/gui/views/treemodels/test/citationtreemodel_search_test.py b/gramps/gui/views/treemodels/test/citationtreemodel_search_test.py
+new file mode 100644
+index 0000000000..f1d638efc3
+--- /dev/null
++++ b/gramps/gui/views/treemodels/test/citationtreemodel_search_test.py
+@@ -0,0 +1,214 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  Gramps developers
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Regression test for issue 8622.
++
++In the "Select Source or Citation" selector the source->citation tree lets
++you expand a source and pick one of its existing citations.  As soon as a
++text search is typed, the secondary (citation) rows are filtered by the *same*
++column and text as the primary (source) rows.  For a search on the
++title/page column that drops every citation of a matched source (a citation's
++page rarely contains the source title), so the source is shown but has no
++citation children -- the user is forced to create a *new* citation.
++
++This test drives the production model-build path -- ``CitationTreeModel`` with
++a ``search=`` tuple -- against a lightweight in-memory database and asserts on
++the resulting node map:
++
++* Without the selector option (the standalone Citation Tree View behaviour),
++  a search matching a source drops its citations -- the documented bug, and
++  the behaviour the fix must NOT change for the standalone view.
++* With ``match_child_via_parent=True`` (what the selector passes), the matched
++  source keeps its existing citations reachable as child rows.
++
++The model imports :mod:`gi.repository.Gtk`, but building the model with a
++handful of rows never pops a progress dialog (the estimated time stays below
++the popup threshold), so this runs headless.
++"""
++
++import unittest
++from contextlib import contextmanager
++
++from ..citationtreemodel import CitationTreeModel
++
++
++# -------------------------------------------------------------------------
++#
++# Lightweight in-memory test doubles
++#
++# -------------------------------------------------------------------------
++class _Source:
++    """Raw source data as the model's ``fmap``/sort funcs read it."""
++
++    def __init__(self, handle, gramps_id, title):
++        self.handle = handle
++        self.gramps_id = gramps_id
++        self.title = title
++        self.author = ""
++        self.abbrev = ""
++        self.pubinfo = ""
++        self.private = False
++        self.tag_list = []
++        self.change = 0
++
++
++class _Citation:
++    """Raw citation data as the model's ``fmap2``/sort funcs read it."""
++
++    def __init__(self, handle, gramps_id, page, source_handle):
++        self.handle = handle
++        self.gramps_id = gramps_id
++        self.page = page
++        self.source_handle = source_handle
++        self.date = None
++        self.confidence = 0
++        self.private = False
++        self.tag_list = []
++        self.change = 0
++
++
++class _FakeDb:
++    """Minimal database exposing only what CitationTreeModel touches."""
++
++    def __init__(self, sources, citations):
++        self._sources = {s.handle: s for s in sources}
++        self._citations = {c.handle: c for c in citations}
++
++    def is_open(self):
++        return True
++
++    # --- sources (primary) ---
++    def get_number_of_sources(self):
++        return len(self._sources)
++
++    def get_raw_source_data(self, handle):
++        return self._sources[handle]
++
++    def get_source_cursor(self):
++        return self._cursor(self._sources)
++
++    # --- citations (secondary) ---
++    def get_number_of_citations(self):
++        return len(self._citations)
++
++    def get_raw_citation_data(self, handle):
++        return self._citations[handle]
++
++    def get_citation_cursor(self):
++        return self._cursor(self._citations)
++
++    @staticmethod
++    @contextmanager
++    def _cursor(mapping):
++        yield list(mapping.items())
++
++
++# -------------------------------------------------------------------------
++#
++# The test
++#
++# -------------------------------------------------------------------------
++class CitationSelectorSearchTest(unittest.TestCase):
++    """Issue 8622 -- searched source must keep its citations reachable."""
++
++    def setUp(self):
++        # Two sources; only "Holy Bible" matches a search for "Bible".
++        self.src_bible = "SRC_BIBLE"
++        self.src_news = "SRC_NEWS"
++        sources = [
++            _Source(self.src_bible, "S0001", "Holy Bible"),
++            _Source(self.src_news, "S0002", "Daily Newspaper"),
++        ]
++        # Two citations under the matching source, one under the other. None
++        # of the pages contain the search text, so the old same-column filter
++        # drops them all.
++        citations = [
++            _Citation("CIT_B1", "C0001", "p.10", self.src_bible),
++            _Citation("CIT_B2", "C0002", "p.20", self.src_bible),
++            _Citation("CIT_N1", "C0003", "col.3", self.src_news),
++        ]
++        self.db = _FakeDb(sources, citations)
++        # uistate is only stashed by the (non-popping) progress monitor.
++        self.uistate = object()
++        # Column 0 = "Source: Title or Citation: Volume/Page"; text search,
++        # not a GenericFilter, not exact:  (filter?, (col, text, inv), exact?)
++        self.search = (False, (0, "Bible", False), False)
++
++    def _child_handles(self, model, source_handle):
++        """Handles of the citation rows under ``source_handle`` in the model."""
++        node = model.tree.get(source_handle)
++        if node is None:
++            return []
++        return [model.nodemap.node(nid).handle for _sortkey, nid in node.children]
++
++    def test_selector_keeps_citations_of_matched_source(self):
++        """
++        With the selector option, a source kept by the search still exposes
++        its existing citations as child rows (the fix).
++        """
++        model = CitationTreeModel(
++            self.db,
++            self.uistate,
++            search=self.search,
++            match_child_via_parent=True,
++        )
++        try:
++            # The matching source is shown...
++            self.assertIn(
++                self.src_bible,
++                model.tree,
++                "matched source should be present in the tree",
++            )
++            # ...with BOTH of its existing citations reachable under it.
++            self.assertEqual(
++                sorted(self._child_handles(model, self.src_bible)),
++                ["CIT_B1", "CIT_B2"],
++                "existing citations of the matched source must stay reachable",
++            )
++            # The non-matching source (and its citation) stays filtered out.
++            self.assertNotIn(self.src_news, model.tree)
++        finally:
++            model.destroy()
++
++    def test_default_search_drops_citations(self):
++        """
++        Without the selector option the standalone Citation Tree View
++        behaviour is unchanged: the same-column search drops the matched
++        source's citations.  This documents the bug and pins the scope of the
++        fix (the standalone view must not regress).
++        """
++        model = CitationTreeModel(
++            self.db,
++            self.uistate,
++            search=self.search,
++        )
++        try:
++            self.assertIn(self.src_bible, model.tree)
++            self.assertEqual(
++                self._child_handles(model, self.src_bible),
++                [],
++                "default (non-selector) search still filters citations by page",
++            )
++        finally:
++            model.destroy()
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index 6164615dea..53f458aed4 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -483,6 +483,7 @@ gramps/gui/views/treemodels/sourcemodel.py
+ #
+ # gui.views.treemodels.test package
+ #
++gramps/gui/views/treemodels/test/citationtreemodel_search_test.py
+ gramps/gui/views/treemodels/test/node_test.py
+ gramps/gui/views/treemodels/test/treebasemodel_test.py
+ #

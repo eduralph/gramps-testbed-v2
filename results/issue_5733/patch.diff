@@ -1,0 +1,482 @@
+diff --git a/gramps/plugins/docgen/odfdoc.py b/gramps/plugins/docgen/odfdoc.py
+index cd87e9ecc7..b449627b5b 100644
+--- a/gramps/plugins/docgen/odfdoc.py
++++ b/gramps/plugins/docgen/odfdoc.py
+@@ -464,6 +464,15 @@ class ODFDoc(BaseDoc, TextDoc, DrawDoc):
+         self.first_page = 1
+         self.stylelist_notes = []  # styles to create for styled notes.
+         self.stylelist_photos = []  # styles to create for clipped images.
++        # bug #5733: init() writes the named "F<name>" draw-text styles up
++        # front from the (then unscaled) style sheet.  A graphical report
++        # ("scale tree to fit") scales the style sheet's fonts AFTER init(),
++        # so a drawn text span must be able to override to the current
++        # (scaled) size at draw time — see _scaled_text_style().
++        self._draw_text_props = {}  # para style name -> init "F<name>" props
++        self._draw_text_style_names = set()  # every "F<name>" init() wrote
++        self._scaled_text_styles = {}  # props -> registered override name
++        self._scaled_text_defs = []  # (name, props) overrides to serialize
+ 
+     def open(self, filename):
+         """
+@@ -648,40 +657,18 @@ class ODFDoc(BaseDoc, TextDoc, DrawDoc):
+                 + "</style:style>\n"
+             )
+ 
++            # bug #5733: remember the properties this "F<name>" text style is
++            # written with (from the CURRENT, still-unscaled font) so a later
++            # scaled draw can tell whether the font changed and, if so, emit an
++            # override instead of the stale named style (see _scaled_text_style).
++            self._draw_text_props[style_name] = self._draw_text_properties(style)
++            self._draw_text_style_names.add("F%s" % style_name)
+             wrt(
+                 '<style:style style:name="F%s" ' % style_name
+                 + 'style:family="text">\n'
+                 + "<style:text-properties "
+-            )
+-
+-            align = style.get_alignment()
+-            if align == PARA_ALIGN_LEFT:
+-                wrt('fo:text-align="start" ')
+-            elif align == PARA_ALIGN_RIGHT:
+-                wrt('fo:text-align="end" ')
+-            elif align == PARA_ALIGN_CENTER:
+-                wrt('fo:text-align="center" ' 'style:justify-single-word="false" ')
+-
+-            font = style.get_font()
+-            wrt(
+-                'style:font-name="%s" '
+-                % (
+-                    "Arial"
+-                    if font.get_type_face() == FONT_SANS_SERIF
+-                    else "Times New Roman"
+-                )
+-            )
+-
+-            color = font.get_color()
+-            wrt('fo:color="#%02x%02x%02x" ' % color)
+-            if font.get_bold():
+-                wrt('fo:font-weight="bold" ')
+-            if font.get_italic():
+-                wrt('fo:font-style="italic" ')
+-
+-            wrt(
+-                'fo:font-size="%.2fpt" ' % font.get_size()
+-                + 'style:font-size-asian="%.2fpt"/> ' % font.get_size()
++                + self._draw_text_props[style_name]
++                + "/> "
+                 + "</style:style>\n"
+             )
+ 
+@@ -782,6 +769,7 @@ class ODFDoc(BaseDoc, TextDoc, DrawDoc):
+         self.add_styled_notes_fonts()
+         self.add_styled_notes_styles()
+         self.add_styled_photo_styles()
++        self.add_scaled_text_styles()  # bug #5733: scaled draw-text overrides
+         self.cntntx.write(self.cntnt1.getvalue())
+         self.cntntx.write(self.cntnt2.getvalue())
+         self.cntntx.write(self.cntnt.getvalue())
+@@ -1858,6 +1846,110 @@ class ODFDoc(BaseDoc, TextDoc, DrawDoc):
+             + "</draw:line>\n"
+         )
+ 
++    def _draw_text_properties(self, style):
++        """
++        Return the body of the ``<style:text-properties …>`` element for a
++        paragraph style's draw-text ("F<name>") style, computed from the
++        style's CURRENT font.
++
++        Shared by :meth:`init` — which writes the named "F<name>" styles once,
++        up front — and :meth:`_scaled_text_style`, which runs later, after a
++        graphical report may have scaled the style sheet's fonts (bug #5733).
++        Because both paths format the font identically, an unscaled draw
++        reproduces the named style byte-for-byte, so :meth:`_scaled_text_style`
++        can reuse "F<name>" when nothing changed and register an override only
++        when the (scaled) font differs.
++        """
++        props = ""
++        align = style.get_alignment()
++        if align == PARA_ALIGN_LEFT:
++            props += 'fo:text-align="start" '
++        elif align == PARA_ALIGN_RIGHT:
++            props += 'fo:text-align="end" '
++        elif align == PARA_ALIGN_CENTER:
++            props += 'fo:text-align="center" ' 'style:justify-single-word="false" '
++        font = style.get_font()
++        props += 'style:font-name="%s" ' % (
++            "Arial" if font.get_type_face() == FONT_SANS_SERIF else "Times New Roman"
++        )
++        props += 'fo:color="#%02x%02x%02x" ' % font.get_color()
++        if font.get_bold():
++            props += 'fo:font-weight="bold" '
++        if font.get_italic():
++            props += 'fo:font-style="italic" '
++        props += 'fo:font-size="%.2fpt" ' % font.get_size()
++        props += 'style:font-size-asian="%.2fpt"' % font.get_size()
++        return props
++
++    def _scaled_text_style(self, para_name):
++        """
++        Return the name of the text style a drawn text span must reference so
++        that its font size reflects any per-report scaling applied AFTER
++        :meth:`init` wrote the fixed named "F<name>" styles (bug #5733).
++
++        "F<para_name>" is written once, up front, from the unscaled style
++        sheet.  A graphical report ("scale tree to fit") then scales the style
++        sheet's fonts, but that pre-written style keeps the original size, so
++        ODT box text would render unscaled while the cairo (PDF) backend —
++        which reads the font at draw time — scales it.  Here we read the
++        CURRENT font (post-scale): if it matches what "F<name>" already holds,
++        we reuse "F<name>" (unscaled output stays byte-identical); otherwise we
++        register an automatic text style carrying the current size and return
++        its name (flushed by :meth:`add_scaled_text_styles`).
++        """
++        if para_name not in self._draw_text_props:
++            # No named "F<name>" text style was written for this paragraph
++            # style — e.g. a GraphicsStyle with an unset paragraph style, whose
++            # name defaults to "".  Preserve the original, pre-#5733 behaviour
++            # (emit the "F<name>" reference verbatim) rather than resolving the
++            # style sheet and risking a KeyError.
++            return "F%s" % para_name
++        style = self.get_style_sheet().get_paragraph_style(para_name)
++        props = self._draw_text_properties(style)
++        if props == self._draw_text_props[para_name]:
++            return "F%s" % para_name
++        name = self._scaled_text_styles.get(props)
++        if name is None:
++            name = self._new_scaled_style_name()
++            self._scaled_text_styles[props] = name
++            self._scaled_text_defs.append((name, props))
++        return name
++
++    def _new_scaled_style_name(self):
++        """
++        Allocate a text-style name for a scaled draw-text override that cannot
++        collide with any "F<name>" style :meth:`init` wrote nor any override
++        already registered (bug #5733).  A fixed prefix alone is unsafe: a user
++        paragraph style literally named "Scaled1" yields an init style
++        "FScaled1", so we skip any candidate already reserved.
++        """
++        n = len(self._scaled_text_defs) + 1
++        while True:
++            name = "FScaled%d" % n
++            if name not in self._draw_text_style_names:
++                self._draw_text_style_names.add(name)
++                return name
++            n += 1
++
++    def add_scaled_text_styles(self):
++        """
++        Write the automatic text styles registered by
++        :meth:`_scaled_text_style` into the automatic-styles section (bug
++        #5733).  Mirrors :meth:`add_styled_notes_styles`: collected while the
++        body is generated and flushed, via ``cntnt2``, ahead of the body
++        content at :meth:`finish_cntnt_creation` time.
++        """
++        wrt2 = self.cntnt2.write
++        for name, props in self._scaled_text_defs:
++            wrt2(
++                '<style:style style:name="%s" ' % name
++                + 'style:family="text">\n'
++                + "<style:text-properties "
++                + props
++                + "/> "
++                + "</style:style>\n"
++            )
++
+     def draw_text(self, style, text, x, y, mark=None):
+         """
+         Draw a text
+@@ -1869,6 +1961,7 @@ class ODFDoc(BaseDoc, TextDoc, DrawDoc):
+         pstyle = style_sheet.get_paragraph_style(para_name)
+         font = pstyle.get_font()
+         sw = utils.pt2cm(string_width(font, text)) * 1.3
++        text_style = self._scaled_text_style(para_name)  # bug #5733
+ 
+         self._write_mark(mark, text)
+ 
+@@ -1882,7 +1975,7 @@ class ODFDoc(BaseDoc, TextDoc, DrawDoc):
+             + 'svg:y="%.2fcm">' % float(y)
+             + "<draw:text-box> "
+             + '<text:p text:style-name="F%s">' % para_name
+-            + '<text:span text:style-name="F%s">' % para_name
++            + '<text:span text:style-name="%s">' % text_style
+             +
+             #' fo:max-height="%.2f">' % font.get_size()  +
+             escape(text, ESC_MAP)
+@@ -1928,9 +2021,10 @@ class ODFDoc(BaseDoc, TextDoc, DrawDoc):
+             + 'svg:y="%.2fcm">\n' % float(y)
+         )
+         if text:
++            text_style = self._scaled_text_style(para_name)  # bug #5733
+             self.cntnt.write(
+                 '<text:p text:style-name="%s">' % para_name
+-                + '<text:span text:style-name="F%s">' % para_name
++                + '<text:span text:style-name="%s">' % text_style
+                 + escape(text, ESC_MAP)
+                 + "</text:span>"
+                 "</text:p>\n"
+@@ -1963,10 +2057,11 @@ class ODFDoc(BaseDoc, TextDoc, DrawDoc):
+         )
+ 
+         if text:
++            text_style = self._scaled_text_style(para_name)  # bug #5733
+             self.cntnt.write(
+                 "<draw:text-box>"
+                 + '<text:p text:style-name="X%s">' % para_name
+-                + '<text:span text:style-name="F%s">' % para_name
++                + '<text:span text:style-name="%s">' % text_style
+                 + escape(text, ESC_MAP)
+                 + "</text:span>\n"
+                 + "</text:p>\n"
+diff --git a/gramps/plugins/test/odfdoc_drawscale_test.py b/gramps/plugins/test/odfdoc_drawscale_test.py
+new file mode 100644
+index 0000000000..8b3a7f33bd
+--- /dev/null
++++ b/gramps/plugins/test/odfdoc_drawscale_test.py
+@@ -0,0 +1,234 @@
++#
++# Gramps - a GTK+/GNOME based genealogy program
++#
++# Copyright (C) 2026  Gramps developers
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License along
++# with this program; if not, see <https://www.gnu.org/licenses/>.
++#
++
++"""
++Regression test for bug #5733: a graphical report's "scale tree to fit" option
++scales the boxes of an ODT drawing but not the text inside them.
++
++Graphical tree reports (Ancestor/Descendant chart) draw their boxes through the
++document backend's ``draw_box`` / ``draw_text`` / ``center_text``.  When "scale
++tree to fit" is chosen the report scales the style sheet's fonts *after*
++``doc.init()`` has already run (``gramps/cli/plug/__init__.py`` runs ``init()``
++then ``begin_report()``, which calls the report's ``scale_styles``).  The cairo
++(PDF) backend reads the font at draw time so its text scales; the ODF backend,
++however, wrote fixed named "F<name>" text styles from the unscaled sheet in
++``init()`` and referenced them at draw time, so ODT box text stayed at the
++original size and overflowed the shrunk boxes.
++
++This test drives the production ODF draw path under an applied scale (exactly
++the style-sheet mutation ``descendtree.scale_styles`` performs) and asserts the
++font size emitted for the drawn text reflects the scale factor.  The cairo
++backend reads the paragraph font at draw time, so its effective rendered size is
++``BASE_SIZE * SCALE`` — the value asserted here is therefore also the parity
++target, without importing the (GUI-heavy) cairo backend.
++
++It is import-light: it touches only ``gramps.gen`` /
++``gramps.plugins.docgen.odfdoc`` and never a GUI toolkit, so it runs headless.
++"""
++
++import re
++import unittest
++
++from gramps.gen.plug.docgen import (
++    FontStyle,
++    FONT_SANS_SERIF,
++    GraphicsStyle,
++    ParagraphStyle,
++    PaperSize,
++    PaperStyle,
++    PAPER_PORTRAIT,
++    StyleSheet,
++)
++from gramps.plugins.docgen.odfdoc import ODFDoc
++
++PARA_NAME = "TestPara"
++DRAW_NAME = "TestBox"
++BASE_SIZE = 16.0
++SCALE = 0.5
++
++
++def _make_style_sheet(extra_para_names=()):
++    """A minimal style sheet with one paragraph style and one draw box style,
++    exactly the shape a graphical tree report uses (a draw style whose
++    paragraph style carries the box font).  ``extra_para_names`` adds further
++    (unused) paragraph styles — used to probe override-name collisions."""
++    sheet = StyleSheet()
++
++    font = FontStyle()
++    font.set_size(BASE_SIZE)
++    font.set_type_face(FONT_SANS_SERIF)
++    para = ParagraphStyle()
++    para.set_font(font)
++    sheet.add_paragraph_style(PARA_NAME, para)
++
++    for name in extra_para_names:
++        sheet.add_paragraph_style(name, ParagraphStyle(para))
++
++    box = GraphicsStyle()
++    box.set_paragraph_style(PARA_NAME)
++    sheet.add_draw_style(DRAW_NAME, box)
++
++    return sheet
++
++
++def _make_doc(sheet=None):
++    paper = PaperStyle(PaperSize("Letter", 27.94, 21.59), PAPER_PORTRAIT)
++    doc = ODFDoc(sheet or _make_style_sheet(), paper)
++    # open() only records the filename + creates the content buffers; the file
++    # is not written until close(), which we do not call.
++    doc.open("odfdoc_drawscale_test_output")
++    doc.init()
++    return doc
++
++
++def _apply_report_scale(doc, amount, para_name=PARA_NAME):
++    """Scale a paragraph font in the document's style sheet, the way a
++    graphical report's ``scale_styles`` does after begin_report: fetch the
++    sheet, shrink the paragraph font, and set it back on the doc.  This is the
++    report -> doc contract (``descendtree.scale_styles``), not a
++    reimplementation of the ODF backend."""
++    sheet = doc.get_style_sheet()
++    para = sheet.get_paragraph_style(para_name)
++    font = para.get_font()
++    font.set_size(font.get_size() * amount)
++    para.set_font(font)
++    sheet.add_paragraph_style(para_name, para)
++    doc.set_style_sheet(sheet)
++
++
++def _span_style_for(content, text):
++    """The text style-name the drawn <text:span> for ``text`` references."""
++    match = re.search(
++        r'<text:span text:style-name="([^"]+)">' + re.escape(text) + r"</text:span>",
++        content,
++    )
++    assert match, "no drawn text span found for %r" % text
++    return match.group(1)
++
++
++def _font_size_of(content, style_name):
++    """The fo:font-size (pt, float) declared for the named text style."""
++    pattern = (
++        r'style:name="'
++        + re.escape(style_name)
++        + r'"\s+style:family="text">\s*'
++        + r'<style:text-properties\b[^>]*?fo:font-size="([0-9.]+)pt"'
++    )
++    match = re.search(pattern, content)
++    assert match, "no font-size for text style %r" % style_name
++    return float(match.group(1))
++
++
++class OdfDrawScaleTest(unittest.TestCase):
++    def test_scaled_box_text_font_is_scaled(self):
++        """Box text drawn after a scale-to-fit is emitted at the scaled font
++        size (bug #5733) — parity with the cairo/PDF backend, which renders
++        BASE_SIZE * SCALE by reading the same scaled sheet at draw time."""
++        doc = _make_doc()
++        _apply_report_scale(doc, SCALE)
++
++        doc.draw_box(DRAW_NAME, "Scaled", 0.0, 0.0, 5.0, 2.0)
++        doc.finish_cntnt_creation()
++        content = doc.cntntx.getvalue()
++
++        span_style = _span_style_for(content, "Scaled")
++        emitted = _font_size_of(content, span_style)
++        expected = BASE_SIZE * SCALE  # what cairo/PDF renders at draw time
++
++        # The bug: emitted stayed at BASE_SIZE (the unscaled named "F" style).
++        self.assertAlmostEqual(
++            emitted,
++            expected,
++            places=2,
++            msg=(
++                "ODF box text font size %.2fpt is not scaled to %.2fpt "
++                "(cairo/PDF renders %.2fpt)" % (emitted, expected, expected)
++            ),
++        )
++
++    def test_center_text_font_is_scaled(self):
++        """The title path (center_text) scales too."""
++        doc = _make_doc()
++        _apply_report_scale(doc, SCALE)
++
++        doc.center_text(DRAW_NAME, "Title", 3.0, 0.0)
++        doc.finish_cntnt_creation()
++        content = doc.cntntx.getvalue()
++
++        span_style = _span_style_for(content, "Title")
++        self.assertAlmostEqual(
++            _font_size_of(content, span_style), BASE_SIZE * SCALE, places=2
++        )
++
++    def test_unscaled_output_unchanged(self):
++        """Without a scale the drawn span keeps the pre-written named "F"
++        style at the base size — no behaviour change for the common case."""
++        doc = _make_doc()
++
++        doc.draw_box(DRAW_NAME, "Plain", 0.0, 0.0, 5.0, 2.0)
++        doc.finish_cntnt_creation()
++        content = doc.cntntx.getvalue()
++
++        span_style = _span_style_for(content, "Plain")
++        self.assertEqual(span_style, "F" + PARA_NAME)
++        self.assertAlmostEqual(_font_size_of(content, span_style), BASE_SIZE, places=2)
++
++    def test_draw_box_without_paragraph_style_does_not_crash(self):
++        """A draw style with no paragraph style set (para name defaults to "")
++        must not crash draw_box.  Regression for the KeyError('') the first
++        #5733 attempt introduced by resolving the paragraph style eagerly."""
++        sheet = _make_style_sheet()
++        box = GraphicsStyle()  # leaves the paragraph-style name unset ("")
++        sheet.add_draw_style("NoParaBox", box)
++        doc = _make_doc(sheet)
++
++        # Must not raise; preserves the original pre-#5733 "F" reference.
++        doc.draw_box("NoParaBox", "hello", 0.0, 0.0, 5.0, 2.0)
++        doc.finish_cntnt_creation()
++        content = doc.cntntx.getvalue()
++        self.assertEqual(_span_style_for(content, "hello"), "F")
++
++    def test_scaled_override_name_does_not_collide(self):
++        """The generated override name must not collide with an "F<name>" style
++        init() wrote for a user paragraph style literally named "Scaled1"
++        (which yields "FScaled1") — that would emit a duplicate ODF style
++        definition.  Regression for the second #5733-attempt defect."""
++        sheet = _make_style_sheet(extra_para_names=("Scaled1",))
++        doc = _make_doc(sheet)
++        _apply_report_scale(doc, SCALE)
++
++        doc.draw_box(DRAW_NAME, "Boxed", 0.0, 0.0, 5.0, 2.0)
++        doc.finish_cntnt_creation()
++        content = doc.cntntx.getvalue()
++
++        override = _span_style_for(content, "Boxed")
++        # The override must dodge the reserved "FScaled1" (== "F" + "Scaled1").
++        self.assertNotEqual(override, "FScaled1")
++        # And every emitted text style name must be defined exactly once.
++        names = re.findall(r'<style:style style:name="([^"]+)" ', content)
++        dupes = {n for n in names if names.count(n) > 1}
++        self.assertEqual(dupes, set(), "duplicate ODF style definitions: %s" % dupes)
++        # The override still carries the scaled size.
++        self.assertAlmostEqual(
++            _font_size_of(content, override), BASE_SIZE * SCALE, places=2
++        )
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/po/POTFILES.skip b/po/POTFILES.skip
+index 6164615dea..f3ce19da6f 100644
+--- a/po/POTFILES.skip
++++ b/po/POTFILES.skip
+@@ -675,6 +675,7 @@ gramps/plugins/sidebar/expandersidebar.py
+ gramps/plugins/test/db_undo_and_signals_test.py
+ gramps/plugins/test/exports_test.py
+ gramps/plugins/test/imports_test.py
++gramps/plugins/test/odfdoc_drawscale_test.py
+ gramps/plugins/test/reports_test.py
+ gramps/plugins/test/schema_validation_test.py
+ gramps/plugins/test/tools_test.py
