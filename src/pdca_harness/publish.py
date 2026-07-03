@@ -37,6 +37,10 @@ from .config import Config
 
 COMMIT_MSG = "commit-msg.txt"
 PR_BODY = "pr-description.md"
+# The static-analysis (black + mypy) Check gate re-run as a pre-push guard here,
+# so a lint-dirty patch never opens an upstream PR that fails CI. Kept in sync
+# with the [[gates.checks]] id in pdca.toml.
+LINT_GATE_ID = "T2-lint"
 # The wave driver records the run's integration branch here for a wave>0 bundle, so its
 # Do worktree and stacked PR base off the prior waves' folded work (#wave-model); absent ⇒
 # build / open the PR off the target base.
@@ -163,6 +167,14 @@ def publish(
             print(f"publish: T4 contribution gate FAILED on {COMMIT_MSG} / {PR_BODY} — "
                   "fix them and retry", file=sys.stderr)
             return 1
+
+    # Pre-push lint guard (belt-and-suspenders to the T2-lint Check gate): re-run
+    # black + mypy on the patch so a lint-dirty bundle — including one accepted
+    # before the gate existed — never opens an upstream PR that fails CI.
+    if not _lint_passes(cfg, d):
+        print(f"publish: {LINT_GATE_ID} lint gate FAILED (black/mypy not clean) — run "
+              "them, re-Do, and re-gate before publishing.", file=sys.stderr)
+        return 1
 
     # Stack mode (issue #54): the brief names an existing PR's head branch — contribute a
     # commit onto it instead of a new PR. The shared spine above (guard, target, artifacts,
@@ -622,6 +634,32 @@ def _t4_passes(cfg: Config, d: Path) -> bool:
         if r.returncode != 0:
             print((r.stdout or r.stderr).strip(), file=sys.stderr)
             return False
+    return True
+
+
+def _lint_passes(cfg: Config, d: Path) -> bool:
+    """Re-run the T2-lint gate (black + mypy) over the bundle as a pre-push guard,
+    so a lint-dirty patch never opens an upstream PR that fails CI — even a bundle
+    accepted before the gate existed. Returns False ONLY on a CONFIRMED lint
+    failure (run-lint.sh exit 1). A setup/infra problem (exit 2, e.g. a missing
+    worktree) or 'no core .py to lint' (exit 77) cannot confirm dirtiness, so it
+    warns and lets publish proceed rather than reintroduce the worktree-missing
+    friction — the T2-lint Check gate is the primary enforcement. No lint gate
+    configured → True (keeps publish decoupled from any one project's linters)."""
+    lint = [c for c in cfg.gates_checks if c.get("id") == LINT_GATE_ID]
+    if not lint:
+        return True
+    env = {**os.environ, "PDCA_BUNDLE": str(d)}
+    for chk in lint:
+        r = subprocess.run(chk.get("cmd", ""), shell=True, cwd=cfg.root, env=env,
+                           capture_output=True, text=True)
+        if r.returncode == 1:  # a linter reported issues — block the push
+            print((r.stdout or r.stderr).strip(), file=sys.stderr)
+            return False
+        if r.returncode not in (0, 77):  # couldn't run (infra/timeout) — warn, don't block
+            print(f"publish: {LINT_GATE_ID} could not run (rc {r.returncode}) — "
+                  "skipping the pre-push lint check (the Check gate is the primary "
+                  f"enforcement).\n{(r.stderr or r.stdout).strip()}", file=sys.stderr)
     return True
 
 
