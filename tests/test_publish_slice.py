@@ -692,11 +692,13 @@ class ContributionTemplates(unittest.TestCase):
         # The commit template has always had the reference line; the PR body now mirrors it.
         self.assertIn("Fixes #<id>", commit_tpl)
         self.assertIn("Fixes #<id>", pr_tpl)
-        # It sits after the body sections, with guidance on the ticketless case. This
-        # testbed keeps the gramps doc16 PR structure (Root cause / Fix / Verified
-        # against / Test), not the template's generic #106 lead — the engine T4 gate
-        # (engine/conformance/t4_contribution.py) enforces the gramps sections.
-        self.assertLess(pr_tpl.index("## Test"), pr_tpl.index("Fixes #<id>"))
+        # It sits after the body sections, with guidance on the ticketless case. The
+        # PR body uses the #106 structure (a **User impact:** lead before Root cause;
+        # Summary / What to look at / Root cause / Fix / Verification) — the engine T4
+        # gate (engine/conformance/t4_contribution.py) enforces the user-impact opener.
+        self.assertIn("**User impact:**", pr_tpl)
+        self.assertLess(pr_tpl.index("**User impact:**"), pr_tpl.index("## Root cause"))
+        self.assertLess(pr_tpl.index("## Verification"), pr_tpl.index("Fixes #<id>"))
         self.assertIn("declared-ticketless", pr_tpl)
 
 

@@ -337,11 +337,11 @@ class T4Contribution(unittest.TestCase):
         self.assertTrue(any("doc16-addon" in v for v in
                             t4_contribution.check_commit_msg(bad, "addon")))
 
-    def test_pr_body_four_sections_core_only(self) -> None:  # issue #6
-        prose = "just some prose, no structure, mentions #13636"
-        # core: the four-section structure is a MUST → flagged.
+    def test_pr_body_user_impact_core_only(self) -> None:  # issue #6 / #106
+        prose = "just some prose, no user-impact opener, mentions #13636"
+        # core: the **User impact:** opener is a MUST → flagged.
         core_viol = t4_contribution.check_pr_body(prose, "core")
-        self.assertTrue(any("Root cause" in v and "§Contributor workflow" in v
+        self.assertTrue(any("User impact" in v and "§Contributor workflow" in v
                             for v in core_viol), core_viol)
         # addon: NOT a rule — an addon PR body need only reference the bug, which
         # this one does, so it is clean (never failed against the core-only rule).
@@ -353,9 +353,15 @@ class T4Contribution(unittest.TestCase):
                             for v in viol), viol)
 
     def test_pr_body_conformant(self) -> None:
-        body = ("## Root cause\nx\n## Fix\ny\n## Verified against\nz\n## Test\nt\n"
-                "References #13636\n")
+        body = ("## Summary\n**User impact:** users saw a crash on save.\n\none-liner.\n\n"
+                "## Root cause\nx\n## Fix\ny\n\nReferences #13636\n")
         self.assertEqual(t4_contribution.check_pr_body(body, "core"), [])
+
+    def test_pr_body_user_impact_must_precede_root_cause(self) -> None:  # #106
+        body = ("## Root cause\nx\n\n## Summary\n**User impact:** late.\n\n"
+                "References #13636\n")
+        viol = t4_contribution.check_pr_body(body, "core")
+        self.assertTrue(any("BEFORE" in v for v in viol), viol)
 
     def test_publisher_stub_artifacts_pass_t4(self) -> None:
         # The Check-closing publisher leaf's offline stub must write doc-16/T4-valid
@@ -406,11 +412,11 @@ class T4Ticketless(unittest.TestCase):
         self.assertTrue(any("§Commit messages" in v for v in
                             t4_contribution.check_commit_msg(msg, require_trailer=False)))
 
-    def test_pr_body_bug_ref_waived_but_sections_required(self) -> None:
-        body = "## Root cause\nx\n## Fix\ny\n## Verified against\nz\n## Test\nt\n"
+    def test_pr_body_bug_ref_waived_but_user_impact_required(self) -> None:
+        body = "## Summary\n**User impact:** x.\n\n## Root cause\nx\n"
         self.assertEqual(
             t4_contribution.check_pr_body(body, "core", require_trailer=False), [])
-        missing = "## Root cause\nx\n## Fix\ny\n## Test\nt\n"  # no 'Verified against'
+        missing = "## Root cause\nx\n## Fix\ny\n"  # no **User impact:** opener
         self.assertTrue(
             t4_contribution.check_pr_body(missing, "core", require_trailer=False))
 
@@ -486,10 +492,10 @@ class T4AddonTrailerOptional(unittest.TestCase):
         self.assertEqual(self._run_t4(d), 0)
 
     def test_core_no_trailer_still_fails(self) -> None:
-        # A core target with every PR section present but no trailer still fails —
+        # A core target with a valid (#106) PR body but no commit trailer still fails —
         # the waiver is addon-only (and ticketless-only, tested in T4Ticketless).
         d = self._bundle(addon=False, commit=self.NO_TRAILER,
-                         pr="## Root cause\nx\n## Fix\ny\n## Verified against\nz\n## Test\nt\n")
+                         pr="## Summary\n**User impact:** x.\n\n## Root cause\nx\n\nFixes #13636\n")
         self.assertNotEqual(self._run_t4(d), 0)
 
     def test_addon_malformed_trailer_still_flagged(self) -> None:

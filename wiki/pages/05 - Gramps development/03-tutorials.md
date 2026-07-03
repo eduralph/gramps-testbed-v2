@@ -185,16 +185,30 @@ the wrong thing. Reorder the guard so an unset value short-circuits.
 Fixes #NNNNN.
 ```
 
-Structure the PR body as **Root cause / Fix / Verified against / Test**, citing
-`path:lines` on `maintenance/gramps61`, and end the PR body with `Fixes #NNNNN` too
-([[16-guidelines]] § Contributor workflow):
+Open the PR body with a **`**User impact:**`** line (the user-visible effect, before
+Root cause), then structure it **Summary / What to look at / Root cause / Fix /
+Verification**, citing `path:lines` on `maintenance/gramps61` in Verification, and end
+the PR body with `Fixes #NNNNN` too ([[16-guidelines]] § Contributor workflow):
 
 ```text
-Root cause: gramps/gen/lib/date.py:1882 — is_empty() checked the modifier
-  before the value, so a freshly constructed Date() returned False.
-Fix: reorder the guard in Date.is_empty() to short-circuit on an unset value.
-Verified against: gramps/gen/lib/date.py:1882 on maintenance/gramps61.
-Test: gramps/gen/lib/test/date_test.py::TestEmptyDate — red before, green after.
+## Summary
+**User impact:** an empty date entered on a person showed as "not empty", so
+date-cleanup tools skipped it. This makes Date.is_empty() correct for a fresh Date().
+
+## What to look at
+Date.is_empty() in gramps/gen/lib/date.py and its regression in date_test.py.
+
+## Root cause
+gramps/gen/lib/date.py:1882 — is_empty() checked the modifier before the value, so a
+freshly constructed Date() returned False.
+
+## Fix
+Reorder the guard in Date.is_empty() to short-circuit on an unset value.
+
+## Verification
+- **Claim:** a default-constructed Date() is empty.
+- **Checked:** gramps/gen/lib/date.py:1882 on maintenance/gramps61.
+- **Test:** gramps/gen/lib/test/date_test.py::TestEmptyDate — red before, green after.
 
 Fixes #NNNNN
 ```

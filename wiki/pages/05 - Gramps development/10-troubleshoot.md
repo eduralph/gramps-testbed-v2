@@ -332,8 +332,9 @@ Wrap user-visible strings with `_()`; use `ngettext` for plurals and the
 Core PRs target **`maintenance/gramps61`**, not `master` (`master` is
 feature-only; fixes ride the maintenance branch and forward-merge from there).
 Branch from `upstream/<base>`, not your fork's tracking copy, which drifts.
-Structure the body as **Root cause / Fix / Verified against / Test**, cite
-`path:lines` on the target branch, and end **both** the PR body and the commit
+Open the body with a **`**User impact:**`** line (before Root cause), then structure it
+**Summary / What to look at / Root cause / Fix / Verification**, cite
+`path:lines` on the target branch in Verification, and end **both** the PR body and the commit
 message with `Fixes #NNNN`. All normative in [[16-guidelines]] §Contributor
 workflow and §Commit messages; branch map in [docs/INTEGRATION.md §2].
 
