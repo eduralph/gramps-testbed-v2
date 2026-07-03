@@ -201,6 +201,15 @@ argv = ["claude", "-p", "--model", "claude-opus-4-8", "--effort", "high", "--age
 # [[leaves.builder_variant]]
 # when = { field = "difficulty", substring = "high" }
 # argv = ["claude", "-p", "--agent", "builder", "--model", "opus", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Edit,Write,Bash,Grep,Glob"]
+#
+# OPT-IN, per-bundle variant (issue #167). No `when` clause ⇒ it NEVER auto-applies
+# (a variant with no condition is default-off), so the default [leaves.builder] and
+# every other bundle are untouched. It fires ONLY for a brief that names it by
+# `- **Do model:** opus-xhigh`. Same opus-4-8 as the default builder, effort high→xhigh
+# (matches the planner) — for a hard bundle whose brief opts in. First used: issue_7924.
+[[leaves.builder_variant]]
+model = "opus-xhigh"
+argv = ["claude", "-p", "--model", "claude-opus-4-8", "--effort", "xhigh", "--agent", "builder", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Edit,Bash(git *),Bash(python3 *)"]
 # Check reviewer (advisory, build-notes withheld). Cross-vendor decorrelation is the
 # ideal — a DIFFERENT family from the builder (INTEGRATION §4) — so the reviewer is
 # OpenAI Codex: an independent second read of the same diff, decorrelated from the claude
