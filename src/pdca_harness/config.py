@@ -110,6 +110,23 @@ class Config:
     repo_checkouts: dict[str, str] = field(default_factory=dict)  # repo_spec → local path
     repo_aliases: dict[str, str] = field(default_factory=dict)  # brief shorthand → OWNER/REPO
     gates_checks: list[dict] = field(default_factory=list)
+    # Reverse registry-consistency (issue #205): [gates.registry_consistency] naming an
+    # instance's manifest files ({files=[...], pattern="<regex, group 1 = path>"}). The
+    # `registry-check` subcommand (wired as a bundle-scoped gate) fails a patch that adds a
+    # line to one of these files for a path the same patch doesn't touch. Empty ⇒ no check.
+    registry_consistency: dict = field(default_factory=dict)
+    # Instance-owned gate-toolchain bootstrap (issue #207): [install].extra_bootstrap in
+    # pdca.toml. One idempotent command scripts/bootstrap-tools.sh runs after the harness-
+    # universal + leaf tiers, so the generic template ships no project toolchain (a Rust
+    # instance drops in rustup here, a Python one its pip extras). "" ⇒ nothing.
+    install_extra_bootstrap: str = ""
+    # Manual-test launch command ([manual_test].cmd): the shell command `pdca try <id>`
+    # runs to launch the PATCHED build from a bundle's per-cycle worktree, so a human can
+    # hands-on test it during Check (the GUI/visual/validation §6 rows the gates + headless
+    # reviewer can't decide). Run from $PDCA_WORKTREE with the PDCA_* env exported, terminal
+    # inherited, no timeout. "" ⇒ `pdca try` errors with a configure-me hint. Instance-owned
+    # data (project-specific, like a gate cmd) — e.g. "python -m gramps".
+    manual_test_cmd: str = ""
     # Optional advisory reviewer leaves (issue #64): an OPEN list of extra, role-distinct
     # advisory reviewers ([[leaves.advisory]] in pdca.toml), so an instance adds N of them
     # (e.g. a correctness/cleanup code-review lens) with no driver change. Each:
@@ -164,6 +181,12 @@ class Config:
     # checkout directly, as before). Best-effort: a target that isn't a worktree-capable
     # git checkout silently falls back to in-place.
     worktree: bool = True
+    # Per-lane resource preflight (issue #213): [driver].lane_preflight, a shell command run
+    # ONCE before a lanes>1 fan-out ({lanes} interpolated); a non-zero exit aborts the run
+    # before any lane spawns, so a batch never runs against missing per-lane resources (and
+    # the REQUIRED per_lane [[doctor.checks]] are also run). "" ⇒ only the doctor rows (or
+    # nothing). Serial (lanes<=1) runs never preflight.
+    lane_preflight: str = ""
     # Wave-based batch sequencing (#wave-model). A batch handed to `flow` runs as an
     # ordered sequence of dependency waves; `wave_mode` selects how each wave's accepted
     # work reaches the next: "stack" (default) folds it onto a run-scoped integration
@@ -259,6 +282,10 @@ class Config:
         gates = data.get("gates", {})
         gates_checks = list(gates.get("checks", []))
         gates_runner = gates.get("runner", "")
+        registry_consistency = dict(gates.get("registry_consistency", {}))
+        install_extra_bootstrap = data.get("install", {}).get("extra_bootstrap", "")
+        # `pdca try <id>` launch command (project-specific); "" ⇒ the command errors with a hint.
+        manual_test_cmd = data.get("manual_test", {}).get("cmd", "")
         # Additive target flags: label → {field, substring}. A bare string is shorthand
         # for the "Repo + branch target" field (so flags and the primary axis can share it).
         gate_target_flags = {
@@ -328,6 +355,7 @@ class Config:
             lanes = int(os.environ["PDCA_LANES"])
         lanes = max(1, lanes)
         worktree = bool(driver_cfg.get("worktree", True))  # issue #94; on by default
+        lane_preflight = driver_cfg.get("lane_preflight", "")  # issue #213
         wave_mode = driver_cfg.get("wave_mode", "stack")  # #wave-model: stack | merge
         merge_method = driver_cfg.get("merge_method", "merge")  # merge | squash | rebase
         regate_between_waves = bool(driver_cfg.get("regate_between_waves", False))
@@ -368,6 +396,9 @@ class Config:
             act=leaf("act"),
             author=data.get("project", {}).get("author", ""),
             gates_checks=gates_checks,
+            registry_consistency=registry_consistency,
+            install_extra_bootstrap=install_extra_bootstrap,
+            manual_test_cmd=manual_test_cmd,
             advisory_leaves=advisory_leaves,
             advisory_selection=advisory_selection,
             builder_escalation=builder_escalation,
@@ -375,6 +406,7 @@ class Config:
             gates_runner=gates_runner,
             lanes=lanes,
             worktree=worktree,
+            lane_preflight=lane_preflight,
             wave_mode=wave_mode,
             merge_method=merge_method,
             regate_between_waves=regate_between_waves,

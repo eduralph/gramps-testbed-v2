@@ -11,12 +11,13 @@ import argparse
 import datetime
 import json
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
 
-from . import (act, brief, doctor, driver, flow, gates, merge_report, merged,
-               publish, queue, revalidate, revert, signoff, state, waves)
+from . import (act, brief, doctor, drift, driver, flow, gates, manual_test, merge_report,
+               merged, publish, queue, registry, revalidate, revert, signoff, state, waves)
 from .config import Config
 
 
@@ -93,10 +94,41 @@ def main(argv: list[str] | None = None) -> int:
     p_gates.add_argument("--promotions", action="store_true",
                          help="list advisory checks clean for their promote_after cycles (#156)")
 
+    # Reverse registry-consistency (issue #205) — a bundle-scoped gate cmd. Reads the
+    # bundle from its arg or $PDCA_BUNDLE (set by the gate runner), so a [[gates.checks]]
+    # entry is simply `cmd = "<cli> registry-check"`.
+    p_reg = sub.add_parser("registry-check",
+                           help="fail a patch that adds a manifest line for a path it doesn't touch (#205)")
+    p_reg.add_argument("issue_id", nargs="?")
+
+    # Contribution conformance — a bundle-scoped T4 gate. Lints the publisher's two
+    # artifacts INDEPENDENTLY: the PR body must open with a user-impact line (before Root
+    # cause) and both files must carry the tracker id. Reads $PDCA_BUNDLE like
+    # registry-check, so a [[gates.checks]] entry is simply `cmd = "<cli> contribcheck"`.
+    p_contrib = sub.add_parser("contribcheck",
+                               help="fail a contribution whose PR body lacks a user-impact opener or the tracker id (T4)")
+    p_contrib.add_argument("issue_id", nargs="?")
+    p_contrib.add_argument("--no-issue", action="store_true",
+                           help="pending-id: don't require the tracker trailer (still require the user-impact opener)")
+
     p_reval = sub.add_parser("revalidate",
                              help="re-run gates on a COMPLETE bundle vs the current engine; write a dated stamp (never re-decides §9)")
     p_reval.add_argument("issue_id")
     p_reval.add_argument("--date", help="ISO date for the stamp (default: today)")
+
+    # Manual-test launch — `pdca try <id>` launches the patched build from the bundle's
+    # worktree so a human can hands-on test it during Check (the visual/GUI §6 rows the
+    # gates + headless reviewer can't decide). Runs [manual_test].cmd; advisory.
+    p_try = sub.add_parser("try",
+                           help="launch the patched build from the bundle's worktree for hands-on Check")
+    p_try.add_argument("issue_id")
+
+    # Drift sweep (issue #206) — flag published bundles whose patch no longer applies to the
+    # current upstream base. Report-only; never re-decides §9.
+    p_drift = sub.add_parser("drift",
+                             help="flag COMPLETE-with-open-PR bundles whose patch no longer applies to the current base (#206)")
+    p_drift.add_argument("--no-fetch", action="store_true",
+                         help="skip `git fetch` (check against already-fetched base refs)")
 
     # Act tooling as one command group (#89): `act index` / `act log`.
     p_act = sub.add_parser("act", help="cross-cycle Act tooling (index / log)")
@@ -191,8 +223,16 @@ def main(argv: list[str] | None = None) -> int:
         return _queue(cfg)
     if args.cmd == "gates":
         return _gates(cfg, args)
+    if args.cmd == "registry-check":
+        return _registry_check(cfg, args)
+    if args.cmd == "contribcheck":
+        return _contribcheck(cfg, args)
     if args.cmd == "revalidate":
         return _revalidate(cfg, args)
+    if args.cmd == "try":
+        return manual_test.launch(cfg, args.issue_id)
+    if args.cmd == "drift":
+        return _drift(cfg, args)
     if args.cmd == "act":
         return _act(cfg, args)
     if args.cmd == "signoff":
@@ -286,8 +326,12 @@ def _flow(cfg: Config, args: argparse.Namespace) -> int:
             print("flow needs one or more issue ids, or --from-csv to plan a batch from "
                   "a tracker export", file=sys.stderr)
             return 2
-        return _report_batch(flow.flow_batch(
-            cfg, csv=args.from_csv, do_publish=do_publish, do_act=do_act, by=args.by))
+        try:
+            return _report_batch(flow.flow_batch(
+                cfg, csv=args.from_csv, do_publish=do_publish, do_act=do_act, by=args.by))
+        except flow.PreflightError as exc:
+            print(f"flow: {exc}", file=sys.stderr)
+            return 1
 
     if len(ids) == 1:  # single sequential cycle (auto-plans if unbriefed)
         iid = ids[0]
@@ -307,9 +351,13 @@ def _flow(cfg: Config, args: argparse.Namespace) -> int:
         return 0 if final in (state.COMPLETE, state.AWAITING_SIGNOFF) else 1
 
     # Several ids: batch — auto-plan unbriefed, drive concurrently, cheap-first sign-off.
-    return _report_batch(flow.flow_ids(
-        cfg, ids, plan_missing=True, csv=args.from_csv,
-        do_publish=do_publish, do_act=do_act, by=args.by))
+    try:
+        return _report_batch(flow.flow_ids(
+            cfg, ids, plan_missing=True, csv=args.from_csv,
+            do_publish=do_publish, do_act=do_act, by=args.by))
+    except flow.PreflightError as exc:
+        print(f"flow: {exc}", file=sys.stderr)
+        return 1
 
 
 def _report_batch(results: dict[str, str]) -> int:
@@ -465,6 +513,100 @@ def _gates_promotions(cfg: Config) -> int:
         print(f"  - {c['id']}: {c['label']}  "
               f"(passed ≥ {c['threshold']} most-recent frozen cycles)")
     return 0
+
+
+def _drift(cfg: Config, args: argparse.Namespace) -> int:
+    """Drift sweep (#206): report published bundles whose patch no longer applies to the
+    current upstream base. Report-only — always exits 0 (never re-decides §9)."""
+    rows = drift.sweep(cfg, fetch=not getattr(args, "no_fetch", False))
+    if not rows:
+        print("drift: no published COMPLETE bundles to check.")
+        return 0
+    stale = [r for r in rows if r["status"] == "needs-rebase"]
+    errors = [r for r in rows if r["status"] == "error"]
+    for r in stale:
+        print(f"  needs-rebase  {r['bundle']}  (vs {r['base']})  {r['pr_url']}")
+        print(f"      {r['detail']}")
+    for r in errors:
+        print(f"  unknown       {r['bundle']}  (vs {r['base']})  {r['detail']}")
+    ok = len(rows) - len(stale) - len(errors)
+    print(f"\ndrift: {len(rows)} checked · {ok} apply-clean · "
+          f"{len(stale)} needs-rebase · {len(errors)} unknown")
+    return 0
+
+
+def _registry_check(cfg: Config, args: argparse.Namespace) -> int:
+    """Reverse registry-consistency gate (#205): fail iff the bundle's patch adds a line to a
+    configured manifest for a path the patch doesn't touch. The bundle is the ``issue_id``
+    arg or ``$PDCA_BUNDLE`` (set by the gate runner). Not-configured / no-patch ⇒ pass
+    (default-open, like an unconfigured gate)."""
+    files = cfg.registry_consistency.get("files") or []
+    if not files:
+        return 0  # no registry files declared → nothing to enforce
+    if args.issue_id:
+        d = cfg.bundle(args.issue_id)
+    elif os.environ.get("PDCA_BUNDLE"):
+        d = Path(os.environ["PDCA_BUNDLE"])
+    else:
+        print("registry-check needs an issue id or $PDCA_BUNDLE", file=sys.stderr)
+        return 2
+    patch = d / "patch.diff"
+    if not patch.is_file() or not patch.read_text(encoding="utf-8").strip():
+        return 0  # no patch to inspect (close/no-fix bundle)
+    pattern = cfg.registry_consistency.get("pattern", "")
+    violations = registry.find_violations(patch.read_text(encoding="utf-8"), files, pattern)
+    for v in violations:
+        print(v)
+    return 1 if violations else 0
+
+
+def _contribcheck(cfg: Config, args: argparse.Namespace) -> int:
+    """Contribution-conformance gate (T4): lint the publisher's PR body + commit message so
+    a weak model's output is caught before publish. Fails when the PR body has no non-empty
+    ``**User impact:**`` opener (or it falls AFTER Root cause), or — for a real numeric
+    ticket — the tracker id is absent from either ``commit-msg.txt`` or ``pr-description.md``
+    (the two are linted INDEPENDENTLY, so a ticketed fix needs the id in BOTH). The bundle is
+    the ``issue_id`` arg or ``$PDCA_BUNDLE`` (set by the gate runner). No patch (close/no-fix)
+    ⇒ pass (default-open, like an unconfigured gate)."""
+    if args.issue_id:
+        d = cfg.bundle(args.issue_id)
+    elif os.environ.get("PDCA_BUNDLE"):
+        d = Path(os.environ["PDCA_BUNDLE"])
+    else:
+        print("contribcheck needs an issue id or $PDCA_BUNDLE", file=sys.stderr)
+        return 2
+    patch = d / "patch.diff"
+    if not patch.is_file() or not patch.read_text(encoding="utf-8").strip():
+        return 0  # close / no-fix bundle: nothing contributed
+    pr_path = d / publish.PR_BODY
+    if not pr_path.is_file():
+        return 0  # artifacts not drafted yet (Check-time gate, pre-publish) — nothing to lint
+    issue_id = d.name.removeprefix("issue_")
+    commit_path = d / publish.COMMIT_MSG
+    pr_text = pr_path.read_text(encoding="utf-8")
+    problems: list[str] = []
+    # 1) A non-empty `**User impact:**` opener that PRECEDES Root cause — the user-visible
+    #    effect must lead (what a weak model tends to drop).
+    impact = re.search(r"(?im)^[ \t>]*\*\*User impact:\*\*[ \t]*(\S.*)$", pr_text)
+    if not impact:
+        problems.append("PR body must open with a non-empty `**User impact:**` line "
+                        "(the user-visible effect, before Root cause)")
+    else:
+        root = re.search(r"(?im)^#+[ \t]*Root cause\b", pr_text)
+        if root and impact.start() > root.start():
+            problems.append("`**User impact:**` must come BEFORE `## Root cause`")
+    # 2) The tracker id in BOTH artifacts — only for a real numeric ticket; a slug /
+    #    --no-issue (pending-id) bundle legitimately carries no trailer.
+    if issue_id.isdigit() and not args.no_issue:
+        needle = re.compile(r"#" + re.escape(issue_id) + r"\b")
+        commit_text = commit_path.read_text(encoding="utf-8") if commit_path.is_file() else ""
+        if not needle.search(pr_text):
+            problems.append(f"{publish.PR_BODY} does not reference the tracker id #{issue_id}")
+        if not needle.search(commit_text):
+            problems.append(f"{publish.COMMIT_MSG} does not reference the tracker id #{issue_id}")
+    for p in problems:
+        print(f"contribcheck: {p}", file=sys.stderr)
+    return 1 if problems else 0
 
 
 def _revalidate(cfg: Config, args: argparse.Namespace) -> int:
