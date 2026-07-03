@@ -342,6 +342,15 @@ argv = ["claude", "--model", "claude-sonnet-4-6", "--effort", "medium", "--agent
 # [driver].lanes ({lane}/{lanes}); level="WARN" = optional (non-fatal).
 
 # -- engine (Docker) --
+# `timeout` is a host tool EVERY gate runner shells out to (it bounds `docker run`
+# so a hung gate fails the run instead of blocking the batch forever) — REQUIRED,
+# like git/make/python in the core section (issue #303).
+[[doctor.checks]]
+group = "engine"
+id = "timeout (gate-runner bound)"
+cmd = "command -v timeout >/dev/null 2>&1"
+hint = "install coreutils — every engine/scripts/ubuntu/run-*.sh bounds its 'docker run' with timeout; without it a hung gate never fails"
+required = true
 [[doctor.checks]]
 group = "engine"
 id = "docker daemon"
@@ -352,6 +361,16 @@ group = "engine"
 id = "engine image gramps-testbed:ubuntu-<ver>"
 cmd = "docker image inspect gramps-testbed:ubuntu-$(python3 engine/scripts/lib/gramps_version.py ../gramps-6.1 2>/dev/null) >/dev/null 2>&1"
 hint = "make preflight NO_CAPTURE=1"
+level = "WARN"
+# The image must CONTAIN the toolchain the gates exec inside it, not just exist
+# (issue #303): baked xvfb-run / dbus-run-session / gsettings / at-spi launcher /
+# msgfmt / xmlrunner for the interface+unit gates, and the black+mypy the T2-lint
+# gate pip-installs at runtime. A stale/misbuilt image otherwise dies mid-gate.
+[[doctor.checks]]
+group = "engine"
+id = "engine image in-container toolchain (interface/unit/lint gates)"
+cmd = "./engine/scripts/doctor-image-toolchain.sh"
+hint = "make preflight NO_CAPTURE=1   (rebuild the engine image — it is stale or misbuilt)"
 level = "WARN"
 
 # -- workspace: sibling checkouts --
@@ -380,13 +399,18 @@ hint = "make worktrees   (or the full: make preflight)"
 level = "WARN"
 
 # -- workspace: per-LANE worktrees (a batch flow fans out across [driver].lanes) --
+# REQUIRED (issue #300): the driver's per-lane preflight (preflight.py) runs the
+# REQUIRED per_lane doctor rows once BEFORE a lanes>1 fan-out and ABORTS the batch
+# if a lane worktree is missing — so a batch never runs against absent lanes and
+# produces a pile of infra-false-red bundles. per_lane rows expand to nothing when
+# lanes<=1 (serial mode needs no lane copies), so this only bites an actual fan-out.
 [[doctor.checks]]
 group = "workspace"
 id = "lane worktrees lane{lane} (gramps + addons-source 6.{0,1})"
 cmd = "test -e ../gramps-6.0-lane{lane}/.git && test -e ../gramps-6.1-lane{lane}/.git && test -e ../addons-source-6.0-lane{lane}/.git && test -e ../addons-source-6.1-lane{lane}/.git"
-hint = "make worktrees LANES={lanes}"
+hint = "make worktrees LANES={lanes}   (a lanes>1 batch needs per-lane worktrees)"
 per_lane = true
-level = "WARN"
+required = true
 
 # -- scraper (optional; Mantis thread scraping only) --
 [[doctor.checks]]

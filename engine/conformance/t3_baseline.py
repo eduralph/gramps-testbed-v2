@@ -103,6 +103,25 @@ def _signature_matched(output: str, manifest: dict) -> dict | None:
     return None
 
 
+# A runner that dies on a missing-infrastructure PRECONDITION prints a
+# self-explanatory line before exiting — e.g. run-*.sh:
+#   "worktree /home/…/gramps-6.1-lane2 is missing — run 'make worktrees LANES=N'."
+#   "core worktree /home/…/gramps-6.1-lane0 missing — run 'make worktrees LANES=N'."
+# Surfacing THAT (issue #300) instead of the generic install/GI/test-collection
+# guess is what turns a trivial "create the lane worktrees" problem back from a
+# mysterious toolchain failure into an actionable one.
+_PRECONDITION_RE = re.compile(r"^.*\bworktree\b.*\bmissing\b.*$", re.MULTILINE | re.IGNORECASE)
+
+
+def _last_line(output: str) -> str:
+    """The last non-blank line of the runner output — the tail that usually
+    carries the real cause of a pre-test crash before any JUnit XML is written."""
+    for line in reversed(output.splitlines()):
+        if line.strip():
+            return line.strip()
+    return ""
+
+
 def classify(observed: dict[str, str], rc: int, output: str, manifest: dict) -> dict:
     """Decide whether a run matches the recorded baseline or is a delta.
 
@@ -153,12 +172,27 @@ def classify(observed: dict[str, str], rc: int, output: str, manifest: dict) -> 
         # (issue #176). If it reproduces on a clean tree with no patch applied, it is
         # pre-existing environment noise → record a run_level_signature for it.
         verdict, code = "delta", 1
-        summary = (f"DELTA: runner exited {rc} producing NO JUnit XML — a pre-test "
-                   f"crash (install / GI bootstrap / test collection), not a parsed "
-                   f"test failure. Inspect the raw runner output (persisted to the "
-                   f"bundle as t3-<runner-stem>.log on a delta); if it reproduces on a "
-                   f"clean tree with no patch, it is environment noise → add a "
-                   f"run_level_signature.")
+        precondition = _PRECONDITION_RE.search(output)
+        if precondition:
+            # Infra precondition (a missing per-lane worktree), NOT a fix defect
+            # or a toolchain crash — name it and point at the fix (issue #300).
+            summary = (f"DELTA: runner exited {rc} on a missing-infrastructure "
+                       f"precondition, not a fix defect or a toolchain crash — "
+                       f"{precondition.group(0).strip()} Provision the worktrees "
+                       f"(e.g. `make worktrees LANES=N`) and re-gate.")
+        else:
+            # No self-explanatory precondition: a genuine pre-test crash. Surface
+            # the runner's own last line (the real cause) rather than only guessing
+            # install / GI bootstrap / test collection (issue #300 / #176).
+            tail = _last_line(output)
+            summary = (f"DELTA: runner exited {rc} producing NO JUnit XML — a "
+                       f"pre-test crash before any test ran (install / GI bootstrap "
+                       f"/ test collection)"
+                       + (f"; runner's last line: {tail}" if tail else "")
+                       + f". Inspect the raw runner output (persisted to the bundle "
+                       f"as t3-<runner-stem>.log on a delta); if it reproduces on a "
+                       f"clean tree with no patch, it is environment noise → add a "
+                       f"run_level_signature.")
     return {"verdict": verdict, "exit_code": code, "summary": summary,
             "new": new, "cleared": cleared, "signature": sig}
 
