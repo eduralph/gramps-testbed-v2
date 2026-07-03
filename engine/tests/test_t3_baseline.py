@@ -132,6 +132,25 @@ class Classify(unittest.TestCase):
         self.assertIn("pre-test crash", v["summary"])
         self.assertIn("raw runner output", v["summary"])
         self.assertNotIn("a new failure mode", v["summary"])
+        # #300: surface the runner's own last line (the real cause), not only a guess.
+        self.assertIn("pip: ResolutionImpossible", v["summary"])
+
+    def test_missing_worktree_precondition_is_named_not_a_toolchain_crash(self) -> None:
+        # A runner that dies because a per-lane worktree is absent prints a
+        # self-explanatory precondition line; the verdict must surface THAT infra
+        # cause and point at `make worktrees` (issue #300), NOT misattribute it to
+        # the generic install / GI-bootstrap / test-collection crash.
+        for out in (
+            "run-unit.sh: worktree /home/eddie/gramps/gramps-6.1-lane2 is missing "
+            "— run 'make worktrees LANES=N'.",
+            "run-verify.sh: core worktree /home/eddie/gramps/gramps-6.1-lane0 "
+            "missing — run 'make worktrees LANES=N'.",
+        ):
+            v = t3_baseline.classify({}, 1, out, self.MANIFEST)
+            self.assertEqual((v["verdict"], v["exit_code"]), ("delta", 1), msg=out)
+            self.assertIn("missing-infrastructure precondition", v["summary"], msg=out)
+            self.assertIn("make worktrees", v["summary"], msg=out)
+            self.assertNotIn("GI bootstrap", v["summary"], msg=out)
 
     def test_cleared_baseline_red_reported_when_green(self) -> None:
         v = t3_baseline.classify({}, 0, "Ran 5 tests OK", self.MANIFEST)
