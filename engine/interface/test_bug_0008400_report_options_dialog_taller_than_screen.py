@@ -44,6 +44,12 @@ work-area lookup.  It asserts the invariant the fix restores:
     ordinary reports), and
   * when no monitor geometry is available the default size is left untouched.
 
+It also guards the *wiring*, not just the method: a fourth check inspects the
+real ``init_interface`` source and asserts it calls ``fit_to_screen()`` before
+``self.show()`` -- so a fix that adds the method but forgets to invoke it from
+the dialog-creation path fails here rather than leaving real report dialogs
+taller than the screen.
+
 It is NOT a dogtail/AT-SPI launch: it exercises one production method with a
 fake collaborator, so it needs no running Gramps.  It lives in the interface
 suite (not ``gramps/gui/test/``) because importing ``ReportDialog`` pulls in
@@ -156,6 +162,28 @@ class Bug8400ReportDialogFitsScreenTest(unittest.TestCase):
         self.assertIsNone(
             window.default_size,
             "with no monitor geometry the dialog must not be clamped to nothing",
+        )
+
+    def test_init_interface_wires_fit_to_screen_before_show(self) -> None:
+        # The clamp only reaches real report dialogs if the production creation path calls
+        # it. The three tests above exercise fit_to_screen() in isolation, so a fix that
+        # ADDS the method but forgets to CALL it from init_interface would still pass while
+        # actual dialogs stayed taller than the screen. Guard that wiring by inspecting the
+        # real init_interface source: fit_to_screen() must be invoked there, before show().
+        import inspect
+
+        src = inspect.getsource(ReportDialog.init_interface)
+        self.assertIn(
+            "fit_to_screen(",
+            src,
+            "ReportDialog.init_interface must CALL fit_to_screen(); the method merely "
+            "existing does not clamp an opened report dialog (bug #8400).",
+        )
+        self.assertLess(
+            src.index("fit_to_screen("),
+            src.index("self.show("),
+            "fit_to_screen() must run BEFORE self.show(), or the dialog is shown at its "
+            "overflowing height with the OK button off-screen.",
         )
 
 
