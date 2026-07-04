@@ -211,6 +211,15 @@ for id in "${ids[@]}"; do
     mkdir -p "$dest_dir"
     cp "$src" "$dest_dir/notes.json"
     echo "→ wrote $dest_dir/notes.json"
+    # Image attachments (issue #319): mantis_notes.py drops them under
+    # <tmp>/issue_<id>_attachments/; place them beside notes.json so the planner can
+    # open them (notes.json links each as attachments/<name>).
+    att_src="$tmp/issue_${id}_attachments"
+    if [ -d "$att_src" ] && [ -n "$(ls -A "$att_src" 2>/dev/null)" ]; then
+      mkdir -p "$dest_dir/attachments"
+      cp "$att_src"/* "$dest_dir/attachments/"
+      echo "→ wrote $(ls -1 "$att_src" | wc -l | tr -d ' ') attachment(s) to $dest_dir/attachments/"
+    fi
   else
     echo "WARN: no scrape output for #$id (blocked / access-restricted? see log above)" >&2
   fi
