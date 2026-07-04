@@ -39,11 +39,13 @@ lanes = 6
 # the builder edits there (granted access automatically), and gate commands should target
 # `$PDCA_WORKTREE` too (see the gate examples below). On by default; best-effort (a target
 # that isn't a worktree-capable git checkout falls back to in-place). Set false to disable.
-# OFF here: this testbed's Do never mutates the target in place — it emits a patch.diff the
-# C4 gate applies inside the engine's own per-version/per-lane verify worktrees (`make
-# worktrees`). So the per-cycle #94 worktree is moot and would only contend with the engine's
-# management of ../gramps + ../addons-source. Revisit if a leaf ever edits the target directly.
-worktree = false
+# ON here (was false): the C4 gate still applies patch.diff inside the engine's OWN
+# per-version/per-lane verify worktrees (`make worktrees`), so this is not for verification.
+# It is ON so `pdca try <id>` (the hands-on manual-test path, [manual_test] below) has a
+# per-cycle worktree carrying the patch to launch — the visual/GUI §6 rows can't be cleared
+# without running the patched build. Additive: Do leaves its patch in `../gramps.pdca-wt`
+# (per lane `-lN`); the engine's `../gramps-6.{0,1}[-laneN]` verify trees are untouched.
+worktree = true
 # Per-lane resource preflight (issue #213 / testbed #300). A `lanes > 1` batch pins each
 # bundle to a lane slot and exports `$PDCA_LANE`; the instance's gate commands map that to a
 # per-lane resource (a worktree, a container, a port). This verifies those resources exist
@@ -125,7 +127,12 @@ extra_bootstrap = ""
 # like a gate command; "" ⇒ `pdca try` errors with a configure-me hint.
 [manual_test]
 # cmd = "python -m gramps"   # e.g. launch the app; a "./scripts/run-app.sh" wrapper also works
-cmd = ""
+# Launches the patched worktree's gramps in the gramps-testbed image with the host X display
+# forwarded (Wayland+XWayland, DISPLAY=:0), so the window opens on the desktop. See the script.
+# `try` runs cmd from cwd=$PDCA_WORKTREE (the patched tree), so reference the script by an
+# absolute path derived from $PDCA_BUNDLE (…/results/issue_<id>) — a bare ./scripts/… would
+# resolve against the worktree, not this repo, and not be found.
+cmd = "$PDCA_BUNDLE/../../scripts/try-app.sh"
 
 [tracker]
 system = "mantis"
