@@ -108,7 +108,6 @@ class Config:
     # GitHub ".../issues/{id}"). "" ⇒ no link (the bare trailer, as today).
     issue_url_pattern: str = ""
     repo_checkouts: dict[str, str] = field(default_factory=dict)  # repo_spec → local path
-    repo_aliases: dict[str, str] = field(default_factory=dict)  # brief shorthand → OWNER/REPO
     gates_checks: list[dict] = field(default_factory=list)
     # Reverse registry-consistency (issue #205): [gates.registry_consistency] naming an
     # instance's manifest files ({files=[...], pattern="<regex, group 1 = path>"}). The
@@ -181,6 +180,15 @@ class Config:
     # checkout directly, as before). Best-effort: a target that isn't a worktree-capable
     # git checkout silently falls back to in-place.
     worktree: bool = True
+    # Overflow worktrees (issue #226): the cap on concurrent EPHEMERAL "overflow" worktrees.
+    # 0 (default) disables — a gate reading a lane worktree that a DIFFERENT bundle owns heals
+    # it in place (``worktree.resync``), as before. >0 reframes ``[driver].lanes`` as a warm
+    # CACHED pool and hands such an out-of-cadence / contended read its OWN throwaway tree
+    # (built off the base + this bundle's patch, then removed) instead of mutating a lane
+    # another bundle may still want — correctness by construction (a fresh tree can't carry a
+    # foreign orphan) at the cost of a cold checkout, only on that exceptional path. At the cap
+    # it falls back to the in-place heal. ``[driver].overflow`` in pdca.toml.
+    overflow: int = 0
     # Per-lane resource preflight (issue #213): [driver].lane_preflight, a shell command run
     # ONCE before a lanes>1 fan-out ({lanes} interpolated); a non-zero exit aborts the run
     # before any lane spawns, so a batch never runs against missing per-lane resources (and
@@ -355,6 +363,7 @@ class Config:
             lanes = int(os.environ["PDCA_LANES"])
         lanes = max(1, lanes)
         worktree = bool(driver_cfg.get("worktree", True))  # issue #94; on by default
+        overflow = max(0, int(driver_cfg.get("overflow", 0)))  # issue #226; 0 ⇒ heal in place
         lane_preflight = driver_cfg.get("lane_preflight", "")  # issue #213
         wave_mode = driver_cfg.get("wave_mode", "stack")  # #wave-model: stack | merge
         merge_method = driver_cfg.get("merge_method", "merge")  # merge | squash | rebase
@@ -384,7 +393,6 @@ class Config:
             issue_trailer=tracker.get("issue_trailer", "Fixes #{id}"),
             issue_url_pattern=tracker.get("issue_url_pattern", ""),
             repo_checkouts=dict(publisher_cfg.get("checkouts", {})),
-            repo_aliases=dict(publisher_cfg.get("repo_aliases", {})),
             gate_target_default=gates.get("target_default", ""),
             gate_target_match=dict(gates.get("target_match", {})),
             gate_target_flags=gate_target_flags,
@@ -406,6 +414,7 @@ class Config:
             gates_runner=gates_runner,
             lanes=lanes,
             worktree=worktree,
+            overflow=overflow,
             lane_preflight=lane_preflight,
             wave_mode=wave_mode,
             merge_method=merge_method,
