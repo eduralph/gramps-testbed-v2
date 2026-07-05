@@ -47,7 +47,10 @@ NOTES:
 """
 
 import argparse
+import base64
 import json
+import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -55,6 +58,13 @@ from pathlib import Path
 BASE = "https://gramps-project.org/bugs"
 VIEW = f"{BASE}/view.php?id="
 PROFILE_DIR = Path("./pw-profile")  # persistent: keeps login + cf_clearance
+
+# Attachment filenames we treat as images worth downloading (issue #319). The
+# content-type from the fetch is the authoritative check; the extension is only a
+# cheap pre-filter so we don't pull large non-image blobs (PDFs, .gramps exports).
+IMAGE_EXTS = {
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".tif", ".tiff", ".ico",
+}
 
 
 def norm_id(raw: str) -> str:
@@ -126,6 +136,145 @@ def extract_issue(page, issue_id: str) -> dict:
     data["id"] = issue_id
     data["url"] = VIEW + issue_id
     return data
+
+
+# --- attachments (issue #319) -------------------------------------------------
+#
+# Mantis renders each upload as a `file_download.php?file_id=<n>&type=bug` link whose
+# text is the filename. The scraper otherwise pulls text only, so a screenshot's *name*
+# leaks into notes.json while the picture itself is never fetched — leaving the Plan leaf
+# blind to the reporter's evidence (as on #9457). We collect those links and pull the
+# image bytes through the SAME authenticated browser so there is no separate HTTP client
+# for Cloudflare to challenge.
+
+# List every distinct file_download link on the page (deduped by file_id).
+_JS_LIST_ATTACHMENTS = r"""
+() => {
+  const seen = new Set(); const out = [];
+  document.querySelectorAll("a[href*='file_download.php']").forEach(a => {
+    const href = a.href;                         // resolved to absolute by the browser
+    const m = href.match(/file_id=(\d+)/);
+    const fid = m ? m[1] : null;
+    const key = fid || href;
+    if (seen.has(key)) return; seen.add(key);
+    let name = (a.getAttribute('download') || a.textContent || '').trim();
+    // Mantis often appends "(1,234 bytes)" after the name — drop it.
+    name = name.replace(/\s*\(\s*[\d,]+\s*bytes\s*\)\s*$/i, '').trim();
+    out.push({file_id: fid, filename: name, url: href});
+  });
+  return out;
+}
+"""
+
+# Fetch one URL IN THE PAGE (real browser creds + cf_clearance), return base64 bytes.
+# In-page fetch, not a Python HTTP client, so Cloudflare sees a normal browser request.
+_JS_FETCH_BINARY = r"""
+async (url) => {
+  try {
+    const r = await fetch(url, {credentials: 'include'});
+    if (!r.ok) return {ok: false, status: r.status};
+    const ct = r.headers.get('content-type') || '';
+    const bytes = new Uint8Array(await r.arrayBuffer());
+    let bin = ''; const CH = 0x8000;            // chunk to avoid apply() arg-limit
+    for (let i = 0; i < bytes.length; i += CH) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+    }
+    return {ok: true, status: r.status, content_type: ct, size: bytes.length, b64: btoa(bin)};
+  } catch (e) { return {ok: false, error: String(e)}; }
+}
+"""
+
+
+def _is_image(filename: str, content_type: str) -> bool:
+    """Whether a downloaded attachment is really an image.
+
+    The server content-type is authoritative and can VETO: an `image/*` type is an
+    image; any OTHER concrete type (e.g. `text/html` for an access-denied/login page
+    returned with a 200) is NOT, even if the filename ends in `.png`. Only when the
+    type is absent or a generic octet-stream do we fall back to the extension.
+    """
+    ct = (content_type or "").lower().split(";")[0].strip()
+    if ct.startswith("image/"):
+        return True
+    if ct and ct not in ("application/octet-stream", "binary/octet-stream"):
+        return False  # a definite non-image type — reject despite the extension
+    return os.path.splitext(filename or "")[1].lower() in IMAGE_EXTS
+
+
+def _safe_attachment_name(filename: str, file_id, taken: set) -> str:
+    """A filesystem-safe, collision-free basename for saving under attachments/."""
+    base = os.path.basename((filename or "").replace("\\", "/")).strip()
+    base = re.sub(r"[^\w.\-]+", "_", base).strip("._")
+    if not base:
+        base = f"file_{file_id or 'x'}"
+    name, i = base, 1
+    while name in taken:                          # prefix the file_id, then a counter
+        name = f"{file_id or 'x'}_{base}" if i == 1 else f"{file_id or 'x'}_{i}_{base}"
+        i += 1
+    taken.add(name)
+    return name
+
+
+def collect_attachments(page, issue_id: str, out_dir: Path, enabled: bool = True) -> list:
+    """Download image attachments for the issue currently loaded in `page`.
+
+    Returns a list of per-attachment records (self-describing: filename, url, and either
+    a saved `local_path` or a `status` explaining why it was skipped). Images are written
+    to `<out_dir>/issue_<id>_attachments/`; the `local_path` recorded in each record is
+    bundle-relative (`attachments/<name>`), matching where scrape-mantis.sh copies them.
+    Best-effort throughout — a listing/fetch failure degrades to a skip note, never raises.
+    """
+    if not enabled:
+        return []
+    try:
+        raw = page.evaluate(_JS_LIST_ATTACHMENTS) or []
+    except Exception as e:  # noqa: BLE001 — attachment scraping is best-effort
+        return [{"status": f"list-failed:{e}"}]
+
+    records: list = []
+    taken: set = set()
+    adir = Path(out_dir) / f"issue_{issue_id}_attachments"
+    for a in raw:
+        fn = (a.get("filename") or "").strip()
+        url = a.get("url")
+        fid = a.get("file_id")
+        rec = {"file_id": fid, "filename": fn, "url": url}
+        ext = os.path.splitext(fn)[1].lower()
+        # Cheap pre-filter: a known NON-image extension is skipped without downloading.
+        if ext and ext not in IMAGE_EXTS:
+            records.append({**rec, "status": "skipped-non-image"})
+            continue
+        try:
+            res = page.evaluate(_JS_FETCH_BINARY, url)
+        except Exception as e:  # noqa: BLE001
+            records.append({**rec, "status": f"download-failed:{e}"})
+            continue
+        if not res or not res.get("ok"):
+            why = (res or {}).get("status") or (res or {}).get("error") or "no-response"
+            records.append({**rec, "status": f"download-failed:{why}"})
+            continue
+        ct = res.get("content_type", "")
+        # Authoritative image check: an access-denied/login page returns 200 text/html,
+        # so a bad download degrades to a skip rather than a saved "image".
+        if not _is_image(fn, ct):
+            records.append({**rec, "content_type": ct, "status": "skipped-non-image"})
+            continue
+        try:
+            data = base64.b64decode(res.get("b64", ""))
+        except Exception as e:  # noqa: BLE001
+            records.append({**rec, "content_type": ct, "status": f"decode-failed:{e}"})
+            continue
+        adir.mkdir(parents=True, exist_ok=True)
+        name = _safe_attachment_name(fn, fid, taken)
+        (adir / name).write_bytes(data)
+        records.append({
+            **rec,
+            "content_type": ct,
+            "size": res.get("size", len(data)),
+            "local_path": f"attachments/{name}",
+            "status": "saved",
+        })
+    return records
 
 
 def detect_block(page) -> str | None:
@@ -206,6 +355,13 @@ def main():
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--out", default="notes_json")
     ap.add_argument("--delay", type=float, default=1.5)
+    ap.add_argument(
+        "--no-attachments",
+        action="store_true",
+        help="skip downloading image attachments (issue #319). By default, image "
+        "uploads on each issue are pulled through the browser into "
+        "<out>/issue_<id>_attachments/ and linked from the record.",
+    )
     ap.add_argument(
         "--yes",
         action="store_true",
@@ -449,6 +605,12 @@ def main():
                     continue
 
                 rec = extract_issue(page, iid)
+                rec["attachments"] = collect_attachments(
+                    page, iid, out, enabled=not args.no_attachments
+                )
+                nsaved = sum(
+                    1 for a in rec["attachments"] if a.get("status") == "saved"
+                )
                 nnotes = len(rec.get("notes", []))
 
                 # An issue page with literally zero notes is possible but rare. If
@@ -467,7 +629,8 @@ def main():
                         f"summary, no fields). Likely a blocked page; flagged suspect_empty."
                     )
                 else:
-                    print(f"[{n}/{len(ids)}] #{iid}: {nnotes} notes")
+                    extra = f" + {nsaved} image(s)" if nsaved else ""
+                    print(f"[{n}/{len(ids)}] #{iid}: {nnotes} notes{extra}")
 
                 records.append(rec)
                 (out / f"issue_{iid}.json").write_text(
