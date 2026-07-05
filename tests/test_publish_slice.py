@@ -448,6 +448,25 @@ class PublishSlice(unittest.TestCase):
         self.assertEqual(publish._resolve_target(d),
                          ("example-org/example-repo", "main", "m4"))
 
+    def test_resolve_target_maps_repo_shorthand_via_aliases(self) -> None:
+        """A brief may use a repo shorthand configured in [publisher.repo_aliases]; with
+        cfg, _resolve_target maps it to the canonical OWNER/REPO — else `gh --repo gramps`
+        instead of gramps-project/gramps, and a shorthand-target bundle fails to publish."""
+        self.cfg.repo_aliases = {"gramps": "gramps-project/gramps"}
+        d = self.cfg.bundle("ALIAS")
+        d.mkdir(parents=True)
+        (d / "brief.md").write_text(
+            "- **Slug:** s\n"
+            "- **Repo + branch target:** gramps @ maintenance/gramps61 (core fix)\n",
+            encoding="utf-8")
+        self.assertEqual(publish._resolve_target(d, self.cfg),
+                         ("gramps-project/gramps", "maintenance/gramps61", "s"))
+        # an already-canonical (or unknown) target passes through unchanged
+        (d / "brief.md").write_text(
+            "- **Slug:** s\n- **Repo + branch target:** other-org/other @ main\n",
+            encoding="utf-8")
+        self.assertEqual(publish._resolve_target(d, self.cfg)[0], "other-org/other")
+
     def test_checkout_path_map_and_sibling_fallback(self) -> None:
         # sibling fallback: <root>/../<repo-last-segment>
         self.assertEqual(publish._checkout_path(self.cfg, "org/foo"),

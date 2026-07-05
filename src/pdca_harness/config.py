@@ -108,6 +108,7 @@ class Config:
     # GitHub ".../issues/{id}"). "" ⇒ no link (the bare trailer, as today).
     issue_url_pattern: str = ""
     repo_checkouts: dict[str, str] = field(default_factory=dict)  # repo_spec → local path
+    repo_aliases: dict[str, str] = field(default_factory=dict)  # brief shorthand → OWNER/REPO
     gates_checks: list[dict] = field(default_factory=list)
     # Reverse registry-consistency (issue #205): [gates.registry_consistency] naming an
     # instance's manifest files ({files=[...], pattern="<regex, group 1 = path>"}). The
@@ -393,6 +394,7 @@ class Config:
             issue_trailer=tracker.get("issue_trailer", "Fixes #{id}"),
             issue_url_pattern=tracker.get("issue_url_pattern", ""),
             repo_checkouts=dict(publisher_cfg.get("checkouts", {})),
+            repo_aliases=dict(publisher_cfg.get("repo_aliases", {})),
             gate_target_default=gates.get("target_default", ""),
             gate_target_match=dict(gates.get("target_match", {})),
             gate_target_flags=gate_target_flags,

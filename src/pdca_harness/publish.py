@@ -134,7 +134,7 @@ def publish(
         return 0
 
     # Resolve the target from the brief (the contribution's where).
-    repo_spec, base, slug = _resolve_target(d)
+    repo_spec, base, slug = _resolve_target(d, cfg)
     if not repo_spec or not base:
         msg = (f"publish: brief has no usable 'Repo + branch target' "
                f"(got repo={repo_spec!r} base={base!r})")
@@ -476,18 +476,30 @@ def _clean_ref(raw: str) -> str:
     return token.strip("`").rstrip(",.;:")
 
 
-def _resolve_target(d: Path) -> tuple[str, str, str]:
+def _resolve_target(d: Path, cfg: Config | None = None) -> tuple[str, str, str]:
     """``(repo_spec, base_branch, slug)`` from the brief, e.g.
     ``("example-org/example-repo", "main", "fix-the-thing")``.
 
     The target field is commonly written with markdown backticks and/or trailing
     prose after the branch; ``_clean_ref`` isolates the ref on each side of ``@`` so
-    that style doesn't corrupt the resolved checkout/base (see #25)."""
+    that style doesn't corrupt the resolved checkout/base (see #25). A repo shorthand
+    is then mapped to a canonical ``OWNER/REPO`` via ``[publisher.repo_aliases]`` when
+    ``cfg`` is given (e.g. ``gramps`` → ``gramps-project/gramps``)."""
     bp = d / "brief.md"
     target = brief.field(bp, "repo + branch target", "repo + branch", "target")
     repo_spec, _, base = target.partition("@")
     slug = brief.field(bp, "slug") or d.name.removeprefix("issue_")
-    return _clean_ref(repo_spec), _clean_ref(base), _slugify(slug)
+    return _canonical_repo(cfg, _clean_ref(repo_spec)), _clean_ref(base), _slugify(slug)
+
+
+def _canonical_repo(cfg: Config | None, token: str) -> str:
+    """Map a brief repo shorthand ('gramps', 'addons-source') to canonical
+    ``OWNER/REPO`` via ``[publisher.repo_aliases]``. An explicit ``OWNER/REPO`` (already
+    contains '/') passes through; an unknown bare name passes through too (preflight
+    then surfaces it as an unresolvable repo rather than a silent wrong push)."""
+    if not token or "/" in token:
+        return token
+    return (getattr(cfg, "repo_aliases", None) or {}).get(token, token)
 
 
 
