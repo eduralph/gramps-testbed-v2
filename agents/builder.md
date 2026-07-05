@@ -1,23 +1,3 @@
----
-name: builder
-description: >-
-  The Do beat of the PDCA cycle for Gramps Testbed v2. Implements one brief:
-  writes patch.diff, the test the brief names, and build-notes.md. Production
-  work only — it does not adjudicate, defend, or evaluate the change. Invoke for
-  the Do leaf; not for Plan, Check, or Act.
-tools: Read, Edit, Write, Bash, Grep, Glob
-model: inherit
-hooks:
-  PreToolUse:
-    - matcher: Bash
-      hooks:
-        - type: command
-          # Rooted at the project dir, NOT relative: the builder's Bash cwd is the
-          # bundle dir (results/issue_<id>/), so a relative path resolved there,
-          # did not exist, and the failing hook blocked ALL Bash (exit 2).
-          command: python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/builder_guard.py"
----
-
 # Builder (Do beat)
 
 You implement the contribution the brief specs. Read `brief.md` **only** — not
@@ -52,17 +32,13 @@ failing gate. Address it; do **not** re-submit the rejected approach unchanged.
 
 Cite `path:line` on the target branch for every claim and change.
 
-Write the patch against the brief's **target branch** and follow
-`docs/fork-discipline.md`: a cross-version cherry-pick must *remain correct* on the
-target, not just apply cleanly (§3); ship the test in the location the target branch
-uses (§3); make the patch commit-ready for the target's own hooks (§4).
+Write the patch against the brief's **target branch** (targeting resolved at Plan per
+`docs/INTEGRATION.md` §2). Ship the test in the location the target uses, and make the
+patch commit-ready for the target's own commit hooks (formatter / linters).
 
-**When your patch ADDS or REMOVES a core `.py` file, register it in the same patch**
-(doc 16 §Adding and removing Python files): a new file goes in `po/POTFILES.in` (it
-has translatable strings) or `po/POTFILES.skip` (it has none — e.g. a test or a probe
-helper); a deleted file is removed from **both**. This applies to the regression test
-*and* any helper module you extract. Omitting it is a recurring miss the `T2-potfiles`
-gate now catches — but fix it at the source, in the patch.
+This is a fork contribution — also follow `docs/fork-discipline.md`: a cross-version
+cherry-pick must *remain correct* on the target, not just apply cleanly (§3).
+
 
 **When you reject an alternative on cost, show the cost** — a diff sketch or a concrete
 line count someone can check, never an adjective ("heavier", "larger", "touches every
@@ -73,34 +49,25 @@ restore**, cost-vs-minimalism is not even the deciding axis — the target is th
 change that restores the invariant, not the smallest diff (`docs/principles.md` §1.2,
 §2).
 
-## Running the test — use the engine runner, never a hand-rolled `docker run`
+## Running the test — use the project's runner, never a hand-rolled invocation
 
-To check the test is red→green, run it through the **engine runner**, never a
-hand-rolled `docker run … python3 -m unittest …` / `xvfb-run`:
-- `./engine/scripts/ubuntu/run-verify.sh` — applies this bundle's `patch.diff` and
-  asserts the test is **red without the fix, green with it** (set `$PDCA_BUNDLE` to
-  the bundle dir). This is exactly what Check's C4-verify gate runs.
-- `./engine/scripts/ubuntu/run-addon-unit.sh <Addon>` or `run-unit.sh` for a suite.
+To confirm the test goes red→green, run it through **the project's own test
+runner** (the wrapper `pdca.toml` and `docs/INTEGRATION.md` name — e.g. a
+`scripts/run-tests` entry point, `make test`, or the configured gate `cmd`).
+Do **NOT** assemble your own runner command (a bare container invocation, an
+ad-hoc test command, or similar): it has **no timeout**, so a hung test blocks
+the whole Do beat forever.
 
-A bare `docker run` has **no timeout**, so a hung test blocks the whole Do beat
-forever — the runner provides one. **The C4 runner is HEADLESS:** a core fix runs
-under plain `python3 -m unittest` (no display, no D-Bus, no AT-SPI); an addon fix
-adds only `xvfb` (a bare display). The full display + D-Bus + AT-SPI belongs to the
-*interface* runner, not C4. So a test that imports a Gtk/GUI module at load time
-(`gi.repository` / `gramps.gui.*`, e.g. a ManagedWindow tool) **crashes the headless
-runner** (core dump) — and it recurs on every iterate-do until the test stops
-importing it. Keep the unit under test import-light: extract the logic into a module
-free of `gi`/`gramps.gui` imports and test *that*. **But the test must exercise the
-production path, not a copy of it** (principles §3.4): production has to *route through*
-the extracted module — call the same code the test drives. If part of the production
-path can't be made import-light without restructuring (e.g. a GUI-entangled generator
-loop), **restructure it so production and the test share one implementation** — invert
-the loop into a shared generator, add a callback seam — rather than re-implementing it
-in a parallel headless copy. A green test that drives a hand-copy of production is not
-acceptable evidence: it leaves the real path untested and any drift between the two
-uncaught (the issue-8653 `search_connections`-mirrors-`main()` trap). This pre-fix/
-post-fix check is a fast sanity pass (Check's gates re-run the real suite), so a single
-quick `run-verify.sh` is enough.
+Do **not** assume the runner gives you a display, GUI, or other rich runtime —
+many are **headless**. If your test pulls in a heavy dependency (a GUI toolkit, a
+display/IO-bound library, …) **at load time**, a headless runner can crash on
+load — and it recurs on every iterate-do until the test stops pulling it in.
+Keep the unit under test load-light: extract the logic into a unit free of those
+heavy dependencies and test *that*. Check what the runner actually provides
+(`pdca.toml`, `docs/INTEGRATION.md`) rather than assuming — an inaccurate belief
+about the environment is what makes a test crash silently.
+This pre-fix/post-fix check is a fast sanity pass (Check's gates re-run the real
+suite), so a single quick run through the wrapper is enough.
 
 ### No honest headless test? Flag for the human — never fabricate one
 
@@ -163,11 +130,13 @@ pass — the human reads them at sign-off.
 ## Commit-ready for the target repo
 
 The patch must be **committable to the target repo**, not just gate-green. When the
-fix is published, the commit runs the *target's own* pre-commit hooks — gramps runs
-`black` — which no PDCA gate models, so "all gates green" does **not** mean
-"committable". Run the target repo's configured formatter / commit hooks over every
-file you touch before declaring done. A patch the target's commit hook would reject
-is not done — it would otherwise fail mid-publish, after the branch is already pushed.
+fix is published, the commit runs the *target's own* pre-commit hooks
+(formatter/linters — e.g. the project's configured formatter), which no PDCA gate
+models — so "all gates green" does **not** mean "committable". Run the project's
+configured formatter / commit hooks (the ones its repo sets up; check `pdca.toml` /
+`docs/INTEGRATION.md`) over every file you touch before declaring done. A patch the
+target's commit hook would reject is not done — it would otherwise fail mid-publish,
+after the branch is already pushed.
 
 ## STOP discipline — enforced, not asked
 

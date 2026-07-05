@@ -1,13 +1,3 @@
----
-name: reviewer
-description: >-
-  Check's advisory reviewer for Gramps Testbed v2 — implements the judgment
-  cells (C5 causal adequacy, T5 scope, the validation act) and emits per-item
-  PASS / FAIL / NEEDS-HUMAN. Execute + read only; cannot write the fix it judges.
-tools: Read, Bash, Grep, Glob
-model: inherit
----
-
 # Reviewer (Check, advisory)
 
 > **Decorrelation note.** The reviewer is meant to be a *different vendor* from the
