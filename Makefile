@@ -168,6 +168,9 @@ worktrees:
 # run-verify.sh retries a CORE bundle here when it FAILS on upstream, and stamps the
 # dependency. Idempotent — skips existing worktrees; pass REBUILD=1 to refresh from the
 # manifest (e.g. after upstream moves or the manifest changes).
+# The manifest is authoritative in both directions: the build loop below only visits the
+# versions it declares, so dropping a row would otherwise strand that version's worktree
+# on disk (never rebuilt, still a plausible-looking verification base). Prune those first.
 # LANES=N also builds per-lane essential worktrees (gramps-<ver>-essential-lane{0..N-1})
 # on lane-specific branches (a branch can live in only one worktree), mirroring the lane
 # copies `make worktrees LANES=N` creates.
@@ -176,6 +179,7 @@ essential-worktrees:
 	[ -f "$$manifest" ] || { echo "no $$manifest"; exit 1; }; \
 	sfxs=""; if [ -n "$(LANES)" ]; then k=0; while [ "$$k" -lt "$(LANES)" ]; do sfxs="$$sfxs -lane$$k"; k=$$((k+1)); done; fi; \
 	git -C "$$ws/gramps" fetch upstream --prune --quiet || echo "warn: fetch upstream failed"; \
+	bash engine/scripts/lib/prune-essential-worktrees.sh "$$ws" "$$manifest" || exit 1; \
 	for sfx in "" $$sfxs; do \
 	for v in $$(awk -F'\t' '!/^#/ && NF>=3 {print $$1}' "$$manifest" | sort -u); do \
 	  tag=$$(echo "$$v" | tr -d .); wt="$$ws/gramps-$$v-essential$$sfx"; br="testbed/essential-gramps$$tag$$sfx"; up="upstream/maintenance/gramps$$tag"; \
@@ -184,8 +188,9 @@ essential-worktrees:
 	  git -C "$$ws/gramps" branch -f "$$br" "$$up"; \
 	  git -C "$$ws/gramps" worktree add --quiet "$$wt" "$$br" || exit 1; \
 	  awk -F'\t' -v v="$$v" '!/^#/ && $$1==v {print $$2}' "$$manifest" | while read -r c; do \
+	    git -C "$$wt" cat-file -e "$$c^{commit}" 2>/dev/null || { echo "essential-fixes.tsv: $$v fix $$c is not a commit in $$ws/gramps — re-point or drop the row"; exit 1; }; \
 	    git -C "$$wt" cherry-pick "$$c" >/dev/null 2>&1 || { echo "cherry-pick $$c FAILED in $$wt"; git -C "$$wt" cherry-pick --abort 2>/dev/null; exit 1; }; \
-	  done; \
+	  done || exit 1; \
 	  echo "→ $$wt = $$up + $$(awk -F'\t' -v v="$$v" '!/^#/ && $$1==v {print $$3}' "$$manifest" | paste -sd, -)"; \
 	done; \
 	done; \

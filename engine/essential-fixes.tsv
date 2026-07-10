@@ -11,4 +11,3 @@
 # is cherry-picked onto upstream by `make essential-worktrees`.
 #
 # Columns (TAB-separated): target_version <TAB> source_commit <TAB> slug <TAB> description
-6.1	f4f94f34db	headless-ut-segfault	lazy LinkTag colour — no Gtk widget built at import (headless import-safety)

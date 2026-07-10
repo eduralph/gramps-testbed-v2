@@ -300,12 +300,36 @@ _verify_leg() {
   return "$rc"
 }
 
+# --- essential-line eligibility ---
+# The essential worktree is a legitimate fallback only while the manifest still
+# declares fixes for that leg. A worktree left behind by an earlier run whose row
+# has since been dropped is STALE: it carries a fix that is no longer essential, on
+# a base `make essential-worktrees` no longer refreshes (its version disappears from
+# the manifest-driven loop). Retrying there would report PASS-ON-ESSENTIAL with an
+# empty depends_on — a green gate naming no prerequisite. Directory presence alone
+# is not evidence; the manifest is the source of truth.
+_essential_slugs() {  # $1 = version leg; prints one slug per line
+  awk -F'\t' -v v="$1" '!/^#/ && $1==v && NF>=3 {print $3}' \
+    "$ENGINE/essential-fixes.tsv" 2>/dev/null
+}
+
+_essential_retry_ok() {  # $1 = version leg, $2 = essential worktree path
+  [ -d "$2" ] && [ -n "$(_essential_slugs "$1")" ]
+}
+# --- end essential-line eligibility ---
+
 # Write the dependency stamp when a bundle passes ONLY on the essential line.
 _stamp_essential_dependency() {  # $1 = version leg
-  local leg="$1" manifest="$ENGINE/essential-fixes.tsv" slugs date
+  local leg="$1" slugs date
   date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   # Candidate dependencies = the essential fixes this version's line carries (by slug).
-  slugs="$(awk -F'\t' -v v="$leg" '!/^#/ && $1==v {printf "%s\"%s\"", (n++?", ":""), $3}' "$manifest" 2>/dev/null)"
+  slugs="$(_essential_slugs "$leg" | awk '{printf "%s\"%s\"", (NR>1?", ":""), $0}')"
+  # Unreachable via _essential_retry_ok, but a stamp with no prerequisite would be a
+  # silently meaningless gate result — the exact failure this guard exists to prevent.
+  [ -n "$slugs" ] || {
+    echo "$(basename "$0"): refusing to stamp $leg — no essential fixes declared" >&2
+    return 1
+  }
   cat > "$BUNDLE/essential-dependency.json" <<JSON
 {
   "target_version": "$leg",
@@ -328,7 +352,7 @@ for leg in "${LEGS[@]}"; do
   # harness-enabling fixes). If it passes there, the fix is correct but carries a
   # dependency — stamp it and do NOT fail the gate on a known-essential prerequisite.
   ess="$WORKSPACE/gramps-$leg-essential$LANE_SFX"
-  if [ "$MODE" = core ] && [ -d "$ess" ]; then
+  if [ "$MODE" = core ] && _essential_retry_ok "$leg" "$ess"; then
     echo "→ upstream leg $leg FAILED — retrying on the essential line ($ess)…"
     if _verify_leg "$leg" "$ess"; then
       _stamp_essential_dependency "$leg"; stamped=1
@@ -336,6 +360,9 @@ for leg in "${LEGS[@]}"; do
       continue
     fi
     echo "→ essential-line retry for $leg also FAILED — a real failure, not a missing prerequisite."
+  elif [ "$MODE" = core ] && [ -d "$ess" ]; then
+    echo "→ $ess exists but engine/essential-fixes.tsv declares no fix for $leg — NOT retrying."
+    echo "  · stale worktree from a dropped row; 'make essential-worktrees REBUILD=1' prunes it."
   fi
   overall=1
 done
