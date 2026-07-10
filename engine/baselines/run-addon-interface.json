@@ -5,8 +5,8 @@
   "run_level_signatures": [],
   "known_failures": [],
   "baseline_tree": {
-    "ref": "fix/bug-8796-viewmanager-empty-views-indexerror",
-    "sha": "ab4a3e64ca",
+    "ref": "master",
+    "sha": "a32b463b16",
     "dirty": false
   }
 }

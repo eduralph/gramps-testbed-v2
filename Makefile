@@ -184,8 +184,9 @@ essential-worktrees:
 	  git -C "$$ws/gramps" branch -f "$$br" "$$up"; \
 	  git -C "$$ws/gramps" worktree add --quiet "$$wt" "$$br" || exit 1; \
 	  awk -F'\t' -v v="$$v" '!/^#/ && $$1==v {print $$2}' "$$manifest" | while read -r c; do \
+	    git -C "$$wt" cat-file -e "$$c^{commit}" 2>/dev/null || { echo "essential-fixes.tsv: $$v fix $$c is not a commit in $$ws/gramps — re-point or drop the row"; exit 1; }; \
 	    git -C "$$wt" cherry-pick "$$c" >/dev/null 2>&1 || { echo "cherry-pick $$c FAILED in $$wt"; git -C "$$wt" cherry-pick --abort 2>/dev/null; exit 1; }; \
-	  done; \
+	  done || exit 1; \
 	  echo "→ $$wt = $$up + $$(awk -F'\t' -v v="$$v" '!/^#/ && $$1==v {print $$3}' "$$manifest" | paste -sd, -)"; \
 	done; \
 	done; \
