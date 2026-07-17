@@ -24,6 +24,12 @@ from pdca_harness import merge, state
 from pdca_harness.config import Config, LeafConfig
 
 
+def _own_repo(cmd: list[str]) -> str:
+    """Stubbed gh stdout: the own-repo probe (`gh pr view --json isCrossRepository`) answers
+    'false' — an own-repo PR — so the guarded ready/merge path proceeds (#329 review)."""
+    return "false" if cmd[:3] == ["gh", "pr", "view"] else ""
+
+
 def _cfg(root: Path) -> Config:
     return Config(
         root=root, bundle_root=root / "results", process_dir=root / "process",
@@ -68,7 +74,7 @@ class MergeWave(unittest.TestCase):
 
         def fake_run(cmd, **kw):
             runs.append(cmd)
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
+            return SimpleNamespace(returncode=0, stdout=_own_repo(cmd), stderr="")
 
         with mock.patch("pdca_harness.merge.subprocess.run", side_effect=fake_run), \
                 mock.patch.object(merge.state, "state", return_value=state.COMPLETE), \
@@ -98,9 +104,9 @@ class MergeWave(unittest.TestCase):
     def test_merge_failure_stops(self) -> None:
         b = self._bundle("M5")
 
-        def fail_merge(cmd, **kw):  # ready succeeds; the merge itself fails
+        def fail_merge(cmd, **kw):  # probe + ready succeed; the merge itself fails
             rc = 1 if cmd[:3] == ["gh", "pr", "merge"] else 0
-            return SimpleNamespace(returncode=rc, stdout="", stderr="not mergeable")
+            return SimpleNamespace(returncode=rc, stdout=_own_repo(cmd), stderr="not mergeable")
 
         with mock.patch("pdca_harness.merge.subprocess.run", side_effect=fail_merge), \
                 mock.patch.object(merge.state, "state", return_value=state.COMPLETE), \
@@ -118,7 +124,7 @@ class MergeWave(unittest.TestCase):
 
         def fake_run(cmd, **kw):
             runs.append(cmd)
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
+            return SimpleNamespace(returncode=0, stdout=_own_repo(cmd), stderr="")
 
         with mock.patch("pdca_harness.merge.subprocess.run", side_effect=fake_run), \
                 mock.patch.object(merge.state, "state", return_value=state.COMPLETE), \
@@ -127,8 +133,9 @@ class MergeWave(unittest.TestCase):
             rc = merge.merge_wave(self.cfg, [b], method="merge")
         self.assertEqual(rc, 0)
         gh = [c for c in runs if c[:2] == ["gh", "pr"]]
-        self.assertEqual(gh[0], ["gh", "pr", "ready", "https://gh/pr/1"])
-        self.assertEqual(gh[1], ["gh", "pr", "merge", "https://gh/pr/1", "--merge"])
+        self.assertEqual(gh[0][:3], ["gh", "pr", "view"])   # own-repo probe first (#329 review)
+        self.assertEqual(gh[1], ["gh", "pr", "ready", "https://gh/pr/1"])
+        self.assertEqual(gh[2], ["gh", "pr", "merge", "https://gh/pr/1", "--merge"])
 
     def test_ready_failure_stops_before_merge(self) -> None:
         # If a PR can't be readied it can't be merged — fail-closed, and never attempt merge.
@@ -138,7 +145,7 @@ class MergeWave(unittest.TestCase):
         def fail_ready(cmd, **kw):
             runs.append(cmd)
             rc = 1 if cmd[:3] == ["gh", "pr", "ready"] else 0
-            return SimpleNamespace(returncode=rc, stdout="", stderr="cannot ready")
+            return SimpleNamespace(returncode=rc, stdout=_own_repo(cmd), stderr="cannot ready")
 
         with mock.patch("pdca_harness.merge.subprocess.run", side_effect=fail_ready), \
                 mock.patch.object(merge.state, "state", return_value=state.COMPLETE), \
@@ -148,6 +155,46 @@ class MergeWave(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("could not be marked ready", err.getvalue())
         self.assertNotIn(["gh", "pr", "merge", "https://gh/pr/1", "--merge"], runs)
+
+    def test_cross_repo_pr_stops_before_ready(self) -> None:
+        # PR #329 review (codex): a cross-repo PR — the head lives on a fork of the base —
+        # is a fork CONTRIBUTION, whose ready/merge is the human's Check sign-off. Merge
+        # mode must refuse it BEFORE `gh pr ready`, not after.
+        b = self._bundle("MX")
+        runs: list[list[str]] = []
+
+        def cross_repo(cmd, **kw):
+            runs.append(cmd)
+            out = "true" if cmd[:3] == ["gh", "pr", "view"] else ""
+            return SimpleNamespace(returncode=0, stdout=out, stderr="")
+
+        with mock.patch("pdca_harness.merge.subprocess.run", side_effect=cross_repo), \
+                mock.patch.object(merge.state, "state", return_value=state.COMPLETE), \
+                mock.patch.object(merge.merged, "is_merged", return_value=False), \
+                redirect_stderr(io.StringIO()) as err:
+            rc = merge.merge_wave(self.cfg, [b])
+        self.assertEqual(rc, 1)
+        self.assertIn("fork-contribution", err.getvalue())
+        self.assertNotIn(["gh", "pr", "ready", "https://gh/pr/1"], runs)
+
+    def test_failed_own_repo_probe_fails_closed(self) -> None:
+        # An unknown PR shape is treated as a contribution: no ready, no merge, STOP.
+        b = self._bundle("MP")
+        runs: list[list[str]] = []
+
+        def probe_dies(cmd, **kw):
+            runs.append(cmd)
+            rc = 1 if cmd[:3] == ["gh", "pr", "view"] else 0
+            return SimpleNamespace(returncode=rc, stdout="", stderr="api error")
+
+        with mock.patch("pdca_harness.merge.subprocess.run", side_effect=probe_dies), \
+                mock.patch.object(merge.state, "state", return_value=state.COMPLETE), \
+                mock.patch.object(merge.merged, "is_merged", return_value=False), \
+                redirect_stderr(io.StringIO()) as err:
+            rc = merge.merge_wave(self.cfg, [b])
+        self.assertEqual(rc, 1)
+        self.assertIn("own-repo", err.getvalue())
+        self.assertNotIn(["gh", "pr", "ready", "https://gh/pr/1"], runs)
 
     def test_dry_run_readies_nothing(self) -> None:
         # A dry-run must shell nothing — not even the new ready step.
@@ -173,7 +220,7 @@ class MergeWave(unittest.TestCase):
         bad = self._bundle("MB", pr_url=None)
 
         def fake_run(cmd, **kw):
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
+            return SimpleNamespace(returncode=0, stdout=_own_repo(cmd), stderr="")
 
         with mock.patch("pdca_harness.merge.subprocess.run", side_effect=fake_run), \
                 mock.patch.object(merge.state, "state", return_value=state.COMPLETE), \
