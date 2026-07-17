@@ -25,7 +25,12 @@ jobs:
         run: |
           apt-get update -qq
           DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-            git make python3 python3-venv ca-certificates
+            git make python3 python3-venv ca-certificates bubblewrap socat
+        # bubblewrap + socat joined the baseline when [leaves.sandbox] went live:
+        # the doctor rows for the leaf sandbox's deps are REQUIRED (fail-closed,
+        # upstream #289 — a missing dep would silently disable the sandbox the
+        # bounded exemption depends on), so a bootstrap without them now fails
+        # loudly by design.
       - uses: actions/checkout@v4
       - name: git identity (doctor checks it; container has none)
         run: |

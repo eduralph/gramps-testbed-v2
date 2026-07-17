@@ -11,6 +11,15 @@ and the bundles' `SUMMARY.md` files it points at. Look for patterns that appear 
 more than one cycle: a spec field that keeps being ambiguous, a NEEDS-HUMAN class
 that recurs, a gap a gate could have caught.
 
+**Revalidation deltas.** The index also lists each frozen bundle's *revalidation
+deltas* — rows where re-gating against the **current** engine now disagrees with the
+frozen `check-gates.json`. Refresh them with `make revalidate` before the review (it
+writes an additive `revalidation-<date>.json` per COMPLETE bundle and never touches the
+frozen record), then read each delta: a frozen **PASS → FAIL** is a real regression —
+**route** it (a new tracker report or testbed issue) per the triage below; a frozen
+**FAIL → PASS** is a now-stale recorded red — note it so the baseline/manifest can be
+shrunk. A delta is never grounds to re-decide the original §9.
+
 ## What you produce
 
 A dated entry appended to `process/act-log.md` recording: the cycles considered,
@@ -28,24 +37,25 @@ must land somewhere else and be **tracked**, not fixed here. A process delta cha
 the *system*; a routed item is a *piece of work* you hand to its owner. Triage each
 such item into exactly one of:
 
-- **Another bug — in Gramps Testbed v2 or one of its components.** File it in the
-  project's **tracker** as a new report (tracker + cross-link form: `docs/INTEGRATION.md`)
-  and record the new id in the act-log entry. Do not try to fix it in this beat.
-- **A design issue** — the resolution needs architecture/UX decisions, not just code.
-  It needs a dedicated planning/design phase **outside** the PDCA cycle: name it, say
-  why, and hand it to the human to schedule. Do not author a brief for it.
-- **A harness or driver issue.** File it against the repo that owns the code, per the
-  template-vs-instance boundary: a problem in the **harness machinery**
-  (`src/pdca_harness/**`, the agents, the `pdca.toml` leaf/gate *schema*, `CLAUDE.md`)
-  belongs **upstream to the template this project was rendered from**; a problem in this
-  project's own code or config values belongs to **this repo**. Open the issue in the
-  right place and link it.
+- **Another bug — in the project under test or one of its addons.** File it in the
+  **tracker** as a new report (tracker + cross-link form: INTEGRATION §1) and record
+  the new id in the act-log entry. Do not try to fix it in this beat.
+- **A design issue** — the resolution needs architecture/UX decisions, not just
+  code. It needs a dedicated planning/design phase **outside** the PDCA cycle: name
+  it, say why, and hand it to the human to schedule. Do not author a brief for it.
+- **A testbed or PDCA-driver issue.** File it as a **GitHub issue** in the **owning
+  repo** and link it, per the template-vs-instance boundary: an instance/engine
+  problem (`engine/**`, project gate values) → an issue on **this testbed repo**; a
+  harness-machinery problem (`src/pdca_harness/**`, the agents, `pdca.toml` leaf/gate
+  *schema*, `CLAUDE.md`) → an issue (label `enhancement`) on the **`pdca-harness`
+  template repo**.
 - **Anything else** → keep it as an **open Act item**: record it with a determined
   owner / next step and revisit it at the next review.
 
-These routings are *in addition to* the process deltas above — record them in the same
-dated entry (e.g. "filed tracker #NNNN", "opened issue #N") **with the link**, so the
-follow-up is auditable. Routing an item is **not** re-deciding the contribution.
+These routings are *in addition to* the process deltas above — record them in the
+same dated entry (e.g. "filed `<tracker>` #NNNN", "opened testbed issue #N") **with
+the link**, so the follow-up is auditable. Routing an item is **not** re-deciding
+the contribution.
 
 ## Boundaries
 

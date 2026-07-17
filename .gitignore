@@ -12,7 +12,7 @@ venv/
 
 # Claude — machine-local permissions/paths, never publish (any depth, incl. bundles)
 settings.local.json
-**/.claude/settings.local.json
+**/.claude/settings.local.json*
 
 # Runtime / generated artifacts (regenerable)
 test-results/

@@ -55,8 +55,18 @@
 - **External dependencies:** <the build tools (e.g. `protoc`), runtime services (Docker, a
   live etcd/TiKV), and required topology/environment shape (a ≥3-replica cluster) the slice
   needs both to BUILD and to make the success criterion go red→green — enumerated at Plan so
-  they preflight (seed the render's `[[doctor.checks]]` where you can) rather than surface
-  mid-cycle. `none` if nothing beyond the base toolchain is needed. Do MUST declare any it
+  they preflight rather than surface mid-cycle. **Registration is mandatory, not
+  best-effort:** every dependency a human must install or provide MUST have a matching
+  `[[doctor.checks]]` row in the render (a `cmd` that detects it + an install `hint`) and be
+  named here as a **backticked token equal to that row's `id`** (`protoc` ↔ `id = "protoc"`).
+  A declared, human-installable dependency with no matching row is a Plan-exit gap: the
+  driver reconciles this field against the registered rows at Check and routes any
+  unregistered token into SUMMARY §6, where it blocks accept until it is registered. A
+  dependency that legitimately has NO detecting command — a topology / environment shape (a
+  ≥3-replica cluster, a partition-capable stack) — goes in plain prose (not backticked), or
+  as a backticked token annotated `(no-check: <why>)`; either is exempt. Keep every token on
+  this line — a wrapped continuation line is not parsed. `none` if nothing beyond the base
+  toolchain is needed (do not list the base toolchain here). Do MUST declare any it
   discovers that is not listed here (see builder) rather than silently work around it with a
   code-read, an alias, or a curated fixture — an unmet/worked-around dependency is a Check
   §6 item, not a substitution.>
@@ -64,7 +74,13 @@
   If the fix needs a testable seam (extraction so the test avoids the GUI / heavy deps),
   the test MUST exercise the PRODUCTION path — production routes through the same
   extracted unit the test drives — NOT a parallel copy that mirrors production
-  (principles.md §3.4).>
+  (principles.md §3.4).
+  Match the file to the C4 gate you actually have (engine/README.md). The shipped contract
+  reverts the *production* change and keeps the briefed test, so a test appended to an
+  existing suite — or co-located with the code — earns its red fine. But a gate that instead
+  classifies on an **added test file** can only earn a red from a NEW file; under that
+  variant an appended or inline test silently degrades to a green-only check that proves
+  nothing. Check which yours does before naming the path.>
 - **Citations expected:** Do must cite path:line on the target branch for every change.
   For a **composition slice** — the fix wires into an existing pattern the codebase already
   applies — MAY name the **peer callsite** Do should mirror, e.g. "resolve the backend as

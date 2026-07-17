@@ -64,6 +64,37 @@ def _merge_one(cfg: Config, d: Path, *, dry_run: bool, method: str,
     if merged.is_merged(cfg, iid):
         return 0  # already merged (a resumed run) — idempotent
 
+    # Own-repo PRs ONLY (PR #329 review). Merge mode's unattended ready/merge is legitimate
+    # exactly because the operator lands work on a base they OWN ("own-repo / CD", module
+    # docstring). A CROSS-REPO PR — the head branch lives on a fork of the base repo — is a
+    # fork CONTRIBUTION, and a contribution's ready/merge is the human's Check sign-off
+    # (AGENTS.md STOP discipline), never the driver's. Probe the PR's shape and fail closed:
+    # a probe that errors, or any answer but a definite "own-repo", STOPs the wave.
+    probe = subprocess.run(["gh", "pr", "view", str(pr_url), "--json", "isCrossRepository",
+                            "--jq", ".isCrossRepository"], capture_output=True, text=True)
+    if probe.returncode != 0 or probe.stdout.strip() != "false":
+        detail = (probe.stderr or probe.stdout).strip() or "probe failed"
+        print(f"\n!!! merge: {d.name} ({pr_url}) is not a definite own-repo PR "
+              f"({detail}) — wave_mode='merge' may only ready/merge a base the operator "
+              "owns; a cross-repo (fork-contribution) PR's ready/merge is the human's "
+              "sign-off. STOP: later waves are NOT run.\n", file=sys.stderr)
+        return 1
+
+    # The publisher opens every PR as a draft (STOP discipline), but `gh pr merge` refuses a
+    # draft — so in merge mode a non-final wave's PRs must be readied before they can advance
+    # the base (issue #279). `merge_wave` is only called for non-final waves, so this readies
+    # exactly the PRs about to be merged; the final wave never reaches here and keeps its
+    # draft for the human's ready-mark. Idempotent: `gh pr ready` on an already-ready PR is a
+    # no-op. Fail-closed like the merge itself — if it can't be readied, it can't be merged.
+    print(f"→ gh pr ready {pr_url}")
+    ready = subprocess.run(["gh", "pr", "ready", str(pr_url)], capture_output=True, text=True)
+    if ready.returncode != 0:
+        print((ready.stderr or ready.stdout).strip(), file=sys.stderr)
+        print(f"\n!!! merge: {d.name} ({pr_url}) could not be marked ready to merge. "
+              "STOP: later waves are NOT run; resolve at the PR, then re-run.\n",
+              file=sys.stderr)
+        return 1
+
     print(f"→ gh pr merge {pr_url} --{method}")
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
