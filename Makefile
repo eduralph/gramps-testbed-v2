@@ -276,8 +276,17 @@ preflight: gramps-requirements
 # --- optional real install (venv console script) ---------------------------
 # Name-agnostic: the console script is named per pyproject [project.scripts]
 # (the cli_name copier choice), so depend on a sentinel, not a fixed script path.
+# Also symlinks each script into ~/.local/bin so it works without activating the
+# venv — the venv shebang keeps the right interpreter regardless of environment.
 install: .venv/.installed
-	@printf '\nInstalled. The console script (see pyproject [project.scripts]) is on .venv/bin/; or keep using `make flow …`.\n'
+	@mkdir -p "$$HOME/.local/bin"; \
+	for s in $$($(PYTHON) -c "import tomllib; print(' '.join(tomllib.load(open('pyproject.toml','rb'))['project']['scripts']))"); do \
+	  ln -sf "$$(pwd)/.venv/bin/$$s" "$$HOME/.local/bin/$$s"; \
+	  echo "→ $$HOME/.local/bin/$$s -> $$(pwd)/.venv/bin/$$s"; \
+	done; \
+	case ":$$PATH:" in *":$$HOME/.local/bin:"*) ;; \
+	  *) echo "warn: ~/.local/bin is not on PATH — add it to use the command without the venv";; esac
+	@printf '\nInstalled. The console script (see pyproject [project.scripts]) is on .venv/bin/ and symlinked into ~/.local/bin; or keep using `make flow …`.\n'
 
 .venv/.installed: pyproject.toml
 	@$(PYTHON) -c 'import ensurepip' 2>/dev/null || { \
