@@ -180,8 +180,10 @@ def _maybe_auto_iterate(
               f"handing the implementation findings to the human", file=sys.stderr)
         return False
     autoiterate.write_decision(d, items)
+    impl_n = sum(1 for item in items if item.kind == assemble.IMPL)
     print(f"flow: {d.name} — auto-iterate {spent + 1}/{cfg.max_auto_iters}: "
-          f"{len(items)} implementation-level finding(s), no human judgment needed",
+          f"{impl_n} implementation-level finding(s) "
+          f"({len(items) - impl_n} other item(s) return with the next Check)",
           file=sys.stderr)
     return _apply_decision(cfg, d, by="auto-iterate", today=today,
                            apply_now=apply_now) == "iterate-do"

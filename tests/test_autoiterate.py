@@ -178,17 +178,19 @@ class TheStandingValidationRow(_Base):
         self.assertFalse(self._try(d))
         self._assert_halted(d)
 
-    def test_a_situational_judgment_concern_beside_it_still_halts(self) -> None:
-        # The distinction that makes this safe: C5/T5 are judgment cells too, but the reviewer
-        # raises them only on a REAL concern — so they carry signal and must still stop the
-        # bundle, standing row or not.
+    def test_a_situational_judgment_concern_beside_an_impl_finding_rides_along(self) -> None:
+        # INSTANCE RULE (2026-07-17, diverges from upstream #264): the C5 concern is real and
+        # the human WILL see it — but the C4 defect is Do's to fix either way, so the driver
+        # rebuilds now instead of making the human press iterate-do first. The judgment item
+        # is not consumed: the fresh Check re-emits it against the repaired implementation.
         review = ("# Review\n\n| Item | Verdict | Basis |\n|---|---|---|\n"
                   "| C4 Verification (red→green) | NEEDS-HUMAN | off-by-one |\n"
                   "| C5 Causal adequacy | NEEDS-HUMAN | guards the symptom, not the cause |\n"
                   f"{_STANDING_ROW}\n")
         d = self._bundle("SV3", review=review)
-        self.assertFalse(self._try(d), "a real judgment concern must still halt")
-        self._assert_halted(d)
+        self.assertTrue(self._try(d), "an impl defect beside a judgment concern must rebuild")
+        self.assertEqual(state.state(d), state.ITERATE_DO)
+        self.assertEqual(autoiterate.count(d), 1)
 
     def test_an_advisory_fitness_objection_is_never_standing(self) -> None:
         """PR #294 review (codex). STANDING is the PRIMARY review's privilege, and nothing
@@ -207,8 +209,14 @@ class TheStandingValidationRow(_Base):
                     "design\n")
         d = self._bundle("SV5", review=_review_table("C4 Verification (red→green)"),
                          advisory=advisory)
-        self.assertFalse(self._try(d), "a real fitness objection must halt, not be archived")
-        self._assert_halted(d)
+        items = assemble.collect_needs_human(d, self.cfg)
+        self.assertEqual(sum(i.kind == assemble.STANDING for i in items), 1,
+                         "only the mandated table's V row is the constant")
+        self.assertTrue(any(i.kind == assemble.HUMAN and "wrong layer" in i.text
+                            for i in items), "the advisory objection is a real HUMAN finding")
+        # INSTANCE RULE (2026-07-17): the objection no longer vetoes — the impl defect
+        # rebuilds and the objection returns with the fresh Check for the human.
+        self.assertTrue(self._try(d))
 
     def test_a_legacy_validation_bullet_in_the_review_is_never_standing(self) -> None:
         """PR #294 review (codex), second pass. Scoping STANDING to the primary ARTIFACT was
@@ -225,8 +233,12 @@ class TheStandingValidationRow(_Base):
                   f"{_STANDING_ROW}\n"
                   "- NEEDS-HUMAN — Validation — fitness-to-purpose: patches the wrong layer\n")
         d = self._bundle("SV6", review=review)
-        self.assertFalse(self._try(d), "a legacy fitness bullet is a finding — it must halt")
-        self._assert_halted(d)
+        items = assemble.collect_needs_human(d, self.cfg)
+        self.assertEqual(sum(i.kind == assemble.STANDING for i in items), 1,
+                         "the legacy bullet must classify HUMAN, not STANDING")
+        self.assertTrue(any(i.kind == assemble.HUMAN and "wrong layer" in i.text
+                            for i in items))
+        self.assertTrue(self._try(d))   # instance rule: rides along with the impl rebuild
 
     def test_a_second_table_never_earns_the_standing_exemption(self) -> None:
         """PR #294 review (codex), third pass. Keying on "came from a table" was STILL too wide.
@@ -245,8 +257,12 @@ class TheStandingValidationRow(_Base):
                   "| Validation — fitness-to-purpose: patches the wrong layer | NEEDS-HUMAN "
                   "| the criterion cannot be met by this design |\n")
         d = self._bundle("SV7", review=review)
-        self.assertFalse(self._try(d), "a concerns-table objection must halt, not be archived")
-        self._assert_halted(d)
+        items = assemble.collect_needs_human(d, self.cfg)
+        self.assertEqual(sum(i.kind == assemble.STANDING for i in items), 1,
+                         "a second-table row must classify HUMAN, not STANDING")
+        self.assertTrue(any(i.kind == assemble.HUMAN and "wrong layer" in i.text
+                            for i in items))
+        self.assertTrue(self._try(d))   # instance rule: rides along with the impl rebuild
 
     def test_a_concerns_table_with_the_EXACT_label_still_halts(self) -> None:
         """PR #294, local codex pass. The fourth scoping of the same rule, and the one that
@@ -269,8 +285,12 @@ class TheStandingValidationRow(_Base):
                   "\n## Concerns\n\n| Item | Verdict | Basis |\n|---|---|---|\n"
                   "| Validation — fitness-to-purpose | NEEDS-HUMAN | patches the wrong layer |\n")
         d = self._bundle("SV9", review=review)
-        self.assertFalse(self._try(d), "an exact-label concerns row is still a real objection")
-        self._assert_halted(d)
+        items = assemble.collect_needs_human(d, self.cfg)
+        self.assertEqual(sum(i.kind == assemble.STANDING for i in items), 1,
+                         "an exact-label concerns row must classify HUMAN, not STANDING")
+        self.assertTrue(any(i.kind == assemble.HUMAN and "wrong layer" in i.text
+                            for i in items))
+        self.assertTrue(self._try(d))   # instance rule: rides along with the impl rebuild
 
     def test_two_standing_candidates_fail_closed(self) -> None:
         # The template row is a CONSTANT — it occurs once. If two survive (a duplicated row, a
@@ -282,8 +302,11 @@ class TheStandingValidationRow(_Base):
                   f"{_STANDING_ROW}\n"
                   "| Validation — fitness-to-purpose | NEEDS-HUMAN | and again, differently |\n")
         d = self._bundle("SV10", review=review)
-        self.assertFalse(self._try(d), "ambiguous standing rows must fail closed")
-        self._assert_halted(d)
+        items = assemble.collect_needs_human(d, self.cfg)
+        self.assertEqual(sum(i.kind == assemble.STANDING for i in items), 0,
+                         "ambiguous standing candidates must fail closed: NEITHER is STANDING")
+        self.assertGreaterEqual(sum(i.kind == assemble.HUMAN for i in items), 2)
+        self.assertTrue(self._try(d))   # instance rule: both ride along with the impl rebuild
 
     def test_the_standing_row_is_never_carried_forward_to_the_builder(self) -> None:
         """PR #294 review (codex). STANDING rides along in `items` so it cannot veto the rebuild
@@ -309,7 +332,9 @@ class TheStandingValidationRow(_Base):
 
 
 class HaltsForTheHuman(_Base):
-    """Anything architectural, environmental, or unclassifiable still stops."""
+    """A HUMAN-only §6 still stops — nothing there is Do's to fix. (INSTANCE RULE
+    2026-07-17: beside an IMPL finding, these items no longer veto the rebuild; the
+    mixed-set cases in this class assert the iterate instead.)"""
 
     def test_judgment_cells_halt(self) -> None:
         # THE load-bearing negative: C5 causal adequacy, T5 judgment, the validation act.
@@ -326,13 +351,16 @@ class HaltsForTheHuman(_Base):
                 self.assertFalse(self._try(d))
                 self._assert_halted(d)
 
-    def test_one_judgment_item_disqualifies_the_whole_bundle(self) -> None:
+    def test_a_judgment_item_no_longer_disqualifies_the_impl_findings(self) -> None:
+        # INSTANCE RULE (2026-07-17): upstream, one judgment item disqualified the whole
+        # bundle; here the impl defect is auto-iterated and the judgment item returns with
+        # the next Check.
         review = ("# Review\n\n| Item | Verdict | Basis |\n|---|---|---|\n"
                   "| C4 Verification (red→green) | NEEDS-HUMAN | off-by-one |\n"
                   "| C5 Causal adequacy | NEEDS-HUMAN | guards the symptom |\n")
         d = self._bundle("MIXED", review=review)
-        self.assertFalse(self._try(d))
-        self._assert_halted(d)
+        self.assertTrue(self._try(d))
+        self.assertEqual(state.state(d), state.ITERATE_DO)
 
     def test_unverifiable_gate_halts(self) -> None:
         # A gate that COULD NOT RUN is a gate-kind element, but rebuilding can't fix a
@@ -341,15 +369,34 @@ class HaltsForTheHuman(_Base):
         self.assertFalse(self._try(d))
         self._assert_halted(d)
 
-    def test_declared_external_dependency_halts(self) -> None:
+    def test_declared_external_dependency_beside_a_failed_gate_iterates(self) -> None:
+        # INSTANCE RULE (2026-07-17): the failed gate is an IMPL item, so it is auto-iterated
+        # even though the dependency item rides along. Known, accepted cost: when the gate is
+        # red BECAUSE of the missing dependency, the rebuild spins — bounded by
+        # [driver].max_auto_iters, then the bundle halts for the human as before.
         d = self._bundle("EXTDEP", gate=_FAIL,
+                         build_notes="NEEDS-HUMAN external dependency: protoc — cannot compile\n")
+        self.assertTrue(self._try(d))
+        self.assertEqual(state.state(d), state.ITERATE_DO)
+
+    def test_declared_external_dependency_alone_still_halts(self) -> None:
+        # No IMPL item beside it ⇒ nothing a rebuild can fix ⇒ the human decides.
+        d = self._bundle("EXTONLY",
                          build_notes="NEEDS-HUMAN external dependency: protoc — cannot compile\n")
         self.assertFalse(self._try(d))
         self._assert_halted(d)
 
-    def test_unregistered_dependency_halts(self) -> None:
+    def test_unregistered_dependency_beside_a_failed_gate_iterates(self) -> None:
+        # INSTANCE RULE (2026-07-17): same as the declared-dependency case above.
         self.cfg.doctor_checks = []
         d = self._bundle("UNREG", gate=_FAIL,
+                         brief_body="- **Slug:** ai\n- **External dependencies:** `protoc` (build)\n")
+        self.assertTrue(self._try(d))
+        self.assertEqual(state.state(d), state.ITERATE_DO)
+
+    def test_unregistered_dependency_alone_still_halts(self) -> None:
+        self.cfg.doctor_checks = []
+        d = self._bundle("UNREGONLY",
                          brief_body="- **Slug:** ai\n- **External dependencies:** `protoc` (build)\n")
         self.assertFalse(self._try(d))
         self._assert_halted(d)
@@ -603,11 +650,20 @@ class DecisionModule(unittest.TestCase):
     def _items(self, *kinds: str) -> list[assemble.NeedsHumanItem]:
         return [assemble.NeedsHumanItem(f"finding {i}", k) for i, k in enumerate(kinds)]
 
-    def test_eligible_only_when_nonempty_and_all_impl(self) -> None:
+    def test_eligible_iff_at_least_one_impl(self) -> None:
         self.assertTrue(autoiterate.eligible(self._items(assemble.IMPL, assemble.IMPL)))
         self.assertFalse(autoiterate.eligible([]))                                 # never accept
-        self.assertFalse(autoiterate.eligible(self._items(assemble.IMPL, assemble.HUMAN)))
+        # INSTANCE RULE (2026-07-17): a HUMAN item beside an IMPL one no longer vetoes.
+        self.assertTrue(autoiterate.eligible(self._items(assemble.IMPL, assemble.HUMAN)))
         self.assertFalse(autoiterate.eligible(self._items(assemble.HUMAN)))
+
+    def test_rationale_counts_riding_human_items_without_leaking_their_text(self) -> None:
+        items = self._items(assemble.IMPL, assemble.HUMAN, assemble.HUMAN)
+        r = autoiterate.rationale(items, attempt=1)
+        self.assertIn("finding 0", r)              # the IMPL finding is named
+        self.assertNotIn("finding 1", r)           # HUMAN text is not carried to the builder
+        self.assertIn("2 human-judgment item(s)", r)
+        self.assertNotIn("\n", r)
 
     def test_write_decision_only_ever_writes_iterate_do(self) -> None:
         autoiterate.write_decision(self.tmp, self._items(assemble.IMPL))

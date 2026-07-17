@@ -22,6 +22,13 @@ from .gates import canonical_elements
 #   HUMAN — an architectural / fitness-to-purpose / environmental call only the human makes.
 IMPL = "impl"
 HUMAN = "human"
+# A §6 item from a leaf-status PLACEHOLDER (#278) — the review/advisory artifact is empty
+# because the leaf's INFRASTRUCTURE failed (did not run / could not launch / no usable
+# verdict), not because Check weighed the fix. Distinct from HUMAN (instance, 2026-07-17):
+# under this instance's auto-iterate rule situational HUMAN items ride along with a rebuild,
+# but an infra-empty artifact means there IS no review to ride along — rebuilding blind
+# would loop against the same broken leaf — so INFRA still vetoes auto-iterate outright.
+INFRA = "infra"
 # The reviewer's `Validation — fitness-to-purpose` row, which its prompt hard-codes to
 # NEEDS-HUMAN on EVERY cycle regardless of content (agents/reviewer.md.jinja; the 5/5/1's
 # validation oracle is literally "human at sign-off"). It is the human's to settle at sign-off
@@ -133,14 +140,14 @@ def _items_from_artifact(text: str, *, allow_standing: bool = False) -> list[Nee
 
     A placeholder (the leaf could not produce a verdict) has its items prefixed with WHY the
     artifact is empty — infra vs substance — so the human doesn't have to hand-annotate it,
-    and forced to HUMAN: there is no finding for a rebuild to fix, so an infra-empty must
-    never be auto-iterated (#264). A real artifact is unaffected."""
+    and forced to INFRA: there is no finding for a rebuild to fix, so an infra-empty must
+    never be auto-iterated (#264) — it vetoes even beside IMPL findings (instance rule)."""
     label = _LEAF_STATUS_LABEL.get(leaf_status(text), "")
     items = [_classify_finding(t, standing=allow_standing and is_standing)
              for t, is_standing in _needs_human(text)]
     if not label:
         return items
-    return [NeedsHumanItem(f"{label} — {it.text}", HUMAN) for it in items]
+    return [NeedsHumanItem(f"{label} — {it.text}", INFRA) for it in items]
 
 
 def collect_needs_human(d: Path, cfg: Config) -> list[NeedsHumanItem]:
@@ -159,7 +166,14 @@ def collect_needs_human(d: Path, cfg: Config) -> list[NeedsHumanItem]:
     # Only the PRIMARY review may carry a STANDING row: it is the one artifact whose prompt
     # mandates the Validation row unconditionally, which is the entire basis for treating it as
     # signal-free. An advisory leaf raising fitness-to-purpose means it FOUND something.
-    items = _items_from_artifact(review_text, allow_standing=True)
+    # A MISSING review predates the leaf-status markers (#278) but is the same class — Check
+    # did not happen — so its placeholder bullet is forced INFRA like a marked placeholder's,
+    # and vetoes auto-iterate rather than riding along (instance rule, 2026-07-17).
+    if review_path.exists():
+        items = _items_from_artifact(review_text, allow_standing=True)
+    else:
+        items = [NeedsHumanItem(it.text, INFRA)
+                 for it in _items_from_artifact(review_text, allow_standing=True)]
     for atext in advisory_texts:
         items += _items_from_artifact(atext)
     # A gate that COULD NOT RUN is not builder-fixable — rebuilding would spin against the

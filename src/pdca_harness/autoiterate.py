@@ -13,16 +13,17 @@ verification, T1..T4) are mechanically checkable, so a rebuild can address them;
 (C1 spec, C3 change) are the human's. ``assemble.collect_needs_human`` tags every §6 item
 IMPL or HUMAN from exactly that source.
 
-So: when a bundle reaches ``AWAITING_SIGNOFF`` with at least one IMPL item and nothing the
-human must see first, the driver writes an ``iterate-do`` decision and re-drives Do. Anything
-else — an empty §6 (a clean bundle awaiting a human accept), a situational HUMAN item, an
-exhausted budget — halts as before.
+So: when a bundle reaches ``AWAITING_SIGNOFF`` with at least one IMPL item, the driver
+writes an ``iterate-do`` decision and re-drives Do. Anything else — an empty §6 (a clean
+bundle awaiting a human accept), a HUMAN-only finding set, an exhausted budget — halts as
+before.
 
-One item is deliberately NOT "something the human must see first": the reviewer's
-``Validation — fitness-to-purpose`` row, which its prompt hard-codes to NEEDS-HUMAN on EVERY
-cycle whatever it finds (:data:`assemble.STANDING`). It is a constant, so it carries no
-signal. Counting it as an ordinary HUMAN item made the original ``all(IMPL)`` rule impossible
-to satisfy on a real bundle, and this feature never fired once in production (#293).
+INSTANCE RULE (2026-07-17, diverges from upstream #264): situational HUMAN items do NOT
+veto the rebuild — when Check finds implementation defects beside judgment items, the
+defects are auto-iterated and the judgment items return with the fresh Check for the human
+to weigh against the repaired implementation. (Upstream also exempts the reviewer's
+STANDING ``Validation — fitness-to-purpose`` row, hard-coded NEEDS-HUMAN on every cycle and
+so signal-free, #293; under the instance rule that exemption is subsumed.)
 
 Three properties hold by construction:
 
@@ -44,7 +45,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .assemble import IMPL, STANDING, NeedsHumanItem
+from .assemble import HUMAN, IMPL, INFRA, NeedsHumanItem
 from .leaves import SIGNOFF_DECISION
 
 BUDGET_FILE = "auto-iterate.json"
@@ -54,24 +55,32 @@ DECISION = "iterate-do"
 
 
 def eligible(items: list[NeedsHumanItem]) -> bool:
-    """True iff a rebuild is the right next step: at least one IMPL finding, and nothing
-    else the human must see *first*.
+    """True iff a rebuild is the right next step: at least one IMPL finding.
 
     An **empty** §6 is deliberately not eligible — that is a clean bundle awaiting a human
-    *accept*, and auto-iterate must never accept. A situational HUMAN item still disqualifies
-    the whole bundle: the human has to look at it anyway, so there is nothing to save by
-    rebuilding first.
+    *accept*, and auto-iterate must never accept. A HUMAN-only set is not eligible either:
+    there is no defect Do can fix, so the bundle halts for the human as before.
 
-    But a **STANDING** item does not. The reviewer's prompt hard-codes `Validation —
-    fitness-to-purpose` to NEEDS-HUMAN on EVERY cycle regardless of what it found, so that row
-    is a constant, and a constant is not evidence that a human must look right now. Requiring
-    `all(IMPL)` therefore made this function unreachable in production: every real review
-    artifact carries that row, so auto-iterate never fired once (#293). The bundle still halts
-    for the human as soon as the implementation findings are gone — which is the whole point:
-    iterate Do→Check while the reviewer keeps finding defects only Do can fix, then hand over.
+    INSTANCE RULE (2026-07-17, diverges from upstream #264/#293): a situational HUMAN item
+    does NOT veto the rebuild. When Check finds implementation defects *beside* judgment
+    items, the defects are still Do's to fix — halting first only makes the human press
+    "iterate-do" for them anyway. So the driver rebuilds now; the HUMAN items are not
+    consumed (nothing here ticks a §6 box) and return with the fresh Check, where the human
+    reviews them against the repaired implementation. The bundle still halts as soon as no
+    IMPL finding remains. Known cost, accepted: an IMPL-classified gate red actually caused
+    by a missing external dependency spins for up to [driver].max_auto_iters rounds before
+    handing over.
+
+    ONE veto remains: an INFRA item — a review/advisory artifact that is empty because the
+    leaf's infrastructure failed (#278). That is not a finding riding along; it means Check
+    did not actually happen, and rebuilding blind would loop against the same broken leaf.
+
+    (The STANDING `Validation — fitness-to-purpose` row was already exempt upstream — it is
+    emitted NEEDS-HUMAN on every cycle by design, carries no signal, and never vetoed (#293).
+    Under the instance rule it simply rides along like any other non-IMPL item.)
     """
     return (any(item.kind == IMPL for item in items)
-            and all(item.kind in (IMPL, STANDING) for item in items))
+            and not any(item.kind == INFRA for item in items))
 
 
 def count(d: Path) -> int:
@@ -94,14 +103,19 @@ def rationale(items: list[NeedsHumanItem], *, attempt: int) -> str:
     """The §9 "Iteration delta" line, which the driver folds into the brief's carry-forward
     so the next Do iteration isn't blind about why it was rejected.
 
-    IMPL items ONLY. The STANDING `Validation` row rides along in ``items`` (it does not veto
-    the rebuild, #293), but it is not a finding and no builder can act on it — carrying it
-    forward would hand the next Do a human-only judgment call as though it were a defect to fix,
-    under a sentence claiming the set is "implementation-level items only" (PR #294 review).
+    IMPL items ONLY. Non-IMPL items ride along in ``items`` (they do not veto the rebuild —
+    the STANDING `Validation` row by upstream #293, situational HUMAN items by the instance
+    rule above), but none of them is a defect a builder can act on — carrying one forward
+    would hand the next Do a human-only judgment call as though it were a defect to fix
+    (PR #294 review). HUMAN items are instead *counted* in the line, so §9 stays honest
+    that judgment items remain and will return with the next Check.
     """
     findings = "; ".join(item.text for item in items if item.kind == IMPL)
-    return (f"Auto-iterate (round {attempt}): Check found implementation-level items only, "
-            f"no architectural judgment required — {findings}")
+    pending = sum(1 for item in items if item.kind == HUMAN)
+    aside = (f" ({pending} human-judgment item(s) ride along and return with the next Check)"
+             if pending else "")
+    return (f"Auto-iterate (round {attempt}): Check found implementation-level defects Do "
+            f"can fix{aside} — {findings}")
 
 
 def write_decision(d: Path, items: list[NeedsHumanItem]) -> None:

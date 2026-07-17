@@ -24,7 +24,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
-from pdca_harness import assemble, gates, leaves, signoff
+from pdca_harness import assemble, autoiterate, gates, leaves, signoff
 from pdca_harness.config import Config, LeafConfig
 
 _PASS_GATE = {"id": "C4", "tier": "C4", "label": "verify", "scope": "bundle",
@@ -156,14 +156,18 @@ class Section6Labelling(unittest.TestCase):
                             self._advisory_items(b)[0].text)
 
     def test_an_empty_artifact_is_never_auto_iterated(self) -> None:
-        # #264: an infra-empty has no finding a rebuild could fix — it must stay HUMAN, or
-        # auto-iterate would spin rebuilding against a leaf that never ran.
+        # #264: an infra-empty has no finding a rebuild could fix — it is INFRA (instance,
+        # 2026-07-17: a dedicated kind, since HUMAN items now ride along with a rebuild),
+        # which vetoes auto-iterate outright, or it would spin against a leaf that never ran.
         for failure in (leaves._FAIL_TRANSIENT, leaves._FAIL_STARTUP, leaves._FAIL_SUBSTANTIVE):
             with self.subTest(failure=failure):
                 d = self._bundle(f"K{failure}")
                 self._fail_advisory(d, failure=failure)
                 items = self._advisory_items(d)
-                self.assertEqual([i.kind for i in items], [assemble.HUMAN])
+                self.assertEqual([i.kind for i in items], [assemble.INFRA])
+                self.assertFalse(autoiterate.eligible(
+                    items + [assemble.NeedsHumanItem("x", assemble.IMPL)]),
+                    "INFRA must veto even beside an IMPL finding")
 
     def test_a_missing_leaf_binary_lands_in_section6_as_infra(self) -> None:
         """The end-to-end shape of the PR #285 review finding, driven through the real leaf
@@ -189,17 +193,17 @@ class Section6Labelling(unittest.TestCase):
         # …and §6 must NOT tell the operator a plain re-run is safe — the binary is still gone.
         self.assertIn("could not be launched", items[0].text)
         self.assertNotIn("safe to re-run", items[0].text)
-        self.assertEqual(items[0].kind, assemble.HUMAN)   # still the human's, never auto-iterated
+        self.assertEqual(items[0].kind, assemble.INFRA)  # infra-empty: vetoes auto-iterate outright
 
     def test_an_impl_tagged_finding_in_a_placeholder_cannot_smuggle_in_impl(self) -> None:
         # Defence in depth: even if a placeholder's bullet carried an `[impl]` tag, an empty
-        # artifact stays HUMAN — the status marker wins over the finding tag.
+        # artifact stays INFRA — the status marker wins over the finding tag.
         d = self._bundle("SMUG")
         (d / "check-advisory-adversary.md").write_text(
             f"<!-- pdca:leaf-status {assemble.LEAF_STATUS_INFRA} -->\n\n"
             "- NEEDS-HUMAN [impl] — leaf died before it could review\n", encoding="utf-8")
         items = self._advisory_items(d)
-        self.assertEqual([i.kind for i in items], [assemble.HUMAN])
+        self.assertEqual([i.kind for i in items], [assemble.INFRA])
 
     def test_a_real_advisory_finding_is_untouched(self) -> None:
         # No marker ⇒ no relabelling, and an [impl] tag still classifies IMPL as before.
@@ -224,7 +228,7 @@ class Section6Labelling(unittest.TestCase):
         items = [i for i in assemble.collect_needs_human(d, self.cfg)
                  if "leaf did not run" in i.text]
         self.assertTrue(items, "a transient reviewer failure must be labelled infra in §6")
-        self.assertEqual(items[0].kind, assemble.HUMAN)
+        self.assertEqual(items[0].kind, assemble.INFRA)
 
 
 if __name__ == "__main__":
