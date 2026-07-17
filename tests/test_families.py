@@ -361,7 +361,17 @@ class ShippedPdcaTomlExamples(unittest.TestCase):
     def test_the_commented_example_parses_when_uncommented(self) -> None:
         src = self._source()
         block = re.search(r"^# \[leaves\.sandbox\]\n(?:^#[^\n]*\n)+", src, re.M)
-        self.assertIsNotNone(block, "the [leaves.sandbox] example must still be there")
+        if block is None:
+            # INSTANCE deviation: this render ACTIVATED the sandbox by uncommenting the
+            # example in place — the documented path, which consumes the commented block
+            # this test pins (upstream contract gap: activation turns the shipped suite
+            # red). Assert the LIVE table keeps the same copy-paste contract instead:
+            # both keys under the ONE header, network_access an unquoted boolean.
+            sandbox = tomllib.loads(src).get("leaves", {}).get("sandbox")
+            self.assertIsNotNone(sandbox, "the [leaves.sandbox] example must still be there")
+            self.assertIn("unsandboxed_commands", sandbox)
+            self.assertIsInstance(sandbox["network_access"], bool)
+            return
         uncommented = "\n".join(
             line[2:] if line.startswith("# ") else line.lstrip("#")
             for line in block.group(0).strip().splitlines())

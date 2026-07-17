@@ -63,7 +63,7 @@ max_passes = 20
 # It NEVER auto-accepts and never ticks a §6 box.
 # Bounded by `max_auto_iters` rounds per bundle (clamped below max_passes); on exhaustion the
 # bundle halts for you as before. `PDCA_AUTO_ITERATE=1` / `--auto-iterate` override.
-auto_iterate = false
+auto_iterate = true
 max_auto_iters = 3
 # Worktree isolation (issue #94). A cycle's Do/Check run in a dedicated git worktree off
 # the target's base, so the host's primary checkout is NEVER mutated in place. The harness
@@ -630,9 +630,17 @@ when = { field = "difficulty", substring = "high" }
 # makes tomllib refuse the file ("Cannot declare ('leaves','sandbox') twice") and the driver
 # will not start at all (PR #292 review). Also note `network_access` must be the UNQUOTED
 # boolean `true`; a quoted "true"/"false" is rejected and the grant stays closed.
-# [leaves.sandbox]
-# unsandboxed_commands = ["cargo xtask fdb-conformance", "cargo xtask etcd-conformance"]  # claude
-# network_access = true                                                                    # codex
+# LIVE (this instance): the bounded sandbox is ON for the Check leaves.
+# * unsandboxed_commands — the claude-family adversary re-runs the red→green proof;
+#   that is exactly the C4 gate cmd (`run-verify.sh`, which wraps `timeout docker run`),
+#   so ONLY that named command runs outside the sandbox. Everything else it does stays
+#   confined, enforced by the seeded enabled/failIfUnavailable/allowUnsandboxedCommands
+#   settings described above (host deps bwrap+socat are required doctor rows).
+# * network_access — the codex reviewer's only route to Docker (#291) and to
+#   api.github.com for its prior-art check (#277); codex keeps filesystem confinement.
+[leaves.sandbox]
+unsandboxed_commands = ["./engine/scripts/ubuntu/run-verify.sh"]  # claude (adversary)
+network_access = true                                             # codex (reviewer)
 
 # Deterministic Check gates (docs 04). Each check runs a shell command; it PASSES
 # iff the command exits 0. `scope = "repo"` runs against the working tree (and is
