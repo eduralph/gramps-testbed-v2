@@ -16,8 +16,9 @@ managed: true
     - example.gramps vs mocks
     - requires_mod no-deps rule (Gary Griffin, 2026-05-16)
     - tests/__init__.py convention (Gary Griffin's PR 930)
-    - GTK-pin contract: pins live in the tests/ root, never in modules
-      (Eduard, 2026-07-19)
+    - GTK-pin contract: pins live at the REPOSITORY root's
+      tests/__init__.py (addons-source PR 950); per-addon
+      tests/__init__.py stays empty (Eduard, 2026-07-20)
   Cross-link to 08-debug for repro scripts, 09-troubleshoot for what
   these tests catch.
 -->
@@ -80,7 +81,7 @@ MyAddon/
 The marker is **hygiene, not a bug fix**. Python 3.3+'s implicit namespace packages (PEP 420) mean a directory without `__init__.py` is still importable; dotted-path loading (`python3 -m unittest MyAddon.tests.test_myaddon`) works either way. But:
 
 1. **Explicit beats implicit.** "It works" is currently true by accident of invocation. The same code breaks the moment something uses `discover` or assumes regular packages.
-2. **It's the home of the GTK-pin contract.** Shared per-addon test setup — the GI version pins (next section), fixtures, presence meta-tests — has no home until `tests/__init__.py` exists.
+2. **Explicit — and empty.** Suite-wide test setup (the GI version pins, warning filters) lives at the *repository* root's `tests/__init__.py`, not per addon — see the next section. The per-addon marker stays empty; it is packaging hygiene, and a home for genuinely addon-local setup only if one ever appears.
 
 The convention crystallises as: every addon's `tests/` **should** have an `__init__.py`; the addon directory itself **should not**.
 
@@ -96,22 +97,19 @@ Gramps establishes the GObject-introspection environment **once, at startup, bef
 
 **The contract**, in two halves:
 
-1. **Modules never pin.** No `gi.require_version` in the addon module or in individual test modules — the environment is provided *to* them, in both contexts.
-2. **The test root provides what Gramps provides.** `tests/__init__.py` reproduces the same pins Gramps sets at startup, before any addon import:
+1. **Modules never pin.** No `gi.require_version` in the addon module or in any test file — the environment is provided *to* them, in both contexts. Redundant pins are safe to remove from files you are already touching (the Themes addon's `tests/__init__.py` cleanup is the precedent), but don't churn files you aren't otherwise changing.
+2. **The repository root provides what Gramps provides.** addons-source carries the pins **once**, in the repo-root `tests/__init__.py` (addons-source PR [950](https://github.com/gramps-project/addons-source/pull/950)): the repo-root suite run and the CI runners import that package before any test module, pinning the whole suite to the GTK 3 / GDK 3 stack a real Gramps session uses (it also silences the locale warnings that uncompiled source-tree addons legitimately emit). The per-addon `MyAddon/tests/__init__.py` stays **empty** — see the previous section.
+
+The one thing a GUI-touching test module may still need is a presence guard for hosts with no PyGObject at all:
 
 ```python
-# Reproduce the GI environment Gramps establishes at startup
-# (gramps/grampsapp.py, gramps/gen/constfunc.py) so the module
-# under test imports identically in both contexts.
-import gi
-
-gi.require_version("Gtk", "3.0")
-gi.require_version("Gdk", "3.0")
+try:
+    import gi
+except ImportError as err:
+    raise unittest.SkipTest("PyGObject not available: %s" % err)
 ```
 
-Mirror the versions your target branch actually pins — check `grampsapp.py` on that branch when porting.
-
-**The corollary: individual test modules run through the root.** The pins only execute if the `tests` package `__init__.py` is imported — which the dotted-path and `discover -t .` invocations below do, and which running a test file by filesystem path (`python3 MyAddon/tests/test_myaddon.py`) does **not**. The file-path shortcut is exactly what pushes pins back into the modules; don't use it.
+**The corollary: run from the repository root.** The pins execute when the root `tests` package loads — the repo-root suite run and CI's per-addon runners do that. Run your own invocations from the addons-source root too (the dotted-path form below), and never run a test file by filesystem path (`python3 MyAddon/tests/test_myaddon.py`) — the shortcut that pushes pins back into the modules, and that bypasses the namespace-package semantics the loading section below relies on.
 
 The GI pins are one instance of a wider rule: everything process-global that Gramps' startup owns — locale, the root logger, `sys.path`, the GTK main loop, `sys.excepthook`, environment variables — follows the same contract. The full startup surface, with the per-item temptations and alternatives, is tabulated in [04-fundamentals → The provided environment](04-fundamentals.md#the-provided-environment).
 
@@ -140,7 +138,7 @@ Upstream CI loads tests by **dotted path**:
 python3 -m unittest MyAddon.tests.test_myaddon
 ```
 
-Not by `discover` from a `tests/` directory, and never by filesystem path. Two reasons. First, loading through the package root executes `tests/__init__.py` — the [GTK-pin contract](#the-gtk-pin-contract) — before any test module imports the addon. Second, dotted-path loading surfaces the namespace-package trap. Bug 12691 — `from <Addon> import <Addon>` binding the submodule instead of the class — only shows up under dotted-path loading. `discover`-based loading walks files by *filename*, hiding the import-resolution issue. Mirroring CI's invocation locally catches what CI catches.
+Not by `discover` from inside an addon's `tests/` directory, and never by filesystem path. Dotted-path loading from the repo root surfaces the namespace-package trap. Bug 12691 — `from <Addon> import <Addon>` binding the submodule instead of the class — only shows up under dotted-path loading. `discover`-based loading walks files by *filename*, hiding the import-resolution issue. Mirroring CI's invocation locally catches what CI catches.
 
 Locally, from the `addons-source` root, the same invocation works:
 
@@ -293,7 +291,7 @@ python3 -m unittest discover -s MyAddon/tests -t .
 python3 -m unittest MyAddon.tests.test_myaddon
 ```
 
-Both forms import the `tests` package root first, which the [GTK-pin contract](#the-gtk-pin-contract) requires — never invoke a test file by filesystem path.
+Run from the addons-source root, and never invoke a test file by filesystem path — see [the GTK-pin contract](#the-gtk-pin-contract).
 
 The Python that runs the tests needs `gramps` importable. The simplest setup is `PYTHONPATH=/path/to/gramps python3 -m unittest …`; if Gramps is installed system-wide, the import resolves without `PYTHONPATH`.
 
