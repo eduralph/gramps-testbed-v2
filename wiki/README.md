@@ -94,6 +94,26 @@ sidecars only (it reports CREATE / SKIP / UPDATE but cannot check live drift).
 Run a dry-run to sanity-check the plan, then `--apply` to get the live picture
 and push.
 
+## Second target: addons-source (GitHub-native export)
+
+`tools/md2gh.py` renders a section tree to plain GitHub Markdown — front-matter
+stripped, every link flavour resolved (in-batch targets become relative
+`NN-name.md` links, out-of-batch ones canonical wiki URLs), Obsidian embeds
+converted, `<!--wiki:{{…}}-->` shims dropped, and a GENERATED provenance banner
+(source page + commit) prepended per file:
+
+```
+python3 tools/md2gh.py "pages/06 - Addon development" \
+    --out ../addons-source/docs/addon-development
+```
+
+The vault stays the single source of truth; the exported tree is a generated
+artifact. The drift loop: export into the target checkout and inspect
+`git diff` there BEFORE committing — an upstream edit to a generated file
+shows up as a diff against the fresh export and is reconciled back into the
+vault first, then re-exported. The export is deterministic, so a clean diff
+means no drift.
+
 ## The safety model
 
 - **Managed allowlist** — only `managed: true` pages are ever written.
