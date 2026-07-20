@@ -99,7 +99,7 @@ class ExportTests(unittest.TestCase):
         root = Path(cls._tmp.name)
         cls.section = build_vault(root)
         cls.out = root / "export"
-        md2gh.export(cls.section, cls.out, sha="cafe123")
+        md2gh.export(cls.section, cls.out)
         cls.a = (cls.out / "01-overview.md").read_text(encoding="utf-8")
         cls.b = (cls.out / "07-testing.md").read_text(encoding="utf-8")
 
@@ -113,8 +113,11 @@ class ExportTests(unittest.TestCase):
         self.assertIn("[← Previous](01-overview.md)", self.b)
         self.assertIn("[Next →](07-testing.md)", self.a)
 
-    def test_obsidian_links_become_relative(self):
-        self.assertIn("[Gramps 6.0 Wiki Manual - Addon Development - Testing](07-testing.md)", self.a)
+    def test_obsidian_links_become_relative_with_short_autolabel(self):
+        # Auto-generated label (bare [[stem]]) shortens to the title's last
+        # segment; an authored label passes through untouched.
+        self.assertIn("[Testing](07-testing.md)", self.a)
+        self.assertNotIn("[Gramps 6.0 Wiki Manual - Addon Development - Testing]", self.a)
         self.assertIn("[the testing page](07-testing.md)", self.a)
 
     def test_relative_link_keeps_anchor(self):
@@ -157,14 +160,18 @@ class ExportTests(unittest.TestCase):
         self.assertNotIn("<!--wiki:", self.a)
         self.assertIn("<!-- author note: kept -->", self.a)
 
-    def test_frontmatter_stripped_and_h1_added(self):
-        self.assertFalse(self.a.lstrip("<!-- GENERATED").startswith("---"))
+    def test_frontmatter_stripped_and_short_h1_added(self):
+        self.assertFalse(self.a.startswith("---"))
         self.assertNotIn("managed:", self.a)
-        self.assertIn("\n# Gramps 6.0 Wiki Manual - Addon Development\n", self.a)
+        self.assertTrue(self.a.startswith("# Addon Development\n"), self.a[:60])
+        self.assertTrue(self.b.startswith("# Testing\n"), self.b[:60])
 
-    def test_banner_present_with_sha_and_source(self):
-        self.assertIn("GENERATED FILE - DO NOT EDIT HERE", self.a)
-        self.assertIn(f"{SECTION}/01-overview.md @ cafe123", self.a)
+    def test_no_origin_or_generated_notice(self):
+        for text in (self.a, self.b, (self.out / "README.md").read_text()):
+            low = text.lower()
+            self.assertNotIn("generated", low)
+            self.assertNotIn("do not edit", low)
+            self.assertNotIn("testbed", low)
 
     # ---- tree behaviour ---------------------------------------------------
 
@@ -176,15 +183,14 @@ class ExportTests(unittest.TestCase):
         self.assertTrue((self.out / "_media" / "diagram.dot").exists())
         self.assertFalse((self.out / "_media" / "WORK-NOTE.md").exists())
 
-    def test_index_readme_generated(self):
+    def test_index_readme(self):
         idx = (self.out / "README.md").read_text(encoding="utf-8")
         self.assertIn("[01-overview.md](01-overview.md)", idx)
         self.assertIn("- [Testing](07-testing.md)", idx)
-        self.assertIn("GENERATED FILE", idx)
 
     def test_determinism(self):
         first = {p.name: p.read_bytes() for p in self.out.rglob("*") if p.is_file()}
-        md2gh.export(self.section, self.out, sha="cafe123")
+        md2gh.export(self.section, self.out)
         second = {p.name: p.read_bytes() for p in self.out.rglob("*") if p.is_file()}
         self.assertEqual(first, second)
 

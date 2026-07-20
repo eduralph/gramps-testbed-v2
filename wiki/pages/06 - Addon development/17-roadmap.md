@@ -97,18 +97,13 @@ What the pipeline already handled before these additions:
 - YAML front-matter → `title`, `categories`, `managed`.
 - Fenced code with language tags, tables.
 
-### Page-by-page draft state
+### Page-by-page state
 
-- [[02-tutorials]] — needs each tutorial fleshed out, or split into one page per addon kind.
-- [[03-addon-kinds]] — needs the per-kind register-fields, base classes, and lifecycle hooks filled in.
-- [[04-fundamentals]] — needs each topic bullet promoted to an H2 with worked examples.
-- [[05-data-access]] — needs worked examples for each API touch-point.
-- [[06-api-reference]] — needs synchronisation against `gramps/gen/__init__.py` on the maintenance branch this doc set targets.
-- [[07-testing]] — fold in [[01 - preliminary notes/Addon Testing]] and retire the preliminary note.
-- [[08-debug]], [[09-troubleshoot]], [[10-code-analysis]], [[12-packaging]], [[14-compatibility]], [[15-whats-new]] — all outline-stage; need entries.
-- [[06 - Addon development/16-guidelines]] — substantive; pending sign-off to flip to `managed: true`.
+The section is substantive across all seventeen pages. Open deepening work:
 
-(For the publishing pipeline itself — `publish.py`, `md2wiki.py`, `md2pdf.py --tree` — see the testbed root, not this page.)
+- [[02-tutorials]] — the screenshots for each tutorial's "Try it" closer are pending capture.
+- [[05-data-access]] — worked examples for some API touch-points are still thin.
+- [[06-api-reference]] — needs periodic re-synchronisation against `gramps/gen/__init__.py` on the maintenance branch this manual targets.
 
 ## See also
 
