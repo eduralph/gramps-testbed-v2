@@ -29,15 +29,15 @@ status: todo
 
 # Captures needed
 
-## For [[02-get-started]] — first Gramplet
+## For [[01-overview]] — first Gramplet
 
-Each tutorial in 03 has a "Try it" closer. The Hello Gramplet in 02 is the simplest case and deserves one capture:
+Each tutorial in 02 has a "Try it" closer. The Hello Gramplet in the overview's getting-started walkthrough is the simplest case and deserves one capture:
 
 ### `hellogramplet-in-sidebar.png`
 
 **Setup.**
 
-1. Drop `HelloGramplet/` (the two files from [02-get-started → 2. Add the registration file](../02-get-started.md)) into your user plugin directory.
+1. Drop `HelloGramplet/` (the two files from [01-overview → 2. Add the registration file](../01-overview.md#2-add-the-registration-file)) into your user plugin directory.
 2. Restart Gramps.
 3. Open example.gramps.
 4. Add the "Hello Gramplet" from the sidebar gramplet menu.
@@ -48,13 +48,13 @@ Each tutorial in 03 has a "Try it" closer. The Hello Gramplet in 02 is the simpl
 
 ---
 
-## For [[03-tutorials]] — one per walkthrough
+## For [[02-tutorials]] — one per walkthrough
 
 ### `tut-personevents-gramplet.png`
 
 **Setup.**
 
-1. Build `PersonEvents/` from [03-tutorials → A live Gramplet](../03-tutorials.md#a-live-gramplet).
+1. Build `PersonEvents/` from [02-tutorials → A live Gramplet](../02-tutorials.md#a-live-gramplet).
 2. Drop into user plugin dir, restart Gramps, open example.gramps.
 3. Select a person with several events recorded — Garner family (I0044 *Lewis Anderson Garner*) is a good choice in example.gramps; he has ~7 events.
 4. Add the "Person Events" gramplet to the sidebar.
@@ -67,7 +67,7 @@ Each tutorial in 03 has a "Try it" closer. The Hello Gramplet in 02 is the simpl
 
 **Setup.**
 
-1. Build `MissingBirthDates/` from [03-tutorials → A simple Tool](../03-tutorials.md#a-simple-tool).
+1. Build `MissingBirthDates/` from [02-tutorials → A simple Tool](../02-tutorials.md#a-simple-tool).
 2. Drop into user plugin dir, restart Gramps, open example.gramps.
 3. Tools → Analysis and Exploration → Missing Birth Dates.
 
@@ -79,7 +79,7 @@ Each tutorial in 03 has a "Try it" closer. The Hello Gramplet in 02 is the simpl
 
 **Setup.**
 
-1. Build `DbSummary/` from [03-tutorials → A text Report](../03-tutorials.md#a-text-report).
+1. Build `DbSummary/` from [02-tutorials → A text Report](../02-tutorials.md#a-text-report).
 2. Drop into user plugin dir, restart Gramps, open example.gramps.
 3. Reports → Text Reports → Database Summary.
 4. Output format: PDF (or HTML — pick whichever renders cleanly in your viewer for the screenshot).
@@ -95,7 +95,7 @@ Each tutorial in 03 has a "Try it" closer. The Hello Gramplet in 02 is the simpl
 
 **Setup.**
 
-1. Build `Siblings/` from [03-tutorials → A Quick View](../03-tutorials.md#a-quick-view).
+1. Build `Siblings/` from [02-tutorials → A Quick View](../02-tutorials.md#a-quick-view).
 2. Drop into user plugin dir, restart Gramps, open example.gramps.
 3. People view, right-click any person who has siblings — I0001 *Eugene Stanley Garner* (multiple siblings) works.
 4. Quick View → Siblings.
@@ -111,7 +111,7 @@ Each tutorial in 03 has a "Try it" closer. The Hello Gramplet in 02 is the simpl
 
 **Setup.**
 
-1. Build `HasNChildren/` from [03-tutorials → A custom filter Rule](../03-tutorials.md#a-custom-filter-rule).
+1. Build `HasNChildren/` from [02-tutorials → A custom filter Rule](../02-tutorials.md#a-custom-filter-rule).
 2. Drop into user plugin dir, restart Gramps, open example.gramps.
 3. Edit → Person Filter Editor → Add → Add Rule.
 4. Scroll to "Family filters" section.
@@ -133,7 +133,7 @@ The Plugin Manager (Help → Plugin Manager) gives a literal view of "what an ad
 
 **Capture.** The Plugin Manager window at default size, default tab (Loaded plugins). Crop to remove window decoration if your WM produces heavy chrome.
 
-**Insertion point.** Mid-page in 01-overview, anchoring the "addons are discovered and catalogued" description. Optional — overview is already short.
+**Insertion point.** Mid-page in 01-overview, anchoring the "addons are discovered and catalogued" description in *Anatomy of an addon*. Optional.
 
 ---
 
@@ -145,6 +145,6 @@ The Plugin Manager (Help → Plugin Manager) gives a literal view of "what an ad
 
 ## After capture
 
-1. Drop each PNG into `05 - Addon development/_media/`.
+1. Drop each PNG into `06 - Addon development/_media/`.
 2. Delete the corresponding **Insertion point** stub from this file (or strike-through the section heading).
 3. When all are done, this file can be deleted entirely.

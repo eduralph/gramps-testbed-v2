@@ -7,7 +7,7 @@ categories:
 managed: true
 ---
 
-[← Previous](wiki:Gramps 6.0 Wiki Manual - Addon Development - Packaging) · [Index](wiki:Gramps 6.0 Wiki Manual - Addon Development) · [Next →](wiki:Gramps 6.0 Wiki Manual - Addon Development - What's New)
+[← Previous](wiki:Gramps 6.0 Wiki Manual - Addon Development - Community) · [Index](wiki:Gramps 6.0 Wiki Manual - Addon Development) · [Next →](wiki:Gramps 6.0 Wiki Manual - Addon Development - What's New)
 
 <!--
   Cross-version porting for addon authors. Concrete deltas cited here
@@ -45,7 +45,7 @@ addons-source @ maintenance/gramps60: MyAddon/MyAddon.gpr.py declares "6.0"
 addons-source @ maintenance/gramps61: MyAddon/MyAddon.gpr.py declares "6.1"
 ```
 
-A single `make.py gramps60 build MyAddon` on `maintenance/gramps60` produces the 6.0-targeted `.addon.tgz`; the same command with `gramps61` on `maintenance/gramps61` produces the 6.1-targeted one. See [12-packagingK-packaging.md) for the workflow.
+A single `make.py gramps60 build MyAddon` on `maintenance/gramps60` produces the 6.0-targeted `.addon.tgz`; the same command with `gramps61` on `maintenance/gramps61` produces the 6.1-targeted one. See [12-packaging](12-packaging.md) for the workflow.
 
 When the **code is identical** between minors, the maintainer forward-merges the `maintenance/gramps60` branch into `maintenance/gramps61` and rebuilds — no per-minor source maintenance needed.
 
@@ -58,7 +58,7 @@ The rule that determines which branch a fix lands on differs between the two rep
 - **`addons-source/`** → `maintenance/gramps60`. Gary cherry-picks forward to `gramps61`. (Gary Griffin, addons-source PR 915, 2026-05-24.)
 - **`gramps/`** (core) → `maintenance/gramps61`. Fixes and cleanups go on the current production branch and forward-merge to `master`. Only genuinely new-feature work targets `master`. (jralls, gramps#2298.)
 
-A reviewer's instruction on a specific PR overrides the default (e.g. Nick-Hall asking for `master` on gramps#2299). See [16-guidelines → Contributor workflowN-guidelines.md#contributor-workflow) for the normative form.
+A reviewer's instruction on a specific PR overrides the default (e.g. Nick-Hall asking for `master` on gramps#2299). See [16-guidelines → Contributor workflow](16-guidelines.md#contributor-workflow) for the normative form.
 
 ## "Applies cleanly" is not "remains correct"
 
@@ -82,7 +82,7 @@ Gramps 6.0 plugin discovery **does not** follow symlinks; the addon folder must 
 
 Gramps' Windows build migrated from MINGW64 to MSYS2 **UCRT64** in gramps PR [#2198](https://github.com/gramps-project/gramps/pull/2198) on `maintenance/gramps61` (merged 2026-04-19). MINGW64's Python target triple is rejected by orjson's `maturin` backend, so the change was forced.
 
-**Impact on addon Windows testing.** Addon tests run on UCRT64 on 6.1 and master only. Windows testing on 6.0 is unsupported by upstream's addons-source CI. See [08-testing](08-testing.md) for the filename-prefix convention that selects per-OS tests.
+**Impact on addon Windows testing.** Addon tests run on UCRT64 on 6.1 and master only. Windows testing on 6.0 is unsupported by upstream's addons-source CI. See [07-testing](07-testing.md) for the filename-prefix convention that selects per-OS tests.
 
 ### GExiv2 version handling rewritten
 
@@ -108,16 +108,16 @@ For the actual deprecated surface in the running Gramps, the authoritative refer
 ## Sanity checks before a port
 
 1. **Read the new branch's relevant code.** Not the patch — the surrounding code. The patch lands; the assumption around it may have shifted.
-2. **Run the addon's tests on the new branch.** The whole point of the per-OS prefix convention in [08-testing](08-testing.md) is to catch this exact case.
+2. **Run the addon's tests on the new branch.** The whole point of the per-OS prefix convention in [07-testing](07-testing.md) is to catch this exact case.
 3. **Reproduce against `example.gramps` on both branches.** The canonical fixture is identical across minors, so an output difference is an actionable signal.
 4. **Check the open PRs against `gramps` and `addons-source` for anything affecting your addon.** A fix may be in flight upstream; verifying that PR is usually better than writing your own.
 
 ## See also
 
-- [02-get-started → Where addons live](02-get-started.md#where-addons-live) — the 6.0 vs 6.1 symlink discovery rule, with the dev-loop consequence.
-- [05-fundamentals → The `.gpr.py` registration file](05-fundamentals.md#the-gprpy-registration-file) — `gramps_target_version` declaration in context.
-- [12-packagingK-packaging.md) — how the per-minor build flow uses `gramps_target_version`.
-- [14-whats-newM-whats-new.md) — scheduled per-release changes affecting addon authors.
-- [16-guidelines → Contributor workflowN-guidelines.md#contributor-workflow) — normative branch-targeting rules.
+- [01-overview → Where addons live](01-overview.md#where-addons-live) — the 6.0 vs 6.1 symlink discovery rule, with the dev-loop consequence.
+- [04-fundamentals → The `.gpr.py` registration file](04-fundamentals.md#the-gprpy-registration-file) — `gramps_target_version` declaration in context.
+- [12-packaging](12-packaging.md) — how the per-minor build flow uses `gramps_target_version`.
+- [15-whats-new](15-whats-new.md) — scheduled per-release changes affecting addon authors.
+- [16-guidelines → Contributor workflow](16-guidelines.md#contributor-workflow) — normative branch-targeting rules.
 
 <!--wiki:{{stub}}-->

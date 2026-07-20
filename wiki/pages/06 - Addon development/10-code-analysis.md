@@ -66,7 +66,7 @@ git diff --name-only --diff-filter=ACMR origin/master...HEAD \
 
 Gramps core's CI runs `mypy` against the tree; type errors block the build. `*.gpr.py` plugin registration files are excluded (they run in the injected-name scope and would otherwise complain about `register`, `_`, etc.).
 
-This applies to gramps core only. addons-source PRs don't run `mypy`; addon Python doesn't ship type hints by default. Where an addon does add type hints, prefer the 3.10+ shape (`X | None`, `list[X]`) per [16-guidelines → Coding styleN-guidelines.md#coding-style).
+This applies to gramps core only. addons-source PRs don't run `mypy`; addon Python doesn't ship type hints by default. Where an addon does add type hints, prefer the 3.10+ shape (`X | None`, `list[X]`) per [16-guidelines → Coding style](16-guidelines.md#coding-style).
 
 ## `ruff` E9 / F63 / F7 / F82
 
@@ -111,7 +111,7 @@ Local check:
 make.py gramps60 compile <Addon>
 ```
 
-`make.py compile` wraps `msgfmt` with the right paths; a failure prints the offending file and line. See [12-packaging → The localisation flowK-packaging.md#the-localisation-flow).
+`make.py compile` wraps `msgfmt` with the right paths; a failure prints the offending file and line. See [12-packaging → The localisation flow](12-packaging.md#the-localisation-flow).
 
 [Mantis 14234](https://gramps-project.org/bugs/view.php?id=14234) (lxml `ngettext` newline fix; addons-source PR 907) is the canonical example — a single misplaced newline in a plural form, caught by a `msgfmt -c` pass.
 
@@ -129,7 +129,7 @@ Run from the addon's parent directory so `pylint`'s import resolution finds it a
 
 ## Verifying `requires_mod`
 
-`requires_mod` takes the **importable** module name, not the PyPI distribution name (see [10-troubleshoot → `requires_mod` declares `Pillow`…](10-troubleshoot.md#requires_mod-declares-pillow-but-gramps-says-its-missing)). Before pushing, on a system with the dependency installed:
+`requires_mod` takes the **importable** module name, not the PyPI distribution name (see [09-troubleshoot → `requires_mod` declares `Pillow`…](09-troubleshoot.md#requires_mod-declares-pillow-but-gramps-says-its-missing)). Before pushing, on a system with the dependency installed:
 
 ```python
 from importlib.util import find_spec
@@ -229,15 +229,15 @@ mypy
 GRAMPS_RESOURCES=. python3 -m unittest discover -p "*_test.py"
 ```
 
-See [12-packagingK-packaging.md) for `make.py` setup and [08-testing](08-testing.md) for the test-loading conventions.
+See [12-packaging](12-packaging.md) for `make.py` setup and [07-testing](07-testing.md) for the test-loading conventions.
 
 ## See also
 
-- [05-fundamentals](05-fundamentals.md) — the conventions the static checks verify.
-- [08-testing](08-testing.md) — the runtime checks that complement static analysis.
-- [10-troubleshoot → "PR's pre-commit passed but CI is red"](10-troubleshoot.md#prs-pre-commit-passed-but-ci-is-red) — the most common code-analysis-related symptom.
-- [12-packagingK-packaging.md) — `make.py` invocations.
-- [16-guidelines → Coding styleN-guidelines.md#coding-style), [16-guidelines → Verification before commitN-guidelines.md#verification-before-commit) — normative rules.
+- [04-fundamentals](04-fundamentals.md) — the conventions the static checks verify.
+- [07-testing](07-testing.md) — the runtime checks that complement static analysis.
+- [09-troubleshoot → "PR's pre-commit passed but CI is red"](09-troubleshoot.md#prs-pre-commit-passed-but-ci-is-red) — the most common code-analysis-related symptom.
+- [12-packaging](12-packaging.md) — `make.py` invocations.
+- [16-guidelines → Coding style](16-guidelines.md#coding-style), [16-guidelines → Verification before commit](16-guidelines.md#verification-before-commit) — normative rules.
 - [Programming guidelines](wiki:Programming_guidelines) — the standalone wiki page; primary scraped source.
 - `../gramps/AGENTS.md` — the full Python coding standard, inherited from gramps core.
 

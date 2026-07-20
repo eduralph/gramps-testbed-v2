@@ -41,7 +41,7 @@ This page is a navigator, not a generated API dump. For exhaustive signatures, r
 | `gramps.gen.db.utils.open_database`       | Open a tree by path; used in repro scripts and tests               |
 | `gramps.gen.db.exceptions`                | DB-layer exception hierarchy                                       |
 
-See [06-data-access](06-data-access.md) for the addon-facing patterns that use this surface.
+See [05-data-access](05-data-access.md) for the addon-facing patterns that use this surface.
 
 ### Object model
 
@@ -58,7 +58,7 @@ The full inventory is large; the cheapest reference is the source under [`gramps
 |-----------------------|---------------------------------------------------------------------------------------------|
 | `gramps.gen.types`    | `PersonHandle`, `FamilyHandle`, …, `PersonGrampsID`, `FamilyGrampsID`, …                    |
 
-Prefer these over bare `str` in addon code that handles either kind of identifier. It documents intent for the next reader and makes mistakes (handle vs ID) catchable with `mypy`. See [16-guidelines → Coding styleN-guidelines.md#coding-style).
+Prefer these over bare `str` in addon code that handles either kind of identifier. It documents intent for the next reader and makes mistakes (handle vs ID) catchable with `mypy`. See [16-guidelines → Coding style](16-guidelines.md#coding-style).
 
 ### Errors
 
@@ -169,7 +169,7 @@ Convenience accessors `get_usable_width()` and `get_usable_height()` return the 
 | `glocale.translation.ngettext`                              | Plural-aware translation                                   |
 | `glocale.translation.sgettext`                              | Strip translator-hint prefix; used with `"hint | msg"` form|
 
-See [05-fundamentals → Translation](05-fundamentals.md#translation) for the addon-side opt-in, and [09-debug → Reproduction scripts that bypass the GUI](09-debug.md#reproduction-scripts-that-bypass-the-gui) for the `GrampsLocale(localedir, languages)` pattern in repros.
+See [04-fundamentals → Translation](04-fundamentals.md#translation) for the addon-side opt-in, and [08-debug → Reproduction scripts that bypass the GUI](08-debug.md#reproduction-scripts-that-bypass-the-gui) for the `GrampsLocale(localedir, languages)` pattern in repros.
 
 ### Filters and selection
 
@@ -177,7 +177,7 @@ See [05-fundamentals → Translation](05-fundamentals.md#translation) for the ad
 |---------------------------------------------------------|------------------------------------------------|
 | `gramps.gen.filters.GenericFilterFactory`               | Construct a filter for a namespace             |
 | `gramps.gen.filters.rules`                              | The rule catalogue (one subpackage per namespace) |
-| `gramps.gen.filters.rules.<namespace>.Rule`             | Base class to subclass when writing a custom rule (see [03-tutorials](03-tutorials.md#a-custom-filter-rule)) |
+| `gramps.gen.filters.rules.<namespace>.Rule`             | Base class to subclass when writing a custom rule (see [02-tutorials](02-tutorials.md#a-custom-filter-rule)) |
 
 The modern rule entry point is `apply_to_one(db, obj)` (see [`_rule.py:162`](https://github.com/gramps-project/gramps/blob/maintenance/gramps60/gramps/gen/filters/rules/_rule.py#L162)). Older code used `apply()`.
 
@@ -185,7 +185,7 @@ The modern rule entry point is `apply_to_one(db, obj)` (see [`_rule.py:162`](htt
 
 | Module / class            | Use                                                |
 |---------------------------|----------------------------------------------------|
-| `logging.getLogger(__name__)` | Module-level logger; see [05-fundamentals → Logging](05-fundamentals.md#logging) |
+| `logging.getLogger(__name__)` | Module-level logger; see [04-fundamentals → Logging](04-fundamentals.md#logging) |
 
 There's nothing addon-specific to import here; addons use stdlib `logging` exactly like Gramps' own modules do.
 
@@ -197,7 +197,7 @@ There's nothing addon-specific to import here; addons use stdlib `logging` exact
 | `gramps.gen.simple.SimpleDoc`               | Matching write interface — `title`, `paragraph`, `header1`, …  |
 | `gramps.gui.plug.quick.QuickTable`          | Clickable result table (GUI-coupled; QuickView-only)           |
 
-See [03-tutorials → A Quick View](03-tutorials.md#a-quick-view) for the standard pattern.
+See [02-tutorials → A Quick View](02-tutorials.md#a-quick-view) for the standard pattern.
 
 ## What's NOT API
 
@@ -207,10 +207,10 @@ If you find yourself reaching into `gramps.gui.*` or `gramps.plugins.*` for some
 
 ## See also
 
-- [04-addon-kinds](04-addon-kinds.md) — which kinds use which base classes.
-- [05-fundamentals](05-fundamentals.md) — the cross-cutting concepts (logging, translation, signals) backed by this surface.
-- [06-data-access](06-data-access.md) — patterns over the DB API.
-- [13-compatibilityL-compatibility.md) — what changes across Gramps versions in this surface.
+- [03-addon-kinds](03-addon-kinds.md) — which kinds use which base classes.
+- [04-fundamentals](04-fundamentals.md) — the cross-cutting concepts (logging, translation, signals) backed by this surface.
+- [05-data-access](05-data-access.md) — patterns over the DB API.
+- [14-compatibility](14-compatibility.md) — what changes across Gramps versions in this surface.
 - [Report API](wiki:Report_API), [Report Generation](wiki:Report_Generation) — standalone wiki references for the docgen subsystem.
 - [Simple Access API](wiki:Simple_Access_API) — the standalone wiki page for `SimpleAccess` / `SimpleDoc`.
 - [Gramps Developer Reference](https://gramps-project.org/docs/) — upstream Sphinx-generated API docs.

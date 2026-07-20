@@ -35,14 +35,14 @@ Where a rule has a known origin — an upstream PR, a maintainer ruling, a Manti
 
 ## Structure
 
-- **MUST**: the addon's folder name is a valid Python import name (an importable identifier — no spaces). Gramps puts each addon's directory on `sys.path` and addons share code via `import <FolderName>` (see [04 - Technical Documentation/addons-development.md](../04%20-%20Technical%20Documentation/addons-development.md) → "name your addons with a name appropriate for Python imports"). The folder name need **not** match the `id` in `.gpr.py`: the registration `id` is an independent plugin key and routinely differs (e.g. folder `DeepConnectionsGramplet` ↔ id `Deep Connections Gramplet`), and one folder may register several plugins with unrelated ids.
+- **MUST**: the addon's folder name is a valid Python import name (an importable identifier — no spaces). Gramps puts each addon's directory on `sys.path` and addons share code via `import <FolderName>` (see [the upstream Addons development page](../04%20-%20Technical%20Documentation/addons-development.md) → "name your addons with a name appropriate for Python imports"). The folder name need **not** match the `id` in `.gpr.py`: the registration `id` is an independent plugin key and routinely differs (e.g. folder `DeepConnectionsGramplet` ↔ id `Deep Connections Gramplet`), and one folder may register several plugins with unrelated ids.
 - **MUST**: `.gpr.py` declares `gramps_target_version` matching the Gramps minor the addon targets.
 - **MUST**: `fname` points to an implementation module shipped in the same folder.
 - **MUST**: the addon is physically present under the plugin path — a physical copy works on every Gramps version and OS. (Gramps 6.1+ also discovers an addon reached via a symlink, but a physical copy is the portable default.)
 - **MUST NOT**: import `register`, `GRAMPLET`, `STABLE`, `_`, or any other name Gramps injects into the `.gpr.py` namespace.
-- **MUST NOT**: add `__init__.py` to the addon directory itself. The plugin loader puts the addon dir on `sys.path` and imports `<Addon>.py` by name; making the addon dir a regular package disturbs that resolution and can trigger the [Mantis 12691](https://gramps-project.org/bugs/view.php?id=12691) submodule-binding trap. (See [08-testing → Why `tests/__init__.py` exists](08-testing.md#why-tests__init__py-exists).)
+- **MUST NOT**: add `__init__.py` to the addon directory itself. The plugin loader puts the addon dir on `sys.path` and imports `<Addon>.py` by name; making the addon dir a regular package disturbs that resolution and can trigger the [Mantis 12691](https://gramps-project.org/bugs/view.php?id=12691) submodule-binding trap. (See [07-testing → Why `tests/__init__.py` exists](07-testing.md#why-tests__init__py-exists).)
 - **MUST** (`TOOL` kind): register an `optionclass` even when the tool takes no options. Gramps refuses to load a `TOOL` without one; an empty `tool.ToolOptions` subclass is sufficient.
-- **SHOULD**: ship a `po/` directory with at least `template.pot` if any user-visible string exists. Generate it with `make.py init <Addon>` (see [13-packaging](13-packaging.md)); if it's missing the maintainer creates it on initial check-in.
+- **SHOULD**: ship a `po/` directory with at least `template.pot` if any user-visible string exists. Generate it with `make.py init <Addon>` (see [12-packaging](12-packaging.md)); if it's missing the maintainer creates it on initial check-in.
 - **MAY**: ship a `tests/` package with an `__init__.py` marker and at least one test — most existing addons predate addon unit tests. When tests are shipped, the `__init__.py` marker keeps dotted-path loading deterministic and the layout rules under *Testing* apply; a bug fix still **SHOULD** ship a regression test.
 - **MAY**: ship multiple plugin kinds from a single addon — multiple `register(...)` calls in one `.gpr.py`, and/or multiple `.gpr.py` files in the addon folder (the loader scans every `*.gpr.py`).
 
@@ -52,7 +52,7 @@ Where a rule has a known origin — an upstream PR, a maintainer ruling, a Manti
 
 ## Translation
 
-The full how-to (registration setup, `make.py` lifecycle, Glade runtime-override pattern, function reference) lives in [12-internationalization](12-internationalization.md). The rules below are what code review enforces.
+The full how-to (registration setup, `make.py` lifecycle, Glade runtime-override pattern, function reference) lives in [11-internationalization](11-internationalization.md). The rules below are what code review enforces.
 
 - **MUST**: wrap every user-visible string with `_()`.
 - **MUST NOT**: `import _` in `.gpr.py` — Gramps' plugin loader injects it. Implementation modules **MUST** bind it explicitly via `_ = glocale.get_addon_translator(__file__).gettext`.
@@ -66,7 +66,7 @@ The full how-to (registration setup, `make.py` lifecycle, Glade runtime-override
 - **SHOULD**: use the pipe-prefix form `_("Context|String")` whenever a word could carry multiple senses (e.g. `_("book|Title")` vs `_("person|Title")`). This is the convention used throughout `addons-source` and is what translators see in the `.po` file. The two-arg form `_(msg, context)` works equivalently. **MUST NOT** call `pgettext` or `sgettext` directly — go through `_`.
 - **SHOULD**: use `N_("…")` to mark a string for extraction without translating it at call time (e.g. for module-level constants that are translated later when displayed).
 
-> Addons have no `POTFILES.in` to maintain by hand — the per-addon `po/template.pot` is regenerated by `make.py init <Addon>` (see [13-packaging](13-packaging.md)). Maintaining `po/POTFILES.in` / `POTFILES.skip` is a **core** rule; see the [Core Development — Rules](../05%20-%20Gramps%20development/16-guidelines.md) page.
+> Addons have no `POTFILES.in` to maintain by hand — the per-addon `po/template.pot` is regenerated by `make.py init <Addon>` (see [12-packaging](12-packaging.md)). Maintaining `po/POTFILES.in` / `POTFILES.skip` is a **core** rule; see the [Core Development — Rules](../05%20-%20Gramps%20development/16-guidelines.md) page.
 
 ## Runtime
 
@@ -78,6 +78,7 @@ The full how-to (registration setup, `make.py` lifecycle, Glade runtime-override
 - **MUST**: declare runtime imports in `requires_mod` using the *importable* module name (`PIL`), not the PyPI distribution name (`Pillow`).
 - **MUST**: verify each `requires_mod` entry with `importlib.util.find_spec("<name>")` on a system with the package installed before publishing.
 - **MUST**: use `requires_gi` for GObject-Introspection bindings, with version strings. The version pin **must match what the code actually imports** at runtime — pins can drift between Gramps minors (e.g. GExiv2 handling was rewritten on `maintenance/gramps61` per addons-source PR 829), so verify the pin against the target branch's related code, not just the previous branch's working declaration.
+- **MUST NOT**: mutate process-global state that Gramps' startup owns — run or quit the GTK main loop (`Gtk.main()` / `Gtk.main_quit()`), install screen-wide CSS / retheme the icon theme / change `Gtk.Settings`, replace `sys.excepthook`, call `locale.setlocale` or `gettext.install`, configure the root logger, leave permanent `sys.path` entries, or set `os.environ` keys. An addon is a guest in Gramps' process; the full startup surface with per-item alternatives is [04-fundamentals → The provided environment](04-fundamentals.md#the-provided-environment).
 - **SHOULD**: use handles (`PersonHandle`, etc.) for internal traversal; reserve Gramps IDs (`I0001`, …) for user-facing display. Handles are internal and stable; Gramps IDs are user-editable and rewritten in bulk by the Reorder Gramps IDs tool.
 - **SHOULD**: import only from `gramps.gen.*`. `gramps.gui.*` and `gramps.plugins.*` are internal to the shipped distribution and break across Gramps versions.
 - **SHOULD**: use a module-level logger (`LOG = logging.getLogger(__name__)`); **MUST NOT** use `print()` for diagnostic output.
@@ -100,7 +101,8 @@ The full how-to (registration setup, `make.py` lifecycle, Glade runtime-override
   | `test_integration_*.py` | Linux only — full-pipeline / DB-backed |
 
 - **MUST**: tests run cleanly without the addon's `requires_mod` dependencies installed in the Python that runs them — mock at the import boundary, or skip cleanly with `@unittest.skipUnless(...)`. Mac contributors can't easily install addon deps into the Gramps Python, and there's no Gramps debug-mode on Mac. (Gary Griffin, 2026-05-16.)
-- **SHOULD**: ship a regression test with every bug fix that **fails pre-fix and passes post-fix**. Doc-only PRs are the only exception.
+- **MUST**: never call `gi.require_version` in addon modules or individual test modules. At runtime Gramps pins Gtk/Gdk before any plugin loads (`gramps/grampsapp.py`, `gramps/gen/constfunc.py`); under test, the same pins live once in `tests/__init__.py`, and tests MUST be invoked through the package root (dotted path or `discover -t .`) so it executes. A module-level pin passes unit tests but breaks inside Gramps as soon as the hardcoded pin and the running version diverge — see [07-testing → The GTK-pin contract](07-testing.md#the-gtk-pin-contract).
+- **SHOULD**: ship a regression test with every bug fix that **fails pre-fix and passes post-fix**. Doc-only PRs are the only exception. (At PR level this hardens to a MUST-with-escape — the test, or an explicit "no test because X" rationale; see *Contributor workflow*.)
 - **SHOULD**: prefer `example.gramps`-backed tests over mocked DBs for DB-traversal logic — real data has cross-typed backlinks and ID-normalisation shapes that mocks don't reproduce.
 - **MAY**: ship mocked unit tests alongside real-DB tests as complementary coverage.
 

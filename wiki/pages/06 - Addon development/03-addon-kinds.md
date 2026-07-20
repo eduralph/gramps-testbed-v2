@@ -73,9 +73,9 @@ class MyGramplet(Gramplet):
         self.set_text(_("Hello"))
 ```
 
-**Registration:** see [02-get-started](02-get-started.md#2-add-the-registration-file) for the full call. Required Gramplet-specific fields are `gramplet` (the class name) and `gramplet_title` (the user-visible tab title).
+**Registration:** see [01-overview → Add the registration file](01-overview.md#2-add-the-registration-file) for the full call. Required Gramplet-specific fields are `gramplet` (the class name) and `gramplet_title` (the user-visible tab title).
 
-**Tutorial:** [03-tutorials → A live Gramplet](03-tutorials.md#a-live-gramplet).
+**Tutorial:** [02-tutorials → A live Gramplet](02-tutorials.md#a-live-gramplet).
 
 ### `REPORT`
 
@@ -87,7 +87,7 @@ class MyGramplet(Gramplet):
 
 **Report modes** (`report_modes` field): `REPORT_MODE_GUI` (dialog-driven), `REPORT_MODE_BKI` (book item), `REPORT_MODE_CLI` (command line). Most addons combine GUI + CLI.
 
-**Tutorial:** [03-tutorials → A text Report](03-tutorials.md#a-text-report).
+**Tutorial:** [02-tutorials → A text Report](02-tutorials.md#a-text-report).
 
 ### `TOOL`
 
@@ -99,7 +99,7 @@ class MyGramplet(Gramplet):
 
 **Tool modes** (`tool_modes` field, `_pluginreg.py` L183–L184): `TOOL_MODE_GUI` and `TOOL_MODE_CLI`. A pure-data tool should support both so a power user can scriptit.
 
-**Tutorial:** [03-tutorials → A simple Tool](03-tutorials.md#a-simple-tool).
+**Tutorial:** [02-tutorials → A simple Tool](02-tutorials.md#a-simple-tool).
 
 ### `QUICKVIEW`
 
@@ -111,7 +111,7 @@ class MyGramplet(Gramplet):
 
 Quick Views are deliberately the shortest path to a usable report — written against the `gramps.gen.simple` API (`SimpleAccess`, `SimpleDoc`), they hide most of the docgen complexity. Reach for a full `REPORT` only when you need styles, paragraph layout, or multiple output formats.
 
-**Tutorial:** [03-tutorials → A Quick View](03-tutorials.md#a-quick-view).
+**Tutorial:** [02-tutorials → A Quick View](02-tutorials.md#a-quick-view).
 
 ### `RULE`
 
@@ -119,7 +119,7 @@ Quick Views are deliberately the shortest path to a usable report — written ag
 
 **Base class:** subclass the right rule base from `gramps.gen.filters.rules` — pick the namespace-specific base (`gramps.gen.filters.rules.person.Rule`, `…family.Rule`, etc.) that matches the object type your rule applies to. Set the class attributes `name`, `description`, `category`, and `labels` (the user-prompted arguments); implement `apply(db, obj)` to return `True` / `False`.
 
-**Tutorial:** [03-tutorials → A custom filter Rule](03-tutorials.md#a-custom-filter-rule).
+**Tutorial:** [02-tutorials → A custom filter Rule](02-tutorials.md#a-custom-filter-rule).
 
 ### `VIEW`
 
@@ -188,16 +188,27 @@ Adds an alternative citation formatter (Chicago, MLA, Evidence Explained, …). 
 
 The category `WEBSTUFF` is the one most addon authors meet: addons that ship a stylesheet for the narrative website register as `GENERAL, category="WEBSTUFF"` and the website report picks them up automatically.
 
+**The plugin-data API.** Three registration fields drive the category machinery. A plugin contributes data either statically (`data = [...]` right in the `.gpr.py`) or dynamically — if the implementation module defines a function named `load_on_reg(dbstate, uistate, plugin)`, Gramps calls it at registration and its return value becomes the plugin's data. A `process = "function_name"` field names a function applied over the accumulated data when a consumer asks for it. Consumers query by category through the plugin manager:
+
+```python
+from gramps.gui.pluginmanager import GuiPluginManager
+
+plugman = GuiPluginManager.get_instance()
+plugman.get_plugin_data("WEBSTUFF")       # all data from WEBSTUFF plugins
+plugman.process_plugin_data("WEBSTUFF")   # same, run through the process function
+```
+
+Note there is **no automatic loading** of `GENERAL` plugins beyond this: without `load_on_reg=True` the module sits unimported until something imports it explicitly.
+
 ## Multiple kinds in one addon
 
 A single `.gpr.py` can call `register(...)` more than once. The classic case is a report that also registers a Quick View entry for the same underlying logic (`gramps/plugins/quickview/all_events.py` does this for events). Each `register()` call is independent; only the addon folder / `id` and the implementation file(s) are shared.
 
 ## See also
 
-- [01-overview](01-overview.md) — what an addon is, file roles.
-- [02-get-started](02-get-started.md) — first Gramplet end-to-end.
-- [03-tutorials](03-tutorials.md) — per-kind walkthroughs.
-- [05-fundamentals](05-fundamentals.md) — the cross-cutting concepts every kind relies on.
+- [01-overview](01-overview.md) — what an addon is, file roles, first Gramplet end-to-end.
+- [02-tutorials](02-tutorials.md) — per-kind walkthroughs.
+- [04-fundamentals](04-fundamentals.md) — the cross-cutting concepts every kind relies on, including [the provided environment](04-fundamentals.md#the-provided-environment) every kind inherits from Gramps' startup.
 - [`gramps/gen/plug/_pluginreg.py`](https://github.com/gramps-project/gramps/blob/maintenance/gramps60/gramps/gen/plug/_pluginreg.py) — the authoritative definition of all the constants and `expand_*` attribute lists per kind.
 - [6.0 Addons](wiki:6.0_Addons) — the canonical catalogue of what already exists per kind; reading a similar addon's source is your fastest second tutorial.
 

@@ -47,7 +47,7 @@ LOG.error("Could not parse %s", filename)
 
 `__name__` for an addon resolves to the addon's `id` (e.g. `"MyAddon.myaddon"`), so the logger inherits the addon's name naturally — useful for per-logger filtering below.
 
-**Don't use `print()`.** It bypasses both surfaces and breaks under windowed launches that have no terminal attached. The [15-guidelinesN-guidelines.md#runtime) page makes this a hard rule.
+**Don't use `print()`.** It bypasses both surfaces and breaks under windowed launches that have no terminal attached. The [16-guidelines](16-guidelines.md#runtime) page makes this a hard rule.
 
 ## Default log levels
 
@@ -103,9 +103,9 @@ db = open_database("example.gramps")
 
 `GrampsLocale(localedir, languages)` is the key escape hatch — it bypasses both `LANGUAGE` env-var setup and `locale-gen`-style OS config, neither of which is needed for an in-process test. The pattern came out of triaging [Mantis 14100](https://gramps-project.org/bugs/view.php?id=14100) (Finnish month-inflection crash).
 
-For DB-traversal code, the canonical fixture is `example.gramps` shipped with Gramps source. Real-data tests against `example.gramps` catch bugs mocked DBs miss — see [06-data-access → Testing data access](06-data-access.md#testing-data-access).
+For DB-traversal code, the canonical fixture is `example.gramps` shipped with Gramps source. Real-data tests against `example.gramps` catch bugs mocked DBs miss — see [05-data-access → Testing data access](05-data-access.md#testing-data-access).
 
-The same pattern, formalised as a `unittest.TestCase`, becomes a regression test. See [08-testing](08-testing.md).
+The same pattern, formalised as a `unittest.TestCase`, becomes a regression test. See [07-testing](07-testing.md).
 
 ## In-app diagnostics: `PrerequisitesCheckerGramplet`
 
@@ -121,7 +121,7 @@ It also surfaces missing GI bindings, which addons typically declare via `requir
 
 **Windows** — debug flags work the same way, but the launcher is typically a `.bat` or `.exe` shortcut rather than a terminal command. Launch from MSYS2 UCRT64 (`/ucrt64/bin/gramps`) to get a terminal attached for stderr. Some bugs reproduce only on Windows; when reporting one, include the Gramps version, the MSYS2 UCRT64 toolchain version, and the exact reproduction steps in the Mantis ticket so a Windows-equipped maintainer can confirm.
 
-**macOS** — there is **no Gramps debug mode equivalent on Mac**, and contributors typically can't install addon dependencies into the Gramps Python (Gary Griffin, 2026-05-16). This shapes two testing-side decisions: tests must run cleanly without `requires_mod` deps installed (see [08-testing](08-testing.md)), and a Mac repro that needs GUI inspection usually requires triaging via screenshots the reporter pastes into the Mantis ticket.
+**macOS** — there is **no Gramps debug mode equivalent on Mac**, and contributors typically can't install addon dependencies into the Gramps Python (Gary Griffin, 2026-05-16). This shapes two testing-side decisions: tests must run cleanly without `requires_mod` deps installed (see [07-testing](07-testing.md)), and a Mac repro that needs GUI inspection usually requires triaging via screenshots the reporter pastes into the Mantis ticket.
 
 ## Heavier tools
 
@@ -183,10 +183,10 @@ On the next save, a profile report goes to stdout: per-function call counts and 
 
 ## See also
 
-- [05-fundamentals → Logging](05-fundamentals.md#logging) — the conventions for setting up the logger in the first place.
-- [08-testing](08-testing.md) — formalising a repro script into a regression test.
-- [10-troubleshoot](10-troubleshoot.md) — symptom-first guide to the failure modes these tools surface.
-- [15-guidelinesN-guidelines.md) — the rules around logging and diagnostics (logger over `print`, etc.).
+- [04-fundamentals → Logging](04-fundamentals.md#logging) — the conventions for setting up the logger in the first place.
+- [07-testing](07-testing.md) — formalising a repro script into a regression test.
+- [09-troubleshoot](09-troubleshoot.md) — symptom-first guide to the failure modes these tools surface.
+- [16-guidelines](16-guidelines.md) — the rules around logging and diagnostics (logger over `print`, etc.).
 - [Debugging Gramps](wiki:Debugging_Gramps) — the standalone wiki page; primary scraped source.
 - [Logging system](wiki:Logging_system) — the deeper reference for Gramps' logging configuration.
 

@@ -16,7 +16,9 @@ managed: true
     - example.gramps vs mocks
     - requires_mod no-deps rule (Gary Griffin, 2026-05-16)
     - tests/__init__.py convention (Gary Griffin's PR 930)
-  Cross-link to 09-debug for repro scripts, 10-troubleshoot for what
+    - GTK-pin contract: pins live in the tests/ root, never in modules
+      (Eduard, 2026-07-19)
+  Cross-link to 08-debug for repro scripts, 09-troubleshoot for what
   these tests catch.
 -->
 
@@ -78,13 +80,40 @@ MyAddon/
 The marker is **hygiene, not a bug fix**. Python 3.3+'s implicit namespace packages (PEP 420) mean a directory without `__init__.py` is still importable; dotted-path loading (`python3 -m unittest MyAddon.tests.test_myaddon`) works either way. But:
 
 1. **Explicit beats implicit.** "It works" is currently true by accident of invocation. The same code breaks the moment something uses `discover` or assumes regular packages.
-2. **It's the prerequisite for centralisation.** Shared per-addon test setup — fixtures, the GTK-pin contract, presence meta-tests — has no home until `tests/__init__.py` exists. Empty marker now, contract-bearing later.
+2. **It's the home of the GTK-pin contract.** Shared per-addon test setup — the GI version pins (next section), fixtures, presence meta-tests — has no home until `tests/__init__.py` exists.
 
 The convention crystallises as: every addon's `tests/` **should** have an `__init__.py`; the addon directory itself **should not**.
 
 The asymmetry matters. The addon directory must remain a plain namespace dir — Gramps' plugin loader puts the addon dir on `sys.path` and imports `<Addon>.py` by name. Making the addon dir a regular package can disturb plugin loading (and the [Mantis 12691](https://gramps-project.org/bugs/view.php?id=12691) namespace trap lives in exactly this area). The `tests/` subfolder has no such constraint, so making it an explicit package is free.
 
 This is what [addons-source PR 930](https://github.com/gramps-project/addons-source/pull/930) (Gary Griffin) is moving toward.
+
+## The GTK-pin contract
+
+Gramps establishes the GObject-introspection environment **once, at startup, before any plugin loads**: `gi.require_version("Gtk", "3.0")` and `gi.require_version("Gdk", "3.0")` run in `gramps/grampsapp.py` and `gramps/gen/constfunc.py`. Every addon module therefore does `from gi.repository import Gtk` into an already-pinned namespace — inside Gramps, the pin is never the addon's job.
+
+**The trap.** Run that module under bare `unittest` and the import warns (or resolves a different GTK) because nothing has pinned yet. The tempting fix is to copy the `gi.require_version` call into the addon module or the test file. Tests now pass — but the pin also executes inside Gramps, where it is redundant at best and a hard failure the moment the hardcoded pin and the version Gramps runs diverge: `gi.require_version` raises `ValueError` once the namespace is already loaded at a different version. That is the *works-in-tests, breaks-in-Gramps* failure mode, and it is invisible to CI because CI only runs the tests.
+
+**The contract**, in two halves:
+
+1. **Modules never pin.** No `gi.require_version` in the addon module or in individual test modules — the environment is provided *to* them, in both contexts.
+2. **The test root provides what Gramps provides.** `tests/__init__.py` reproduces the same pins Gramps sets at startup, before any addon import:
+
+```python
+# Reproduce the GI environment Gramps establishes at startup
+# (gramps/grampsapp.py, gramps/gen/constfunc.py) so the module
+# under test imports identically in both contexts.
+import gi
+
+gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
+```
+
+Mirror the versions your target branch actually pins — check `grampsapp.py` on that branch when porting.
+
+**The corollary: individual test modules run through the root.** The pins only execute if the `tests` package `__init__.py` is imported — which the dotted-path and `discover -t .` invocations below do, and which running a test file by filesystem path (`python3 MyAddon/tests/test_myaddon.py`) does **not**. The file-path shortcut is exactly what pushes pins back into the modules; don't use it.
+
+The GI pins are one instance of a wider rule: everything process-global that Gramps' startup owns — locale, the root logger, `sys.path`, the GTK main loop, `sys.excepthook`, environment variables — follows the same contract. The full startup surface, with the per-item temptations and alternatives, is tabulated in [04-fundamentals → The provided environment](04-fundamentals.md#the-provided-environment).
 
 ## Filename conventions (addons-source CI)
 
@@ -111,7 +140,7 @@ Upstream CI loads tests by **dotted path**:
 python3 -m unittest MyAddon.tests.test_myaddon
 ```
 
-Not by `discover` from a `tests/` directory. The reason: dotted-path loading surfaces the namespace-package trap. Bug 12691 — `from <Addon> import <Addon>` binding the submodule instead of the class — only shows up under dotted-path loading. `discover`-based loading walks files by *filename*, hiding the import-resolution issue. Mirroring CI's invocation locally catches what CI catches.
+Not by `discover` from a `tests/` directory, and never by filesystem path. Two reasons. First, loading through the package root executes `tests/__init__.py` — the [GTK-pin contract](#the-gtk-pin-contract) — before any test module imports the addon. Second, dotted-path loading surfaces the namespace-package trap. Bug 12691 — `from <Addon> import <Addon>` binding the submodule instead of the class — only shows up under dotted-path loading. `discover`-based loading walks files by *filename*, hiding the import-resolution issue. Mirroring CI's invocation locally catches what CI catches.
 
 Locally, from the `addons-source` root, the same invocation works:
 
@@ -172,7 +201,7 @@ class IntegrationTests(unittest.TestCase):
         self.assertGreater(len(result), 0)
 ```
 
-Name these `test_integration_*.py` so CI scopes them to Linux only (loading a real DB is heavier, and Windows CI's Gramps setup is separately constrained — see [13-compatibility → Windows toolchain migrated to UCRT64L-compatibility.md#windows-toolchain-migrated-to-ucrt64)).
+Name these `test_integration_*.py` so CI scopes them to Linux only (loading a real DB is heavier, and Windows CI's Gramps setup is separately constrained — see [14-compatibility → Windows toolchain migrated to UCRT64](14-compatibility.md#windows-toolchain-migrated-to-ucrt64)).
 
 ### Choosing between them
 
@@ -226,7 +255,7 @@ A failed import at module load — instead of a `skipUnless` — turns into a te
 
 Mandatory:
 
-- **The bug a fix closes.** Every bug fix ships with a test that fails pre-fix and passes post-fix. This is a [16-guidelines MUSTN-guidelines.md#testing). Doc-only PRs are the only exception.
+- **The bug a fix closes.** Every bug fix ships with a test that fails pre-fix and passes post-fix. At PR level this is a [16-guidelines MUST](16-guidelines.md#contributor-workflow): the regression test, or an explicit "no test because X" rationale plus a manual repro — "add the test later" is not an option. Doc-only PRs are the only exception.
 
 Strongly recommended:
 
@@ -250,7 +279,7 @@ A test surfaces failure modes the GUI cycle hides:
 - **DB-shape assumptions** — the cross-typed-backlinks / ID-norm issues that mocked tests miss.
 - **Per-OS regressions** — running on both runners.
 
-See [10-troubleshoot](10-troubleshoot.md) for the symptoms-to-cause mapping for these classes of failure.
+See [09-troubleshoot](09-troubleshoot.md) for the symptoms-to-cause mapping for these classes of failure.
 
 ## Running tests locally
 
@@ -264,18 +293,20 @@ python3 -m unittest discover -s MyAddon/tests -t .
 python3 -m unittest MyAddon.tests.test_myaddon
 ```
 
+Both forms import the `tests` package root first, which the [GTK-pin contract](#the-gtk-pin-contract) requires — never invoke a test file by filesystem path.
+
 The Python that runs the tests needs `gramps` importable. The simplest setup is `PYTHONPATH=/path/to/gramps python3 -m unittest …`; if Gramps is installed system-wide, the import resolves without `PYTHONPATH`.
 
-On Windows, run from the MSYS2 UCRT64 shell against a UCRT64-installed Gramps — the AIO build for Gramps 6.1+ targets UCRT64; Gramps 6.0 isn't Windows-tested upstream. See [13-compatibility → Windows toolchain migrated to UCRT64L-compatibility.md#windows-toolchain-migrated-to-ucrt64).
+On Windows, run from the MSYS2 UCRT64 shell against a UCRT64-installed Gramps — the AIO build for Gramps 6.1+ targets UCRT64; Gramps 6.0 isn't Windows-tested upstream. See [14-compatibility → Windows toolchain migrated to UCRT64](14-compatibility.md#windows-toolchain-migrated-to-ucrt64).
 
 ## See also
 
-- [05-fundamentals → Logging](05-fundamentals.md#logging) — `LOG` setup that tests assert against.
-- [06-data-access → Testing data access](06-data-access.md#testing-data-access) — DB-API patterns to exercise.
-- [09-debug](09-debug.md) — turning a repro script into a test.
-- [10-troubleshoot](10-troubleshoot.md) — the symptoms these tests catch in CI rather than production.
-- [11-code-analysis](11-code-analysis.md) — what the static checkers verify before tests run.
-- [16-guidelines → TestingN-guidelines.md#testing) — normative rules.
+- [04-fundamentals → Logging](04-fundamentals.md#logging) — `LOG` setup that tests assert against.
+- [05-data-access → Testing data access](05-data-access.md#testing-data-access) — DB-API patterns to exercise.
+- [08-debug](08-debug.md) — turning a repro script into a test.
+- [09-troubleshoot](09-troubleshoot.md) — the symptoms these tests catch in CI rather than production.
+- [10-code-analysis](10-code-analysis.md) — what the static checkers verify before tests run.
+- [16-guidelines → Testing](16-guidelines.md#testing) — normative rules.
 - [Mantis 12691](https://gramps-project.org/bugs/view.php?id=12691) — the canonical namespace-package trap that motivates dotted-path loading.
 - [addons-source PR 930](https://github.com/gramps-project/addons-source/pull/930) — `tests/__init__.py` convention.
 

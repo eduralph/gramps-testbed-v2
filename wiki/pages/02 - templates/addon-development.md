@@ -55,7 +55,7 @@ for where this fits.
 |-------------|-----|
 | Gramps 6.0 installed and runnable | The target you're developing against |
 | Python 3.10+ | Matches Gramps 6.0's minimum |
-| Familiarity with addon registration | See [Getting Started](wiki:Gramps_6.0_Wiki_Manual_-_Addon_Development_-_Getting_Started) |
+| Familiarity with addon registration | See [the addon development overview](wiki:Gramps_6.0_Wiki_Manual_-_Addon_Development) |
 
 ## Worked example
 
@@ -97,7 +97,7 @@ class ExampleAddon(...):
 
 | Field | Meaning |
 |-------|---------|
-| `id` | Stable identifier; MUST match the addon's folder name |
+| `id` | Stable plugin key, unique across addons; need not match the folder name |
 | `fname` | Implementation module filename |
 | `version` | Addon version (semver-ish) |
 | `gramps_target_version` | Major.minor Gramps version the addon targets |
@@ -115,8 +115,8 @@ class ExampleAddon(...):
 ## Testing
 
 <!-- How to verify the addon works. Mention both the manual reload/restart
-     loop (covered in Getting Started) and `unittest`-based tests for
-     non-GUI logic — the conventions are in the Addon Testing page. -->
+     loop (covered in the Addon Development overview) and `unittest`-based
+     tests for non-GUI logic — the conventions are in the Addon Testing page. -->
 
 See [Addon Testing](wiki:Gramps_6.0_Wiki_Manual_-_Addon_Testing) for the
 unit-test conventions and the `tests/` package layout.
@@ -128,7 +128,6 @@ unit-test conventions and the `tests/` package layout.
      live wiki URL. -->
 
 - [Addon Development overview](wiki:Gramps_6.0_Wiki_Manual_-_Addon_Development)
-- [Getting Started](wiki:Gramps_6.0_Wiki_Manual_-_Addon_Development_-_Getting_Started)
 - [Addons development](wiki:Addons_development) — cross-version porting notes.
 
 <!--wiki:{{stub}}-->

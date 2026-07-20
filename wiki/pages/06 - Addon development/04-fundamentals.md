@@ -13,10 +13,10 @@ managed: true
   Cross-cutting concerns every addon author hits regardless of kind.
   Ordered by the sequence an author actually meets them, not
   alphabetically. Authoritative cross-references inside the manual:
-    - per-kind specifics  -> 04-addon-kinds
-    - DB API surface      -> 06-data-access
-    - testing             -> 08-testing
-    - failure modes       -> 10-troubleshoot
+    - per-kind specifics  -> 03-addon-kinds
+    - DB API surface      -> 05-data-access
+    - testing             -> 07-testing
+    - failure modes       -> 09-troubleshoot
 -->
 
 ## Overview
@@ -35,7 +35,7 @@ The general shape:
 
 ```python
 register(
-    GRAMPLET,                          # kind (see 04-addon-kinds)
+    GRAMPLET,                          # kind (see 03-addon-kinds)
     id="HelloGramplet",                # stable identifier — folder name
     name=_("Hello Gramplet"),          # user-visible label
     description=_("A minimal example"),
@@ -53,7 +53,7 @@ register(
 
 | Field                   | Meaning                                                                          |
 |-------------------------|----------------------------------------------------------------------------------|
-| `id`                    | Stable identifier; MUST match the folder name                                    |
+| `id`                    | Stable plugin key, unique across addons; need **not** match the folder name      |
 | `name`                  | User-visible label, translatable                                                 |
 | `version`               | Addon version, dotted `X.Y.Z`                                                    |
 | `gramps_target_version` | The Gramps minor this targets, e.g. `"6.0"`                                      |
@@ -77,7 +77,7 @@ Every kind adds its own. A few examples:
 - `TOOL` adds `toolclass`, `optionclass`, `category`, `tool_modes`.
 - `QUICKVIEW` adds `runfunc`, `category`.
 
-[04-addon-kinds](04-addon-kinds.md) lists the kind-specific fields per kind. The authoritative reference is the `expand_*` helpers in [`_pluginreg.py`](https://github.com/gramps-project/gramps/blob/maintenance/gramps60/gramps/gen/plug/_pluginreg.py).
+[03-addon-kinds](03-addon-kinds.md) lists the kind-specific fields per kind. The authoritative reference is the `expand_*` helpers in [`_pluginreg.py`](https://github.com/gramps-project/gramps/blob/maintenance/gramps60/gramps/gen/plug/_pluginreg.py).
 
 ### Multiple registrations per file
 
@@ -101,7 +101,7 @@ Plugin discovery's symlink handling changed between 6.0 and 6.1:
 - **Gramps 6.0** — symlinks are **not** followed. An addon symlinked in is invisible. Development loop: copy/`rsync` from working tree on save.
 - **Gramps 6.1+** — symlinks **are** followed, with realpath-based dedup so cycles terminate. Symlinking the working tree into the user plugin dir works in place. (Gramps commit [`9443dcbb30`](https://github.com/gramps-project/gramps/commit/9443dcbb30) on `maintenance/gramps61`.) The symlink test is skipped on Windows because the platform's symlink behaviour is inconsistent without elevated privileges; on Windows, a physical copy remains the safe approach even on 6.1+.
 
-Concrete sync recipes live in [02-get-started](02-get-started.md).
+Concrete sync recipes live in [01-overview → Where addons live](01-overview.md#where-addons-live).
 
 ## Names Gramps injects into `.gpr.py`
 
@@ -120,6 +120,22 @@ The `.gpr.py` runs in a scope where several names are *pre-populated* by the plu
 | Report mode constants — `REPORT_MODE_GUI`, `REPORT_MODE_BKI`, …   | `_pluginreg.py`                     |
 
 In the implementation module, none of these are injected — the rules are normal Python. Import what you need from `gramps.gen.*` there.
+
+## The provided environment
+
+The injected names are one half of what Gramps hands an addon; the other half is process-global. An addon — whatever its kind — is a **guest in Gramps' process**: before the first plugin loads, Gramps' startup (`gramps/grampsapp.py`, with `gramps/gen/utils/grampslocale.py` and `gramps/gen/plug/_manager.py`) has already configured the state the addon runs inside. Each item below is a real temptation, because setting it up yourself is exactly what makes a module work *standalone* — and each one either collides with, or silently hijacks, the running application. The rule is uniform: **the app provides this state at runtime; the test root provides it under test; addon modules touch none of it.**
+
+| Gramps sets up at startup | The tempting mistake | An addon instead | Documented in |
+|---------------------------|----------------------|------------------|---------------|
+| **GI version pins** — `gi.require_version("Gtk", "3.0")` / `("Gdk", "3.0")` before any plugin loads | Pinning in the addon module or a test file so bare `unittest` imports work | Never pin; the test package root carries the pins | [07-testing → The GTK-pin contract](07-testing.md#the-gtk-pin-contract) |
+| **Locale & translation** — `locale.setlocale(LC_ALL, "")`, gettext domain binding, ICU collators | `gettext.install()` (overwrites the builtin `_` app-wide), `locale.setlocale` for date/number formatting, `locale.strcoll` for sorting | Use the injected `_` in `.gpr.py`; `glocale.get_addon_translator(__file__)` in modules; `glocale.sort_key` for collation | [Translation](#translation) below, [11-internationalization](11-internationalization.md) |
+| **Root logger & error reporting** — WARNING-level root logger with stderr/file handlers; in the GUI, `GtkHandler` turns ERROR into the error-report dialog | `logging.basicConfig(...)` or `getLogger().setLevel(...)` in a module or test to "see output" — duplicates handlers and reroutes the error dialog for the whole app | A named module-level logger only: `LOG = logging.getLogger(".MyAddon")` | [Logging](#logging) below, [08-debug → Default log levels](08-debug.md#default-log-levels) |
+| **`sys.path`** — the plugin manager adds your addon dir *transiently* at import and pops it after | `sys.path.insert(0, os.path.dirname(__file__))` at module level so sibling/vendored imports resolve standalone — inside Gramps the entry is permanent and global, and a generic `utils.py` shadows every other addon's | Rely on the loader's import semantics; under test, the invocation through the package root provides the path | [09-troubleshoot → Imports and namespace traps](09-troubleshoot.md#imports-and-python-namespace-traps) |
+| **The GTK main loop & global GTK state** — one `Gtk.main()` loop, the icon theme, screen-wide CSS, `Gtk.Settings` | `Gtk.main()` / `Gtk.main_quit()` around your own dialog (the standalone-script habit); installing app-wide CSS providers or retheming globally | Use Gramps' dialog and windowing machinery; style your own widgets, never the screen | [16-guidelines → Runtime](16-guidelines.md#runtime) |
+| **`sys.excepthook`** — logs unhandled exceptions and, on a `HandleError`, flags the DB for check-and-repair at next start | Installing your own hook for "nicer" error handling — disables crash reporting *and* the DB-repair flag app-wide | Let exceptions propagate; log expected failures through your module logger | [08-debug](08-debug.md) |
+| **Environment & user paths** — `GRAMPS_RESOURCES`, `PANGOCAIRO_BACKEND` (Windows), the user config/plugin directories | `os.environ[...] = ...` in module or test-module code; computing Gramps paths from `__file__` | Paths come from `gramps.gen.const`; environment setup belongs to the harness (test root, CI) | [07-testing → Running tests locally](07-testing.md#running-tests-locally) |
+
+The test-side mirror of this table — reproducing the slice of this environment a module under test needs, in `tests/__init__.py`, and invoking tests through the package root so it executes — is the contract in [07-testing → The GTK-pin contract](07-testing.md#the-gtk-pin-contract).
 
 ## Translation
 
@@ -183,7 +199,7 @@ Log output flows into:
 - **The Gramps log window** (Help → Log) — visible to the user.
 - **stderr** when Gramps is launched with `--debug` or with `GRAMPS_DEBUG=1` set.
 
-See [09-debug](09-debug.md) for how to enable debug levels per logger.
+See [08-debug](08-debug.md) for how to enable debug levels per logger.
 
 ## Lifecycle hooks
 
@@ -202,7 +218,7 @@ Subclass `gramps.gen.plug.Gramplet`. The hooks Gramps calls:
 | `update(self)`       | Don't override. Calls `main()` for you; you call `update()` to schedule a redraw.     |
 | `on_load(self)` / `on_save(self)` | When the gramplet's persistent data is loaded / saved.                  |
 
-Inside the class, `self.dbstate.db` is your live database, `self.uistate` is the GUI state. See [06-data-access](06-data-access.md) for what you can do with `self.dbstate.db`.
+Inside the class, `self.dbstate.db` is your live database, `self.uistate` is the GUI state. See [05-data-access](05-data-access.md) for what you can do with `self.dbstate.db`.
 
 ### Reports
 
@@ -272,7 +288,7 @@ Signals are deferred until a transaction commits and are emitted in a specific o
 
 ## Reading and writing the database
 
-The DB API is covered in depth in [06-data-access](06-data-access.md). The rule worth stating here, where every addon meets it:
+The DB API is covered in depth in [05-data-access](05-data-access.md). The rule worth stating here, where every addon meets it:
 
 - **Reading** is unrestricted. Any addon may read freely from `self.dbstate.db`.
 - **Writing** goes through a transaction. Always:
@@ -356,13 +372,22 @@ The settings file lives in the addon's plugin folder by default. For a system-wi
 config = configman.register_manager("my_addon", use_config_path=True)
 ```
 
+Other code — another addon, a repro script — can read an addon's settings without re-registering the keys, via `get_manager`:
+
+```python
+from gramps.gen.config import config as configman
+
+config = configman.get_manager("my_addon")
+value = config.get("section.key1")
+```
+
 ## See also
 
-- [02-get-started](02-get-started.md) — the first end-to-end Gramplet putting these concepts together.
-- [04-addon-kinds](04-addon-kinds.md) — what each kind adds to the registration shape described here.
-- [06-data-access](06-data-access.md) — the DB API surface.
-- [07-api-reference](07-api-reference.md) — the curated `gramps.gen.*` surface that addons may import.
-- [10-troubleshoot](10-troubleshoot.md) — what failure modes look like when one of these conventions is off.
+- [01-overview → Your first addon](01-overview.md#your-first-addon-a-minimal-gramplet) — the first end-to-end Gramplet putting these concepts together.
+- [03-addon-kinds](03-addon-kinds.md) — what each kind adds to the registration shape described here.
+- [05-data-access](05-data-access.md) — the DB API surface.
+- [06-api-reference](06-api-reference.md) — the curated `gramps.gen.*` surface that addons may import.
+- [09-troubleshoot](09-troubleshoot.md) — what failure modes look like when one of these conventions is off.
 - [Signals and Callbacks](wiki:Signals_and_Callbacks) — the standalone wiki page covering signals and the `CallbackManager` in more depth.
 
 <!--wiki:{{stub}}-->

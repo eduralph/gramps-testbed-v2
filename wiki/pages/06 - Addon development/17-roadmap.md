@@ -79,7 +79,7 @@ The doc set itself is in flight. Pages with `managed: false` front-matter are dr
 
 ### Publishing-pipeline conventions (now supported)
 
-What `md2wiki.py` and `md2pdf.py` handle as of 2026-05-30 — pages authored with these conventions render correctly in both wikitext and PDF output. Verified by running both pipelines on [[05-fundamentals]] (which contains an SVG embed + Obsidian-internal links).
+What `md2wiki.py` and `md2pdf.py` handle as of 2026-05-30 — pages authored with these conventions render correctly in both wikitext and PDF output. Verified by running both pipelines on [[04-fundamentals]] (which contains an SVG embed + Obsidian-internal links).
 
 | Convention | Where converted | Notes |
 |------------|-----------------|-------|
@@ -99,13 +99,13 @@ What the pipeline already handled before these additions:
 
 ### Page-by-page draft state
 
-- [[03-tutorials]] — needs each tutorial fleshed out, or split into one page per addon kind.
-- [[04-addon-kinds]] — needs the per-kind register-fields, base classes, and lifecycle hooks filled in.
-- [[05-fundamentals]] — needs each topic bullet promoted to an H2 with worked examples.
-- [[06-data-access]] — needs worked examples for each API touch-point.
-- [[07-api-reference]] — needs synchronisation against `gramps/gen/__init__.py` on the maintenance branch this doc set targets.
-- [[08-testing]] — fold in [[01 - preliminary notes/Addon Testing]] and retire the preliminary note.
-- [[09-debug]], [[10-troubleshoot]], [[11-code-analysis]], [[13-packaging]], [[14-compatibility]], [[15-whats-new]] — all outline-stage; need entries.
+- [[02-tutorials]] — needs each tutorial fleshed out, or split into one page per addon kind.
+- [[03-addon-kinds]] — needs the per-kind register-fields, base classes, and lifecycle hooks filled in.
+- [[04-fundamentals]] — needs each topic bullet promoted to an H2 with worked examples.
+- [[05-data-access]] — needs worked examples for each API touch-point.
+- [[06-api-reference]] — needs synchronisation against `gramps/gen/__init__.py` on the maintenance branch this doc set targets.
+- [[07-testing]] — fold in [[01 - preliminary notes/Addon Testing]] and retire the preliminary note.
+- [[08-debug]], [[09-troubleshoot]], [[10-code-analysis]], [[12-packaging]], [[14-compatibility]], [[15-whats-new]] — all outline-stage; need entries.
 - [[06 - Addon development/16-guidelines]] — substantive; pending sign-off to flip to `managed: true`.
 
 (For the publishing pipeline itself — `publish.py`, `md2wiki.py`, `md2pdf.py --tree` — see the testbed root, not this page.)

@@ -7,7 +7,7 @@ categories:
 managed: true
 ---
 
-[← Previous](wiki:Gramps 6.0 Wiki Manual - Addon Development - Getting Started) · [Index](wiki:Gramps 6.0 Wiki Manual - Addon Development) · [Next →](wiki:Gramps 6.0 Wiki Manual - Addon Development - Addon Kinds)
+[← Previous](wiki:Gramps 6.0 Wiki Manual - Addon Development) · [Index](wiki:Gramps 6.0 Wiki Manual - Addon Development) · [Next →](wiki:Gramps 6.0 Wiki Manual - Addon Development - Addon Kinds)
 
 <!--
   Walkthroughs, one per addon kind, in order of increasing surface area.
@@ -17,20 +17,20 @@ managed: true
     - walks the new concepts (not every line — the explanatory lines)
     - ends with "reload, restart, run" and what to expect
 
-  Cross-link out to 04-addon-kinds for kind-level details, 05-fundamentals
-  for cross-cutting concepts, 06-data-access for DB API details, and the
+  Cross-link out to 03-addon-kinds for kind-level details, 04-fundamentals
+  for cross-cutting concepts, 05-data-access for DB API details, and the
   standalone wiki pages for deeper coverage.
 
-  Each tutorial assumes the reader has already followed 02-get-started
-  — so the development loop (where addons live, restart cycle) is not
-  re-explained.
+  Each tutorial assumes the reader has already followed the getting-started
+  walkthrough on 01-overview — so the development loop (where addons live,
+  restart cycle) is not re-explained.
 -->
 
 ## Overview
 
 End-to-end walkthroughs that take an author from empty folder to working addon. Each tutorial picks one kind, covers registration, implementation, and the reload cycle, and points at the conventions used to test it.
 
-Read these in order or skip to the one that matches what you're building — they're independent. They assume you've already followed [02-get-started](02-get-started.md), so we don't re-explain the user plugin directory or the restart cycle.
+Read these in order or skip to the one that matches what you're building — they're independent. They assume you've already followed [the getting-started walkthrough in 01-overview](01-overview.md#your-first-addon-a-minimal-gramplet), so we don't re-explain the user plugin directory or the restart cycle.
 
 | Tutorial                  | Kind          | What it shows                                                       |
 |---------------------------|---------------|---------------------------------------------------------------------|
@@ -40,14 +40,14 @@ Read these in order or skip to the one that matches what you're building — the
 | [A Quick View](#a-quick-view)       | `QUICKVIEW`  | The `run()` entry point, the Simple Access API, context-menu integration |
 | [A custom filter Rule](#a-custom-filter-rule) | `RULE` | Subclassing the namespace Rule base, declaring `labels`, `apply_to_one` |
 
-For the conceptual map, see [01-overview](01-overview.md). For the full inventory of addon kinds and their registration constants, see [04-addon-kinds](04-addon-kinds.md).
+For the conceptual map, see [01-overview](01-overview.md). For the full inventory of addon kinds and their registration constants, see [03-addon-kinds](03-addon-kinds.md).
 
 ### A note on tutorial-style code
 
 The implementation modules below show the smallest code that demonstrates each kind. Two things are deliberately omitted to keep the lesson in focus, and both are **required** for shipped addons:
 
-- A **GPL-2.0-or-later license header** at the top of every `.py` file. Copy the header from any existing addon, or see [16-guidelines → Coding styleN-guidelines.md#coding-style).
-- **Type hints** on public functions and methods (Python 3.10+ syntax — `X | None`, `list[X]`). The tutorials skip them for readability; production addons should include them per [16-guidelines → Coding styleN-guidelines.md#coding-style).
+- A **GPL-2.0-or-later license header** at the top of every `.py` file. Copy the header from any existing addon, or see [16-guidelines → Coding style](16-guidelines.md#coding-style).
+- **Type hints** on public functions and methods (Python 3.10+ syntax — `X | None`, `list[X]`). The tutorials skip them for readability; production addons should include them per [16-guidelines → Coding style](16-guidelines.md#coding-style).
 
 Both are CI-checked on gramps core PRs (Black formats around the license header; `mypy` verifies the type hints); addons-source doesn't gate on them today but the rules apply to addon code regardless.
 
@@ -55,7 +55,7 @@ Both are CI-checked on gramps core PRs (Black formats around the license header;
 
 **Goal.** Build a sidebar Gramplet that reads the active person from the database and shows their direct events, refreshing whenever the active person changes or the database is updated.
 
-The Hello Gramplet from [02-get-started](02-get-started.md) was static text. This one is dynamic — it subscribes to signals and re-reads the DB on each update.
+The Hello Gramplet from [the overview's walkthrough](01-overview.md#your-first-addon-a-minimal-gramplet) was static text. This one is dynamic — it subscribes to signals and re-reads the DB on each update.
 
 ### Layout
 
@@ -86,7 +86,7 @@ register(
 )
 ```
 
-`height` and `expand` are Gramplet-specific layout fields; the rest are the same registration shape introduced in [05-fundamentals → The `.gpr.py` registration file](05-fundamentals.md#the-gprpy-registration-file).
+`height` and `expand` are Gramplet-specific layout fields; the rest are the same registration shape introduced in [04-fundamentals → The `.gpr.py` registration file](04-fundamentals.md#the-gprpy-registration-file).
 
 ### `PersonEvents/personevents.py`
 
@@ -149,7 +149,7 @@ class PersonEventsGramplet(Gramplet):
 
 Drop the folder into your user plugin directory (or symlink it if you're on Gramps 6.1+), restart Gramps, open a tree, and add the Gramplet from the sidebar menu. Click around different people — the displayed events should change with the selection.
 
-For the API surface this tutorial used (handles, refs, `iter_*`, `commit_*`), see [06-data-access](06-data-access.md). For the signal inventory, see [05-fundamentals → Signals](05-fundamentals.md#signals-addons-reacting-to-changes).
+For the API surface this tutorial used (handles, refs, `iter_*`, `commit_*`), see [05-data-access](05-data-access.md). For the signal inventory, see [04-fundamentals → Signals](04-fundamentals.md#signals-addons-reacting-to-changes).
 
 ## A simple Tool
 
@@ -184,7 +184,7 @@ register(
 )
 ```
 
-`category=TOOL_ANAL` puts the tool under *Tools → Analysis and Exploration*. Other categories (`TOOL_DBPROC`, `TOOL_DBFIX`, …) are listed in [04-addon-kinds → `TOOL`](04-addon-kinds.md#tool).
+`category=TOOL_ANAL` puts the tool under *Tools → Analysis and Exploration*. Other categories (`TOOL_DBPROC`, `TOOL_DBFIX`, …) are listed in [03-addon-kinds → `TOOL`](03-addon-kinds.md#tool).
 
 ### `MissingBirthDates/missingbirthdates.py`
 
@@ -259,7 +259,7 @@ with DbTxn(_("Mark unreferenced media private"), db) as trans:
             db.commit_media(media, trans)
 ```
 
-The transaction message is user-visible in the Undo history; translate it. See [06-data-access → Mutating data](06-data-access.md#mutating-data) for the full pattern.
+The transaction message is user-visible in the Undo history; translate it. See [05-data-access → Mutating data](05-data-access.md#mutating-data) for the full pattern.
 
 ### Try it
 
@@ -459,7 +459,7 @@ register(
 )
 ```
 
-`category=CATEGORY_QR_PERSON` puts the entry on the person context menu. `runfunc="run"` names the function Gramps calls. The full set of categories is listed in [04-addon-kinds → `QUICKVIEW`](04-addon-kinds.md#quickview).
+`category=CATEGORY_QR_PERSON` puts the entry on the person context menu. `runfunc="run"` names the function Gramps calls. The full set of categories is listed in [03-addon-kinds → `QUICKVIEW`](03-addon-kinds.md#quickview).
 
 ### `Siblings/siblings.py`
 
@@ -505,7 +505,7 @@ def run(database, document, person):
 
 After restart, right-click any person in the People view or the person editor. *Quick View → Siblings* appears in the menu. The result opens in a Quick View window; clicking a row in the table opens that person.
 
-For Quick Views that don't fit the Simple Access surface, you can reach for the full DB API — see [06-data-access](06-data-access.md). The two are complementary; a complex Quick View can use both.
+For Quick Views that don't fit the Simple Access surface, you can reach for the full DB API — see [05-data-access](05-data-access.md). The two are complementary; a complex Quick View can use both.
 
 ## A custom filter Rule
 
@@ -592,11 +592,11 @@ The rule is also visible from gramplets like *Filter Gramplet* and as an input t
 
 ## See also
 
-- [02-get-started](02-get-started.md) — the prerequisites and the development loop these tutorials build on.
-- [04-addon-kinds](04-addon-kinds.md) — registration details per kind.
-- [05-fundamentals](05-fundamentals.md) — `.gpr.py` fields, signals, `requires_mod`, lifecycle hooks.
-- [06-data-access](06-data-access.md) — the DB API patterns used by these tutorials.
-- [08-testing](08-testing.md) — how to test what you just wrote without launching Gramps.
+- [01-overview → Your first addon](01-overview.md#your-first-addon-a-minimal-gramplet) — the prerequisites and the development loop these tutorials build on.
+- [03-addon-kinds](03-addon-kinds.md) — registration details per kind.
+- [04-fundamentals](04-fundamentals.md) — `.gpr.py` fields, signals, `requires_mod`, lifecycle hooks.
+- [05-data-access](05-data-access.md) — the DB API patterns used by these tutorials.
+- [07-testing](07-testing.md) — how to test what you just wrote without launching Gramps.
 - [Report API](wiki:Report_API), [Report Generation](wiki:Report_Generation) — depth on the docgen abstraction.
 - [Simple Access API](wiki:Simple_Access_API) — the Quick View read surface.
 

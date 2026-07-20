@@ -13,7 +13,7 @@ managed: true
   Data access is the first non-trivial thing every addon does: read the
   family tree the user has open. This chapter covers the shape of the
   database API, not the full API reference (that's
-  [07-api-reference](07-api-reference.md)). Aim: enough to write a working
+  [06-api-reference](06-api-reference.md)). Aim: enough to write a working
   addon without first having to read gramps/gen/db source.
 
   Authoritative cross-reference: the standalone wiki page
@@ -56,7 +56,7 @@ print(f"Working on {person.gramps_id}")
 person = db.get_person_from_gramps_id("I0001")
 ```
 
-Each object class has both lookup methods (`get_<type>_from_handle` and `get_<type>_from_gramps_id`); see [07-api-reference](07-api-reference.md) for the full list.
+Each object class has both lookup methods (`get_<type>_from_handle` and `get_<type>_from_gramps_id`); see [06-api-reference](06-api-reference.md) for the full list.
 
 ## Reading: one object at a time
 
@@ -140,7 +140,7 @@ for child_ref in family.get_child_ref_list():
     ...
 ```
 
-The full handle-list / ref-list inventory per object class lives in the [Gramps API docs](wiki:Gramps_6.0_Developer_Reference); see also [07-api-reference](07-api-reference.md) for the addon-facing subset.
+The full handle-list / ref-list inventory per object class lives in the [Gramps API docs](wiki:Gramps_6.0_Developer_Reference); see also [06-api-reference](06-api-reference.md) for the addon-facing subset.
 
 ## Backlinks: who refers to this object?
 
@@ -213,7 +213,7 @@ with DbTxn(_("Add unknown spouse"), db) as trans:
 
 Two complementary approaches:
 
-- **Real-data tests** — load `example.gramps` (shipped with Gramps, canonical test fixture) and exercise your code against it. Best for catching real-world data quirks (cross-typed backlinks, ID normalisation, unusual character sets). See [08-testing](08-testing.md).
+- **Real-data tests** — load `example.gramps` (shipped with Gramps, canonical test fixture) and exercise your code against it. Best for catching real-world data quirks (cross-typed backlinks, ID normalisation, unusual character sets). See [07-testing](07-testing.md).
 - **Mocked tests** — substitute the database with a stub that returns fixed objects. Best for tight unit-test loops that don't need a database on disk.
 
 The lesson, learned the hard way: mocked DB tests can pass while the real-DB code is broken, because the mock doesn't reproduce the cross-typed backlinks and ID quirks of a populated tree. Prefer example.gramps for anything that traverses the DB; reserve mocks for pure helpers.
@@ -229,8 +229,8 @@ The database API is fast enough that most addons don't need to think about perfo
 
 ## See also
 
-- [05-fundamentals](05-fundamentals.md) — the plugin lifecycle that wraps this DB access in
-- [07-api-reference](07-api-reference.md) — the addon-facing API surface
-- [08-testing](08-testing.md) — testing strategies, real-data vs mocks
+- [04-fundamentals](04-fundamentals.md) — the plugin lifecycle that wraps this DB access in
+- [06-api-reference](06-api-reference.md) — the addon-facing API surface
+- [07-testing](07-testing.md) — testing strategies, real-data vs mocks
 - [Using database API](wiki:Using_database_API) — the standalone wiki reference, covers backends and internals in more depth
 - [Gramps Developer Reference](wiki:Gramps_6.0_Developer_Reference) — the full API docs
