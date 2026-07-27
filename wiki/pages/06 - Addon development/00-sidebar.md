@@ -22,7 +22,7 @@ managed: false
 
 1. [[01-overview]] — what an addon is, the section map, file roles, first Gramplet, restart loop, where addons live.
 2. [[02-tutorials]] — end-to-end walkthroughs per addon kind.
-3. [[03-addon-kinds]] — Gramplets, Views, Reports, Tools, Importers, Exporters, Docgens, Quick reports, Sidebars, Map services, Relationship calculators, Rules.
+3. [[03-addon-kinds]] — all sixteen registration kinds: Gramplets, Views, Reports, Tools, Importers, Exporters, Quick Views, Docgens, Sidebars, Map services, Relationship calculators, Rules, Database backends, Thumbnailers, citation formatters, and GENERAL.
 4. [[04-fundamentals]] — `.gpr.py` registration fields, plugin discovery, the provided environment (startup-owned process state), `_()` / `ngettext`, module-level loggers, lifecycle hooks.
 5. [[05-data-access]] — `DbReadBase` / `DbWriteBase`, handles vs `gramps_id`, backlinks, transactions, what `gen/` exposes.
 6. [[06-api-reference]] — curated `gramps.gen.*` surface addons are allowed to import; what's stable vs. what isn't.
@@ -35,13 +35,13 @@ managed: false
 13. [[13-community]] — after the merge: the addon-list entry, the addon's wiki page, forum announcement, Mantis support duty.
 14. [[14-compatibility]] — porting across Gramps versions; `gramps_target_version`; deprecated API surface; gramps60 vs gramps61 deltas.
 15. [[15-whats-new]] — per-Gramps-version API changes that affect addons.
-16. [[06 - Addon development/16-guidelines]] — normative MUST / SHOULD / MAY reference for addons and the contributor workflow. The page to cite in code review.
+16. [[16-guidelines]] — normative MUST / SHOULD / MAY reference for addons and the contributor workflow. The page to cite in code review.
 17. [[17-roadmap]] — forward-looking: in-flight changes, deprecations, open questions, and the documentation roadmap itself. Prospective counterpart to *What's new*.
 
 
 ## Status
 
-Section is being built out. Stubs (`managed: false`) won't appear in published output until promoted to `managed: true`.
+All seventeen pages are substantive and `managed: true`. Open deepening work is tracked in [[17-roadmap]] → Documentation roadmap; the outstanding item needing a running Gramps is the tutorial screenshots (`_media/SCREENSHOTS-TODO.md`).
 
 <!-- This file is intentionally not a {{stub}} for the wiki — it lives
      vault-side only. -->

@@ -19,9 +19,15 @@ managed: true
     - failure modes       -> 09-troubleshoot
 -->
 
-## Overview
+## Summary
 
 The cross-cutting concerns every addon author hits regardless of which kind they're building. If something in a kind-specific page assumes a piece of background, it's described here.
+
+This is the longest page in the section and the one to come back to rather than read once. It works outward from the registration file: **`.gpr.py`** field by field — the fields every kind needs, the ones most kinds want, the kind-specific ones, and how to put several registrations in one file — then **plugin discovery**: what Gramps scans, what the plugin path is, and the symlink rule that differs between 6.0 and 6.1. From there it covers the **names Gramps injects** into a `.gpr.py` (`register`, `_`, the kind constants — available without import, and *only* in that file) and the wider **provided environment** the startup sequence hands an addon.
+
+The rest is the runtime side of addon authoring: **translation** (`_()`, plurals via `ngettext`, disambiguating contexts), **logging** through module-level loggers rather than `print`, the **lifecycle hooks** each kind is expected to override, **signals** for addons that must react to database changes — the minimal subscribe pattern, which signals matter, how to catch "anything changed", and why ordering can surprise you — a pointer into database **reading and writing**, the four **dependency declarations** (`requires_mod`, `requires_gi`, `requires_exe`, `depends_on`) and how each fails when unmet, and finally **configuration and persistent settings** for addons that need to remember something between sessions.
+
+You do not need all of this before your first addon; [[01-overview]] and [[02-tutorials]] get you running. Come here when something behaves unexpectedly, or when an addon grows past the single-file stage.
 
 ![[_media/plugin-discovery.svg|Fig. 1 — Plugin discovery and load sequence. Gramps scans the plugin directory at startup, executes each `register()` call into a metadata-only catalog, and loads the implementation module lazily when the user first invokes the addon.]]
 
@@ -65,7 +71,7 @@ register(
 - `description` — shown in the Plugin Manager tooltip.
 - `authors`, `authors_email` — credit and contact, both lists.
 - `maintainers`, `maintainers_email` — only set if different from authors.
-- `help_url` — wiki page name; Gramps prepends the base URL and may add a language extension. Don't wrap in `_()` unless you actually want per-language wiki pages.
+- `help_url` — wiki page name; Gramps prepends the base URL and may add a language extension. Give the addon's own Gramps wiki page in the `Addon:PageName` form — **not** a GitHub URL (upstream `addons-source/AGENTS.md` → Plugin Registration). Don't wrap in `_()` unless you actually want per-language wiki pages.
 - `audience` — `EVERYONE` (default), `EXPERT`, or `DEVELOPER`; filters visibility in the Plugin Manager. The constants live at `_pluginreg.py:75-77` — note `EVERYONE`, not `ALL` (an outdated wiki page documents `ALL`; the code has only ever used `EVERYONE`).
 
 ### Kind-specific fields
@@ -162,6 +168,20 @@ _ = glocale.get_addon_translator(__file__).gettext
 ```
 
 This binds `_` to translations stored in the addon's own `po/` folder rather than Gramps' core catalog. Without this line, `_()` falls back to the core catalog and your addon-specific strings stay in English regardless of UI language.
+
+**Guard it for the no-catalog case.** `get_addon_translator` raises `ValueError` when the addon has no compiled `locale/` yet *and* the user's language list contains nothing starting with `en` or `C` (`gramps/gen/utils/grampslocale.py:536-540`). On an English-locale machine you will never hit it; the first user with a non-English UI gets an import-time crash instead of an untranslated addon. Fall back to the core translator:
+
+```python
+from gramps.gen.const import GRAMPS_LOCALE as glocale
+
+try:
+    _trans = glocale.get_addon_translator(__file__)
+except ValueError:
+    _trans = glocale.translation
+_ = _trans.gettext
+```
+
+This is the form upstream `addons-source/AGENTS.md` prescribes, and it is what a shipped addon should use — the shorter one-liner above is fine while experimenting, and is what the tutorials use to keep the lesson in focus.
 
 ### Plurals
 
@@ -389,5 +409,3 @@ value = config.get("section.key1")
 - [06-api-reference](06-api-reference.md) — the curated `gramps.gen.*` surface that addons may import.
 - [09-troubleshoot](09-troubleshoot.md) — what failure modes look like when one of these conventions is off.
 - [Signals and Callbacks](wiki:Signals_and_Callbacks) — the standalone wiki page covering signals and the `CallbackManager` in more depth.
-
-<!--wiki:{{stub}}-->

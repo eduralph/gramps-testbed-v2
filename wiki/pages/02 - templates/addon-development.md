@@ -10,7 +10,7 @@ managed: true
 <!--
   ADDON DEVELOPMENT TEMPLATE — for pages aimed at addon authors writing or
   maintaining a specific addon kind, feature, or pattern. Lives under
-  05 - Addon development/ by convention.
+  06 - Addon development/ by convention.
 
   How this template differs from its siblings:
     technical-documentation.md — Gramps INTERNALS audience: architecture
@@ -23,13 +23,13 @@ managed: true
   md2wiki.py / publish.py) AND the bound PDF manual (via md2pdf.py --tree).
   They differ only in the default section skeleton and the category set.
 
-  Note: this template's filename matches the existing content page
-  pages/05 - Addon development/addon-development.md by intent (folder-name
-  parallelism). Obsidian's template picker disambiguates by folder.
+  Note: this template's filename echoes the content folder it serves by
+  intent (folder-name parallelism). Obsidian's template picker
+  disambiguates by folder.
 
   In Obsidian: Settings -> core "Templates" plugin -> template folder
   location = pages/02 - templates. Then "Insert template" into a new note
-  in pages/05 - Addon development/.
+  in pages/06 - Addon development/.
 
   Front-matter keys (same as the other publishable templates):
     title:      the wiki page title, NOT the filename.
@@ -40,11 +40,15 @@ managed: true
   Start the body at H2 (##); the title above is the implicit H1.
 -->
 
-## Overview
+## Summary
 
 <!-- 2-3 sentences: what addon kind / feature does this page document, and
      what does an author come away knowing? Link the addon development
-     overview page for context. -->
+     overview page for context.
+
+     Heading is "Summary", not "Overview" — every page in
+     06 - Addon development/ opens with it, so the section's index page
+     (01-overview) is unambiguously "the Overview" when referred to by name. -->
 
 See [the addon development overview](wiki:Gramps_6.0_Wiki_Manual_-_Addon_Development)
 for where this fits.
@@ -116,9 +120,9 @@ class ExampleAddon(...):
 
 <!-- How to verify the addon works. Mention both the manual reload/restart
      loop (covered in the Addon Development overview) and `unittest`-based
-     tests for non-GUI logic — the conventions are in the Addon Testing page. -->
+     tests for non-GUI logic — the conventions are in the Testing page. -->
 
-See [Addon Testing](wiki:Gramps_6.0_Wiki_Manual_-_Addon_Testing) for the
+See [Testing](wiki:Gramps_6.0_Wiki_Manual_-_Addon_Development_-_Testing) for the
 unit-test conventions and the `tests/` package layout.
 
 ## See also

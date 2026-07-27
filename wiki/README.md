@@ -6,12 +6,14 @@ and publishes it to the Gramps MediaWiki. **One-way: repo → wiki.**
 ```
 wiki/
 ├── pages/
-│   ├── 00 - meta/                    # repo-side notes (managed: false by convention)
 │   ├── 01 - preliminary notes/       # drafts / scratch
 │   ├── 02 - templates/               # Obsidian "Templates" plugin source (NEVER published)
 │   ├── 03 - User guide/              # end-user documentation
 │   ├── 04 - Technical Documentation/ # internals, architecture, contributor reference
-│   └── 05 - Addon development/       # addon authors' manual
+│   ├── 05 - Gramps development/      # core contributors' manual
+│   ├── 06 - Addon development/       # addon authors' manual
+│   ├── 07 - GEPS/                    # Gramps Enhancement Proposals
+│   └── 08 - Suggestions/             # proposals not yet in a section
 ├── tools/                            # converter + publisher + browser transport — STAYS here
 └── .wikisync/                        # publish state (committed): one sidecar per page, mirrors pages/
 ```
@@ -24,7 +26,7 @@ matching the special `templates` segment, and is otherwise structure-agnostic
 everything that isn't a template.
 
 The `pages/` ↔ `tools/` split is deliberate: when/if upstream maintains addon
-docs in-repo, the relevant content folder (today `05 - Addon development/`)
+docs in-repo, the relevant content folder (today `06 - Addon development/`)
 moves with a `git mv` and the tooling stays behind. Keep the content trees
 transport-agnostic — no tool cruft inside them — so whoever renders them next
 (this rig, or upstream CI) just points at clean markdown.
@@ -68,8 +70,8 @@ Everything else is plain GitHub-Flavored Markdown.
 ## Convert (no wiki, no browser)
 
 ```
-python3 tools/md2wiki.py "pages/05 - Addon development/addon-development.md"          # prints wikitext
-python3 tools/md2wiki.py "pages/05 - Addon development/addon-development.md" --json    # title+cats+text
+python3 tools/md2wiki.py "pages/06 - Addon development/01-overview.md"          # prints wikitext
+python3 tools/md2wiki.py "pages/06 - Addon development/01-overview.md" --json    # title+cats+text
 ```
 
 ## Publish
