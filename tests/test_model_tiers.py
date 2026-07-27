@@ -194,6 +194,48 @@ class TelemetryRecordsTheTier(unittest.TestCase):
                           argv=["codex", "exec", "-m", "gpt-5.6-sol"], effort="high")
         self.assertEqual(self._record(leaf)["attempts"][0]["model"], "gpt-5.6-sol")
 
+    def test_argv_beats_the_key_when_they_disagree(self) -> None:
+        # THE BUG THE LOCAL CODEX REVIEW CAUGHT: _mapped_argv does NOT append the key's flag
+        # when argv already carries one, so argv is what runs. Telemetry preferring the key
+        # would name a model+effort the command never used — and silently corrupt exactly the
+        # escalation calibration this file exists for.
+        leaf = LeafConfig(mode="command", family="claude",
+                          argv=["claude", "-p", "--model", "sonnet", "--effort", "low"],
+                          model="opus", effort="high")
+        # Cross-check the premise against the real mapper: it adds nothing here.
+        self.assertEqual(_resolved_argv(self.cfg, leaf), leaf.argv)
+        entry = self._record(leaf)["attempts"][0]
+        self.assertEqual((entry["model"], entry["effort"]), ("sonnet", "low"))
+
+    def test_argv_beats_the_key_for_codex_too(self) -> None:
+        leaf = LeafConfig(mode="command", family="codex",
+                          argv=["codex", "exec", "-m", "gpt-5.6-sol",
+                                "-c", "model_reasoning_effort=xhigh"],
+                          model="other-model", effort="medium")
+        self.assertEqual(_resolved_argv(self.cfg, leaf), leaf.argv)
+        entry = self._record(leaf)["attempts"][0]
+        self.assertEqual((entry["model"], entry["effort"]), ("gpt-5.6-sol", "xhigh"))
+
+    def test_equals_form_of_a_flag_is_read(self) -> None:
+        leaf = LeafConfig(mode="command", family="claude",
+                          argv=["claude", "--model=fable", "--effort=max"],
+                          model="opus", effort="high")
+        entry = self._record(leaf)["attempts"][0]
+        self.assertEqual((entry["model"], entry["effort"]), ("fable", "max"))
+
+    def test_the_key_still_wins_when_argv_is_silent(self) -> None:
+        # The interactive leaves are in this shape — keys only, no flags in argv.
+        leaf = LeafConfig(mode="command", family="claude", argv=["claude", "--agent", "act"],
+                          model="sonnet", effort="medium")
+        entry = self._record(leaf)["attempts"][0]
+        self.assertEqual((entry["model"], entry["effort"]), ("sonnet", "medium"))
+
+    def test_codex_short_model_flag_is_not_matched_inside_another_flag(self) -> None:
+        # `-m` as a substring test would fire on `--model`; the probe must be exact.
+        leaf = LeafConfig(mode="command", family="codex",
+                          argv=["codex", "exec", "--model-info", "x"], model="from-key")
+        self.assertEqual(self._record(leaf)["attempts"][0]["model"], "from-key")
+
     def test_unpinned_tier_records_empty_not_a_guess(self) -> None:
         leaf = LeafConfig(mode="command", family="claude", argv=["claude", "-p"])
         entry = self._record(leaf)["attempts"][0]

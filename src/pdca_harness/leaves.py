@@ -741,6 +741,21 @@ def select_builder(d: Path, cfg: Config, n: int) -> LeafConfig:
     return builder
 
 
+def _argv_value(argv: list[str], probe: str) -> str:
+    """The value ``argv`` already carries for ``probe`` — ``<probe> <value>``,
+    ``<probe>=<value>``, or a ``-c key=value`` pair whose key IS the probe. "" if absent.
+
+    Matching is EXACT on the token (or its ``probe=`` prefix), where :func:`_mapped_argv`'s
+    dedup test is the looser ``probe in a``. The strictness only ever costs a fallback to the
+    config key; a substring test would mistake ``--model`` for codex's ``-m``."""
+    for i, a in enumerate(argv):
+        if a == probe:
+            return argv[i + 1] if i + 1 < len(argv) else ""
+        if a.startswith(f"{probe}="):
+            return a.split("=", 1)[1]
+    return ""
+
+
 def _effective_model(builder: LeafConfig, cfg: Config | None) -> str:
     """The model the selected builder will actually run, for telemetry (PR #334 review).
 
@@ -748,16 +763,29 @@ def _effective_model(builder: LeafConfig, cfg: Config | None) -> str:
     :func:`_mapped_argv`) or the flag baked straight into ``argv``. A ``[[leaves.builder_variant]]``
     is forced into the second form — there the ``model`` key is the #167 brief-pin SELECTOR, not a
     CLI id — so reading ``builder.model`` alone reports "" for exactly the tiers a ladder is built
-    from. Prefer the key, else recover the value that follows the family's ``model_flag`` in argv.
-    "" when neither names one (the CLI's own default is then what ran, and we cannot know it)."""
-    if builder.model:
-        return builder.model
+    from.
+
+    ARGV WINS, because that is the precedence :func:`_mapped_argv` enforces when a leaf sets
+    both: the key's flag is not appended if argv already carries one. Telemetry that preferred
+    the key would name a model the command never ran (local codex review, PR #334). "" when
+    neither names one — the CLI's own default ran and we cannot know it."""
     flag = cfg.profile(builder).model_flag if cfg else ""
-    if flag and flag in builder.argv:
-        i = builder.argv.index(flag)
-        if i + 1 < len(builder.argv):
-            return builder.argv[i + 1]
-    return ""
+    return (flag and _argv_value(builder.argv, flag)) or builder.model
+
+
+def _effective_effort(builder: LeafConfig, cfg: Config | None) -> str:
+    """The reasoning effort the selected builder will actually run, for telemetry.
+
+    Same argv-wins precedence as :func:`_effective_model`, over the same probe
+    :func:`_mapped_argv` dedups on: a ``--effort``-style flag, or the KEY of a ``-c key=value``
+    pair (codex ``-c model_reasoning_effort=<level>``)."""
+    profile = cfg.profile(builder) if cfg else None
+    if profile and profile.effort_argv:
+        rendered = [a.format(effort=builder.effort) for a in profile.effort_argv]
+        probe = rendered[0] if rendered[0].startswith("--") else rendered[-1].split("=", 1)[0]
+        if (found := _argv_value(builder.argv, probe)):
+            return found
+    return builder.effort
 
 
 def _record_loop_attempt(d: Path, n: int, builder: LeafConfig, cfg: Config | None = None) -> None:
@@ -771,8 +799,9 @@ def _record_loop_attempt(d: Path, n: int, builder: LeafConfig, cfg: Config | Non
     climbs WITHIN one vendor — sonnet/high → opus/xhigh → opus/max, all of them ``claude`` —
     is otherwise invisible here: ``builder`` is argv[0] and every tier records the identical
     ``claude``/``claude`` pair, so nothing in the file says which tier a bundle passed on.
-    That is the exact question the escalation calibration asks. Empty strings when a tier
-    pins neither."""
+    That is the exact question the escalation calibration asks. Both are resolved the way
+    :func:`_mapped_argv` resolves them — argv over the config key — so the record names what
+    RAN, not what was asked for. Empty strings when a tier pins neither."""
     path = d / "loop-telemetry.json"
     data: dict = {"attempts": []}
     if path.exists():
@@ -788,7 +817,7 @@ def _record_loop_attempt(d: Path, n: int, builder: LeafConfig, cfg: Config | Non
     label = builder.argv[0] if builder.argv else builder.mode
     data["attempts"].append({"n": n, "builder": label, "family": builder.family,
                              "model": _effective_model(builder, cfg),
-                             "effort": builder.effort})
+                             "effort": _effective_effort(builder, cfg)})
     data["iterations_to_pass"] = len(data["attempts"])
     try:
         path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
