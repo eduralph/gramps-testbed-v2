@@ -144,6 +144,19 @@ class Config:
     # vice-versa with no per-brief edits — the cross-vendor decorrelation Check relies on
     # (INTEGRATION §4), made automatic. No different-vendor leaf ⇒ same-vendor fallback + §6.
     advisory_selection: dict = field(default_factory=dict)
+    # Plan-beat advisory reviewers (issue #301): an OPEN list mirroring [[leaves.advisory]]
+    # but reviewing the BRIEF right after Plan ([[leaves.plan_advisory]] in pdca.toml) —
+    # an antagonist of the plan, not the patch. Same spec shape ({id, role, family, mode,
+    # argv, agent, when?}); always advisory. A separate list, not a `beat` key on the
+    # Check list: the vendor-complement anchor differs (the PLANNER authored the brief;
+    # the builder authored the patch) and so does the input contract (brief/notes/sources,
+    # no patch/gates). Empty (default) ⇒ the Plan beat is unchanged.
+    plan_advisory_leaves: list[dict] = field(default_factory=list)
+    # Plan-advisory selection ([leaves.plan_advisory_selection], issue #301): same policy
+    # vocabulary as advisory_selection, anchored on the PLANNER family under
+    # ``mode = "vendor-complement"`` (pre-Do there is no builder telemetry, and the brief
+    # is the planner's artifact — reviewer ≠ author).
+    plan_advisory_selection: dict = field(default_factory=dict)
     # Commands a Check leaf may run OUTSIDE its sandbox ([leaves.sandbox]
     # unsandboxed_commands, issue #276). The reviewer/advisory leaves run under Claude Code's
     # sandbox, which denies the docker socket — so a Docker-backed conformance gate (a live
@@ -259,6 +272,19 @@ class Config:
     # builds on it, so a combination that is red though each fix was green alone STOPs the
     # run. Off by default (needs the project's repo-scoped gates). [driver].regate_between_waves.
     regate_between_waves: bool = False
+    # Footprint sweep (issue #297): what the flow does with the harness's sibling
+    # worktrees once a run's waves complete (the publish/freeze boundary). "clean"
+    # (default) strips lane worktrees of build state but keeps the checkout warm, and
+    # removes integration/overflow trees outright; "remove" removes lane worktrees too;
+    # "off" never sweeps automatically (``pdca sweep`` still works). Left unbounded, the
+    # footprint (dominated by per-lane build dirs) has exhausted disk quotas and
+    # false-redded gating gates mid-run. ``[driver].sweep_worktrees``.
+    sweep_worktrees: str = "clean"
+    # Free-space preflight threshold in GiB for `pdca doctor`'s workspace row (issue
+    # #297): WARN when the filesystem under the project root has less free space, so
+    # quota exhaustion is a preflight warning instead of a mid-gate `os error 122`.
+    # 0 disables the row. ``[doctor].min_free_gb``.
+    doctor_min_free_gb: float = 10.0
     # Act cadence (issue #109): Act is a cross-cycle beat that only yields a real delta
     # once enough cycles have frozen to show a pattern, so ``flow`` auto-runs it only when
     # this many cycles have frozen SINCE the last Act review (counted across flow
@@ -399,6 +425,14 @@ class Config:
         # Advisory-selection policy (issue #200) — how the driver picks from that list.
         advisory_selection = dict(leaves.get("advisory_selection", {}))
 
+        # Plan-beat advisory leaves (issue #301) — [[leaves.plan_advisory]], mirroring the
+        # Check list; PDCA_LEAVES_MODE forces their mode too.
+        plan_advisory_leaves = [
+            {**spec, "mode": mode_override or spec.get("mode", "stub")}
+            for spec in leaves.get("plan_advisory", [])
+        ]
+        plan_advisory_selection = dict(leaves.get("plan_advisory_selection", {}))
+
         # Commands a Check leaf may run outside its sandbox (issue #276) — a harness-owned
         # exemption list, never the project's own settings.json `excludedCommands`.
         leaf_unsandboxed_commands = [
@@ -472,6 +506,17 @@ class Config:
         merge_method = driver_cfg.get("merge_method", "merge")  # merge | squash | rebase
         regate_between_waves = bool(driver_cfg.get("regate_between_waves", False))
         act_cadence = max(1, int(driver_cfg.get("act_cadence", 5)))  # issue #109
+        # Footprint sweep mode (issue #297). An unknown value falls back to "clean" with a
+        # note — the fail-safe direction is "still sweeps", never a silently-growing quota.
+        sweep_worktrees = str(driver_cfg.get("sweep_worktrees", "clean")).strip().lower()
+        if sweep_worktrees not in ("clean", "remove", "off"):
+            print(f"config: unknown [driver].sweep_worktrees '{sweep_worktrees}' — "
+                  "expected clean | remove | off; using 'clean'", file=sys.stderr)
+            sweep_worktrees = "clean"
+        try:  # free-space WARN threshold (issue #297); 0 disables the doctor row
+            doctor_min_free_gb = max(0.0, float(data.get("doctor", {}).get("min_free_gb", 10.0)))
+        except (TypeError, ValueError):
+            doctor_min_free_gb = 10.0
 
         # Close-disposition classes (issue #60): a configured list retunes the default
         # for an instance's tracker vocabulary; absent ⇒ the built-in default.
@@ -515,6 +560,8 @@ class Config:
             leaf_unsandboxed_commands=leaf_unsandboxed_commands,
             leaf_network_access=leaf_network_access,
             advisory_selection=advisory_selection,
+            plan_advisory_leaves=plan_advisory_leaves,
+            plan_advisory_selection=plan_advisory_selection,
             builder_escalation=builder_escalation,
             builder_variants=builder_variants,
             gates_runner=gates_runner,
@@ -529,6 +576,8 @@ class Config:
             merge_method=merge_method,
             regate_between_waves=regate_between_waves,
             act_cadence=act_cadence,
+            sweep_worktrees=sweep_worktrees,
+            doctor_min_free_gb=doctor_min_free_gb,
             close_dispositions=close_dispositions,
             families={k.strip().lower(): dict(v)
                       for k, v in data.get("families", {}).items()},

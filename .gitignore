@@ -41,6 +41,12 @@ wiki/.wikiscrape/
 # git worktrees created by EnterWorktree
 .claude/worktrees/
 
+# Act frontier lock/temp sidecars (issue #299) — runtime-only serialization helpers;
+# the marker itself (process/.act-reviewed) stays tracked.
+.act-reviewed.lock
+.act-reviewed.tmp.*
+.act-session.lock
+
 # Per-cycle Do/Check worktrees (issue #94) — created next to the target checkout;
 # ignored in case a checkout lives inside the project tree.
 *.pdca-wt/
