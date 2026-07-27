@@ -741,12 +741,38 @@ def select_builder(d: Path, cfg: Config, n: int) -> LeafConfig:
     return builder
 
 
-def _record_loop_attempt(d: Path, n: int, builder: LeafConfig) -> None:
+def _effective_model(builder: LeafConfig, cfg: Config | None) -> str:
+    """The model the selected builder will actually run, for telemetry (PR #334 review).
+
+    A leaf may name its model either way: the ``model`` KEY (mapped to the family's flag by
+    :func:`_mapped_argv`) or the flag baked straight into ``argv``. A ``[[leaves.builder_variant]]``
+    is forced into the second form — there the ``model`` key is the #167 brief-pin SELECTOR, not a
+    CLI id — so reading ``builder.model`` alone reports "" for exactly the tiers a ladder is built
+    from. Prefer the key, else recover the value that follows the family's ``model_flag`` in argv.
+    "" when neither names one (the CLI's own default is then what ran, and we cannot know it)."""
+    if builder.model:
+        return builder.model
+    flag = cfg.profile(builder).model_flag if cfg else ""
+    if flag and flag in builder.argv:
+        i = builder.argv.index(flag)
+        if i + 1 < len(builder.argv):
+            return builder.argv[i + 1]
+    return ""
+
+
+def _record_loop_attempt(d: Path, n: int, builder: LeafConfig, cfg: Config | None = None) -> None:
     """Append this Do attempt to ``loop-telemetry.json`` (issue #135) so iterations-to-pass
     and which backend ran each pass are visible. Loop cost ≈ plan + iterations×review (an
     iterate re-runs builder *and* the frontier reviewer), so the attempt count is the
     go/no-go metric for adopting a cheaper local executor. The file persists across
-    iterations (it is not archived), so it accumulates. Best-effort: never break Do."""
+    iterations (it is not archived), so it accumulates. Best-effort: never break Do.
+
+    ``model`` / ``effort`` ride alongside ``family`` (PR #334 review) because a ladder that
+    climbs WITHIN one vendor — sonnet/high → opus/xhigh → opus/max, all of them ``claude`` —
+    is otherwise invisible here: ``builder`` is argv[0] and every tier records the identical
+    ``claude``/``claude`` pair, so nothing in the file says which tier a bundle passed on.
+    That is the exact question the escalation calibration asks. Empty strings when a tier
+    pins neither."""
     path = d / "loop-telemetry.json"
     data: dict = {"attempts": []}
     if path.exists():
@@ -760,7 +786,9 @@ def _record_loop_attempt(d: Path, n: int, builder: LeafConfig) -> None:
         if isinstance(loaded, dict) and isinstance(loaded.get("attempts"), list):
             data = loaded
     label = builder.argv[0] if builder.argv else builder.mode
-    data["attempts"].append({"n": n, "builder": label, "family": builder.family})
+    data["attempts"].append({"n": n, "builder": label, "family": builder.family,
+                             "model": _effective_model(builder, cfg),
+                             "effort": builder.effort})
     data["iterations_to_pass"] = len(data["attempts"])
     try:
         path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
@@ -813,7 +841,7 @@ def _do_build_command(d: Path, cfg: Config, builder: LeafConfig, n: int) -> None
     Every failure here — setup or invocation — is captured to `build.error.log` by the
     caller and re-raised, so `flow._isolate` still contains it and drops just this bundle.
     """
-    _record_loop_attempt(d, n, builder)
+    _record_loop_attempt(d, n, builder, cfg)
     # Isolate Do in a per-cycle worktree off the base (issue #94) so the host's
     # primary checkout is never mutated. Best-effort for the cases isolation can't apply
     # (None ⇒ edit in place); a real checkout whose base ref won't resolve RAISES (#235).

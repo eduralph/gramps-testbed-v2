@@ -380,6 +380,10 @@ argv = ["claude", "-p", "--model", "opus", "--agent", "builder", "--permission-m
 # it writes build-notes.md into the bundle dir outside its sandbox cwd). Its CLI model rides in
 # argv (`-m`), NOT in the `model` key — that key is the selector name a brief pins, so this is
 # the one tier where the two meanings collide and only argv can carry the pin.
+# CROSS-VENDOR: pinning this tier makes the builder the SAME vendor as [leaves.reviewer]
+# (codex), so the claude `adversary-codex-built` advisory below is gated on exactly this pin —
+# it is what keeps a codex-built bundle's reviewer≠builder guarantee. Do not remove one
+# without the other.
 [[leaves.builder_variant]]
 model = "codex"
 family = "codex"
@@ -638,6 +642,30 @@ model = "opus"
 effort = "xhigh"
 argv = ["claude", "-p", "--agent", "adversary", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Bash,Grep,Glob"]
 when = { field = "difficulty", substring = "high" }
+
+# LIVE: the same adversary, gated on the BUILDER VENDOR instead of the difficulty — the
+# cross-vendor guarantee for a codex-built bundle (Codex review, PR #334). [leaves.reviewer]
+# is codex, so a brief pinning `- **Do model:** codex` makes the builder and the reviewer the
+# SAME vendor; without this entry a low/medium codex-built bundle would get no differently-
+# vendored read at all, contradicting the reviewer≠builder contract (docs/INTEGRATION.md
+# §4 "Reviewer family (cross-vendor, ≠ builder)"). `when` matches the brief's `Do model`
+# field, which is the only place that pin exists at Check time.
+#
+# Deliberate overlap: a bundle that is BOTH difficulty=high AND codex-pinned matches this
+# entry and the one above, so the refutation runs twice (two files, both feeding §6). That
+# combination is opt-in and rare, and a doubled refutation is wasteful, never wrong — the
+# alternative (`[leaves.advisory_selection] mode = "vendor-complement"`) would file a §6
+# decorrelation lapse on EVERY high-difficulty claude-built bundle, which is the common case
+# and is decorrelated by ROLE from the codex reviewer already (adequacy vs refutation).
+[[leaves.advisory]]
+id = "adversary-codex-built"
+role = "refute the red→green evidence and the reviewer's verdict; find the input that breaks the fix"
+mode = "command"
+family = "claude"
+model = "opus"
+effort = "xhigh"
+argv = ["claude", "-p", "--agent", "adversary", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Bash,Grep,Glob"]
+when = { field = "do model", substring = "codex" }
 
 # Advisory-selection policy (issue #64 default vs. issue #200). Unset ⇒ every advisory leaf
 # above whose `when` matches runs. Opt into `vendor-complement` to make cross-vendor
